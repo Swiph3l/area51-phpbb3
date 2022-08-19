@@ -192,7 +192,7 @@ function get_group_id($group_name)
 		$db->sql_freeresult($result);
 	}
 
-	if (!sizeof($group_mapping))
+	if (!count($group_mapping))
 	{
 		add_default_groups();
 		return get_group_id($group_name);
@@ -204,16 +204,6 @@ function get_group_id($group_name)
 	}
 
 	return $group_mapping['REGISTERED'];
-}
-
-/**
-* Generate the email hash stored in the users table
-*
-* Note: Deprecated, calls should directly go to phpbb_email_hash()
-*/
-function gen_email_hash($email)
-{
-	return phpbb_email_hash($email);
 }
 
 /**
@@ -249,7 +239,7 @@ function validate_website($url)
 	{
 		return '';
 	}
-	else if (!preg_match('#^[a-z0-9]+://#i', $url) && strlen($url) > 0)
+	else if (!preg_match('#^http[s]?://#i', $url) && strlen($url) > 0)
 	{
 		return 'http://' . $url;
 	}
@@ -307,7 +297,7 @@ function decode_ip($int_ip)
 	$hexipbang = explode('.', chunk_split($int_ip, 2, '.'));
 
 	// Any mod changing the way ips are stored? Then we are not able to convert and enter the ip "as is" to not "destroy" anything...
-	if (sizeof($hexipbang) < 4)
+	if (count($hexipbang) < 4)
 	{
 		return $int_ip;
 	}
@@ -479,7 +469,7 @@ function import_avatar_gallery($gallery_name = '', $subdirs_as_galleries = false
 				$dir->close();
 			}
 
-			for ($i = 0, $end = sizeof($dirlist); $i < $end; ++$i)
+			for ($i = 0, $end = count($dirlist); $i < $end; ++$i)
 			{
 				$dir = $dirlist[$i];
 
@@ -496,7 +486,7 @@ function import_attachment_files($category_name = '')
 
 	$sql = 'SELECT config_value AS upload_path
 		FROM ' . CONFIG_TABLE . "
-		WHERE config_name = 'upload_path'";
+		WHERE config_name = 'storage\\attachment\\config\\path'";
 	$result = $db->sql_query($sql);
 	$config['upload_path'] = $db->sql_fetchfield('upload_path');
 	$db->sql_freeresult($result);
@@ -1049,34 +1039,6 @@ function set_user_options()
 	return $option_field;
 }
 
-/**
-* Index messages on the fly as we convert them
-* @todo naderman, can you check that this works with the new search plugins as it's use is currently disabled (and thus untested)
-function search_indexing($message = '')
-{
-	global $fulltext_search, $convert_row;
-
-	if (!isset($convert_row['post_id']))
-	{
-		return;
-	}
-
-	if (!$message)
-	{
-		if (!isset($convert_row['message']))
-		{
-			return;
-		}
-
-		$message = $convert_row['message'];
-	}
-
-	$title = (isset($convert_row['title'])) ? $convert_row['title'] : '';
-
-	$fulltext_search->index('post', $convert_row['post_id'], $message, $title, $convert_row['poster_id'], $convert_row['forum_id']);
-}
-*/
-
 function make_unique_filename($filename)
 {
 	if (!strlen($filename))
@@ -1137,6 +1099,7 @@ function add_user_group($group_id, $user_id, $group_leader = false)
 *
 * @param string $group The name of the special group to add to
 * @param string $select_query An SQL query to retrieve the user(s) to add to the group
+* @param bool $use_src_db
 */
 function user_group_auth($group, $select_query, $use_src_db)
 {
@@ -1219,7 +1182,8 @@ function get_config()
 	if (is_array($convert->config_schema['table_format']))
 	{
 		$convert_config = array();
-		list($key, $val) = each($convert->config_schema['table_format']);
+		$key = key($convert->config_schema['table_format']);
+		$val = current($convert->config_schema['table_format']);
 
 		do
 		{
@@ -1261,7 +1225,7 @@ function get_config()
 		}
 	}
 
-	if (!sizeof($convert_config))
+	if (!count($convert_config))
 	{
 		$convert->p_master->error($user->lang['CONV_ERROR_CONFIG_EMPTY'], __LINE__, __FILE__);
 	}
@@ -1406,9 +1370,9 @@ function get_path($src_path, $src_url, $test_file)
 		$url_parts = explode('/', $m[2]);
 		if (substr($src_url, -1) != '/')
 		{
-			if (preg_match('/.*\.([a-z0-9]{3,4})$/i', $url_parts[sizeof($url_parts) - 1]))
+			if (preg_match('/.*\.([a-z0-9]{3,4})$/i', $url_parts[count($url_parts) - 1]))
 			{
-				$url_parts[sizeof($url_parts) - 1] = '';
+				$url_parts[count($url_parts) - 1] = '';
 			}
 			else
 			{
@@ -1425,9 +1389,9 @@ function get_path($src_path, $src_url, $test_file)
 		$path_array = array();
 
 		$phpbb_parts = explode('/', $script_path);
-		for ($i = 0, $end = sizeof($url_parts); $i < $end; ++$i)
+		for ($i = 0, $end = count($url_parts); $i < $end; ++$i)
 		{
-			if ($i < sizeof($phpbb_parts[$i]) && $url_parts[$i] == $phpbb_parts[$i])
+			if ($i < count($phpbb_parts[$i]) && $url_parts[$i] == $phpbb_parts[$i])
 			{
 				$path_array[] = $url_parts[$i];
 				unset($url_parts[$i]);
@@ -1435,7 +1399,7 @@ function get_path($src_path, $src_url, $test_file)
 			else
 			{
 				$path = '';
-				for ($j = $i, $end2 = sizeof($phpbb_parts); $j < $end2; ++$j)
+				for ($j = $i, $end2 = count($phpbb_parts); $j < $end2; ++$j)
 				{
 					$path .= '../';
 				}
@@ -1458,7 +1422,7 @@ function get_path($src_path, $src_url, $test_file)
 
 function compare_table($tables, $tablename, &$prefixes)
 {
-	for ($i = 0, $table_size = sizeof($tables); $i < $table_size; ++$i)
+	for ($i = 0, $table_size = count($tables); $i < $table_size; ++$i)
 	{
 		if (preg_match('/(.*)' . $tables[$i] . '$/', $tablename, $m))
 		{
@@ -1647,12 +1611,6 @@ function mass_auth($ug_type, $forum_id, $ug_id, $acl_list, $setting = ACL_NO)
 			case 'insert':
 				switch ($db->get_sql_layer())
 				{
-					case 'mysql':
-					case 'mysql4':
-						$sql = 'VALUES ' . implode(', ', preg_replace('#^(.*?)$#', '(\1)', $sql_subary));
-					break;
-
-					case 'sqlite':
 					case 'sqlite3':
 					case 'mssqlnative':
 						$sql = implode(' UNION ALL ', preg_replace('#^(.*?)$#', 'SELECT \1', $sql_subary));
@@ -1755,7 +1713,7 @@ function add_default_groups()
 		);
 	}
 
-	if (sizeof($sql_ary))
+	if (count($sql_ary))
 	{
 		$db->sql_multi_insert(GROUPS_TABLE, $sql_ary);
 	}
@@ -1787,7 +1745,7 @@ function add_groups_to_teampage()
 	}
 	$db->sql_freeresult($result);
 
-	if (sizeof($teampage_ary))
+	if (count($teampage_ary))
 	{
 		$db->sql_multi_insert(TEAMPAGE_TABLE, $teampage_ary);
 	}
@@ -1855,6 +1813,7 @@ function add_bots()
 		'Ask Jeeves [Bot]'			=> array('Ask Jeeves', ''),
 		'Baidu [Spider]'			=> array('Baiduspider+(', ''),
 		'Bing [Bot]'				=> array('bingbot/', ''),
+		'DuckDuckGo [Bot]'			=> array('DuckDuckBot/', ''),
 		'Exabot [Bot]'				=> array('Exabot/', ''),
 		'FAST Enterprise [Crawler]'	=> array('FAST Enterprise Crawler', ''),
 		'FAST WebCrawler [Crawler]'	=> array('FAST-WebCrawler/', ''),
@@ -2040,7 +1999,6 @@ function update_topics_posted()
 
 	switch ($db->get_sql_layer())
 	{
-		case 'sqlite':
 		case 'sqlite3':
 			$db->sql_query('DELETE FROM ' . TOPICS_POSTED_TABLE);
 		break;
@@ -2103,7 +2061,7 @@ function update_topics_posted()
 		}
 		unset($posted);
 
-		if (sizeof($sql_ary))
+		if (count($sql_ary))
 		{
 			$db->sql_multi_insert(TOPICS_POSTED_TABLE, $sql_ary);
 		}
@@ -2138,7 +2096,7 @@ function fix_empty_primary_groups()
 	}
 	$db->sql_freeresult($result);
 
-	if (sizeof($user_ids))
+	if (count($user_ids))
 	{
 		$db->sql_query('UPDATE ' . USERS_TABLE . ' SET group_id = ' . get_group_id('administrators') . '
 			WHERE group_id = 0 AND ' . $db->sql_in_set('user_id', $user_ids));
@@ -2154,7 +2112,7 @@ function fix_empty_primary_groups()
 	}
 	$db->sql_freeresult($result);
 
-	if (sizeof($user_ids))
+	if (count($user_ids))
 	{
 		$db->sql_query('UPDATE ' . USERS_TABLE . ' SET group_id = ' . get_group_id('global_moderators') . '
 			WHERE group_id = 0 AND ' . $db->sql_in_set('user_id', $user_ids));
@@ -2266,7 +2224,7 @@ function convert_bbcode($message, $convert_size = true, $extended_bbcodes = fals
 			"\n\n"
 		);
 
-		for ($i = 0, $end = sizeof($str_from); $i < $end; ++$i)
+		for ($i = 0, $end = count($str_from); $i < $end; ++$i)
 		{
 			$origx[] = '#\\' . str_replace(']', '\\]', $str_from[$i]) . '#is';
 			$replx[] = $str_to[$i];
@@ -2275,7 +2233,7 @@ function convert_bbcode($message, $convert_size = true, $extended_bbcodes = fals
 
 	if (preg_match_all('#\[email=([^\]]+)\](.*?)\[/email\]#i', $message, $m))
 	{
-		for ($i = 0, $end = sizeof($m[1]); $i < $end; ++$i)
+		for ($i = 0, $end = count($m[1]); $i < $end; ++$i)
 		{
 			if ($m[1][$i] == $m[2][$i])
 			{
@@ -2294,7 +2252,7 @@ function convert_bbcode($message, $convert_size = true, $extended_bbcodes = fals
 		$message = preg_replace('#\[size=([0-9]+)\](.*?)\[/size\]#i', '[size=\1]\2[/size]', $message);
 		$message = preg_replace('#\[size=[0-9]{2,}\](.*?)\[/size\]#i', '[size=29]\1[/size]', $message);
 
-		for ($i = sizeof($size); $i;)
+		for ($i = count($size); $i;)
 		{
 			$i--;
 			$message = str_replace('[size=' . $i . ']', '[size=' . $size[$i] . ']', $message);
@@ -2337,9 +2295,9 @@ function copy_file($src, $trg, $overwrite = false, $die_on_failure = true, $sour
 
 	$path = $phpbb_root_path;
 	$parts = explode('/', $trg);
-	unset($parts[sizeof($parts) - 1]);
+	unset($parts[count($parts) - 1]);
 
-	for ($i = 0, $end = sizeof($parts); $i < $end; ++$i)
+	for ($i = 0, $end = count($parts); $i < $end; ++$i)
 	{
 		$path .= $parts[$i] . '/';
 
@@ -2439,7 +2397,7 @@ function copy_dir($src, $trg, $copy_subdirs = true, $overwrite = false, $die_on_
 
 	if ($copy_subdirs)
 	{
-		for ($i = 0, $end = sizeof($dirlist); $i < $end; ++$i)
+		for ($i = 0, $end = count($dirlist); $i < $end; ++$i)
 		{
 			$dir = $dirlist[$i];
 
@@ -2460,21 +2418,21 @@ function copy_dir($src, $trg, $copy_subdirs = true, $overwrite = false, $die_on_
 				$bad_dirs[] = $trg_path . $dir;
 			}
 
-			if (!sizeof($bad_dirs))
+			if (!count($bad_dirs))
 			{
 				copy_dir($src . $dir, $trg . $dir, true, $overwrite, $die_on_failure, $source_relative_path);
 			}
 		}
 	}
 
-	if (sizeof($bad_dirs))
+	if (count($bad_dirs))
 	{
-		$str = (sizeof($bad_dirs) == 1) ? $user->lang['MAKE_FOLDER_WRITABLE'] : $user->lang['MAKE_FOLDERS_WRITABLE'];
+		$str = (count($bad_dirs) == 1) ? $user->lang['MAKE_FOLDER_WRITABLE'] : $user->lang['MAKE_FOLDERS_WRITABLE'];
 		sort($bad_dirs);
 		$convert->p_master->error(sprintf($str, implode('<br />', $bad_dirs)), __LINE__, __FILE__);
 	}
 
-	for ($i = 0, $end = sizeof($filelist); $i < $end; ++$i)
+	for ($i = 0, $end = count($filelist); $i < $end; ++$i)
 	{
 		copy_file($src . $filelist[$i], $trg . $filelist[$i], $overwrite, $die_on_failure, $source_relative_path);
 	}

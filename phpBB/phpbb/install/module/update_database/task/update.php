@@ -211,8 +211,6 @@ class update extends task_base
 
 		$this->iohandler->add_success_message('INLINE_UPDATE_SUCCESSFUL');
 
-		$this->config->delete('version_update_from');
-
 		$this->cache->purge();
 
 		$this->config->increment('assets_version', 1);
@@ -221,7 +219,7 @@ class update extends task_base
 	/**
 	 * {@inheritdoc}
 	 */
-	static public function get_step_count()
+	public static function get_step_count()
 	{
 		return 0;
 	}

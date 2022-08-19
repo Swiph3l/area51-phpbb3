@@ -15,7 +15,7 @@ namespace phpbb\template\twig;
 
 use phpbb\template\assets_bag;
 
-class environment extends \Twig_Environment
+class environment extends \Twig\Environment
 {
 	/** @var \phpbb\config\config */
 	protected $phpbb_config;
@@ -31,6 +31,9 @@ class environment extends \Twig_Environment
 
 	/** @var \phpbb\extension\manager */
 	protected $extension_manager;
+
+	/** @var \phpbb\event\dispatcher_interface */
+	protected $phpbb_dispatcher;
 
 	/** @var string */
 	protected $phpbb_root_path;
@@ -52,16 +55,18 @@ class environment extends \Twig_Environment
 	* @param \phpbb\path_helper $path_helper phpBB path helper
 	* @param string $cache_path The path to the cache directory
 	* @param \phpbb\extension\manager $extension_manager phpBB extension manager
-	* @param \Twig_LoaderInterface $loader Twig loader interface
+	* @param \Twig\Loader\LoaderInterface $loader Twig loader interface
+	* @param \phpbb\event\dispatcher_interface	$phpbb_dispatcher	Event dispatcher object
 	* @param array $options Array of options to pass to Twig
 	*/
-	public function __construct(\phpbb\config\config $phpbb_config, \phpbb\filesystem\filesystem $filesystem, \phpbb\path_helper $path_helper, $cache_path, \phpbb\extension\manager $extension_manager = null, \Twig_LoaderInterface $loader = null, $options = array())
+	public function __construct(\phpbb\config\config $phpbb_config, \phpbb\filesystem\filesystem $filesystem, \phpbb\path_helper $path_helper, $cache_path, \phpbb\extension\manager $extension_manager = null, \Twig\Loader\LoaderInterface $loader = null, \phpbb\event\dispatcher_interface $phpbb_dispatcher = null, $options = array())
 	{
 		$this->phpbb_config = $phpbb_config;
 
 		$this->filesystem = $filesystem;
 		$this->phpbb_path_helper = $path_helper;
 		$this->extension_manager = $extension_manager;
+		$this->phpbb_dispatcher = $phpbb_dispatcher;
 
 		$this->phpbb_root_path = $this->phpbb_path_helper->get_phpbb_root_path();
 		$this->web_root_path = $this->phpbb_path_helper->get_web_root_path();
@@ -164,7 +169,7 @@ class environment extends \Twig_Environment
 	* Set the namespace look up order to load templates from
 	*
 	* @param array $namespace
-	* @return \Twig_Environment
+	* @return \Twig\Environment
 	*/
 	public function setNamespaceLookUpOrder($namespace)
 	{
@@ -176,7 +181,7 @@ class environment extends \Twig_Environment
 	/**
 	 * {@inheritdoc}
 	 */
-	public function render($name, array $context = [])
+	public function render($name, array $context = []) : string
 	{
 		return $this->display_with_assets($name, $context);
 	}
@@ -184,7 +189,7 @@ class environment extends \Twig_Environment
 	/**
 	 * {@inheritdoc}
 	 */
-	public function display($name, array $context = [])
+	public function display($name, array $context = []) : void
 	{
 		echo $this->display_with_assets($name, $context);
 	}
@@ -202,7 +207,36 @@ class environment extends \Twig_Environment
 			$context['definition']->set('STYLESHEETS', '__STYLESHEETS_' . $placeholder_salt . '__');
 		}
 
+		/**
+		* Allow changing the template output stream before rendering
+		*
+		* @event core.twig_environment_render_template_before
+		* @var	array	context		Array with template variables
+		* @var	string  name		The template name
+		* @since 3.2.1-RC1
+		*/
+		if ($this->phpbb_dispatcher)
+		{
+			$vars = array('context', 'name');
+			extract($this->phpbb_dispatcher->trigger_event('core.twig_environment_render_template_before', compact($vars)));
+		}
+
 		$output = parent::render($name, $context);
+
+		/**
+		* Allow changing the template output stream after rendering
+		*
+		* @event core.twig_environment_render_template_after
+		* @var	array	context		Array with template variables
+		* @var	string  name		The template name
+		* @var	string	output		Rendered template output stream
+		* @since 3.2.1-RC1
+		*/
+		if ($this->phpbb_dispatcher)
+		{
+			$vars = array('context', 'name', 'output');
+			extract($this->phpbb_dispatcher->trigger_event('core.twig_environment_render_template_after', compact($vars)));
+		}
 
 		return $this->inject_assets($output, $placeholder_salt);
 	}
@@ -225,12 +259,13 @@ class environment extends \Twig_Environment
 	/**
 	* Loads a template by name.
 	*
+	* @param string  $cls   The template class associated with the given template name
 	* @param string  $name  The template name
 	* @param integer $index The index if it is an embedded template
-	* @return \Twig_TemplateInterface A template instance representing the given template name
-	* @throws \Twig_Error_Loader
+	* @return \Twig\Template A template instance representing the given template name
+	* @throws \Twig\Error\LoaderError
 	*/
-	public function loadTemplate($name, $index = null)
+	public function loadTemplate(string $cls, string $name, int $index = null) : \Twig\Template
 	{
 		if (strpos($name, '@') === false)
 		{
@@ -240,12 +275,12 @@ class environment extends \Twig_Environment
 				{
 					if ($namespace === '__main__')
 					{
-						return parent::loadTemplate($name, $index);
+						return parent::loadTemplate($cls, $name, $index);
 					}
 
-					return parent::loadTemplate('@' . $namespace . '/' . $name, $index);
+					return parent::loadTemplate($this->getTemplateClass('@' . $namespace . '/' . $name), '@' . $namespace . '/' . $name, $index);
 				}
-				catch (\Twig_Error_Loader $e)
+				catch (\Twig\Error\LoaderError $e)
 				{
 				}
 			}
@@ -255,7 +290,7 @@ class environment extends \Twig_Environment
 		}
 		else
 		{
-			return parent::loadTemplate($name, $index);
+			return parent::loadTemplate($cls, $name, $index);
 		}
 	}
 
@@ -264,7 +299,7 @@ class environment extends \Twig_Environment
 	*
 	* @param string  $name  The template name
 	* @return string
-	* @throws \Twig_Error_Loader
+	* @throws \Twig\Error\LoaderError
 	*/
 	public function findTemplate($name)
 	{
@@ -281,7 +316,7 @@ class environment extends \Twig_Environment
 
 					return parent::getLoader()->getCacheKey('@' . $namespace . '/' . $name);
 				}
-				catch (\Twig_Error_Loader $e)
+				catch (\Twig\Error\LoaderError $e)
 				{
 				}
 			}

@@ -20,7 +20,7 @@ class teampage extends \phpbb\db\migration\migration
 		return $this->db_tools->sql_table_exists($this->table_prefix . 'teampage');
 	}
 
-	static public function depends_on()
+	public static function depends_on()
 	{
 		return array('\phpbb\db\migration\data\v310\dev');
 	}
@@ -93,13 +93,13 @@ class teampage extends \phpbb\db\migration\migration
 				$teampage_entries[] = array(
 					'group_id'			=> (int) $row['group_id'],
 					'teampage_name'		=> '',
-					'teampage_position'	=> sizeof($teampage_entries) + 1,
+					'teampage_position'	=> count($teampage_entries) + 1,
 					'teampage_parent'	=> 0,
 				);
 			}
 			$this->db->sql_freeresult($result);
 
-			if (sizeof($teampage_entries))
+			if (count($teampage_entries))
 			{
 				$this->db->sql_multi_insert(TEAMPAGE_TABLE, $teampage_entries);
 			}

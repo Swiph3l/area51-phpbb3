@@ -25,30 +25,27 @@ if (!defined('IN_PHPBB'))
 */
 function send_avatar_to_browser($file, $browser)
 {
-	global $config, $phpbb_root_path;
+	global $config, $phpbb_container;
+
+	$storage = $phpbb_container->get('storage.avatar');
 
 	$prefix = $config['avatar_salt'] . '_';
-	$image_dir = $config['avatar_path'];
+	$file_path = $prefix . $file;
 
-	// Adjust image_dir path (no trailing slash)
-	if (substr($image_dir, -1, 1) == '/' || substr($image_dir, -1, 1) == '\\')
+	if ($storage->exists($file_path) && !headers_sent())
 	{
-		$image_dir = substr($image_dir, 0, -1) . '/';
-	}
-	$image_dir = str_replace(array('../', '..\\', './', '.\\'), '', $image_dir);
+		$file_info = $storage->file_info($file_path);
 
-	if ($image_dir && ($image_dir[0] == '/' || $image_dir[0] == '\\'))
-	{
-		$image_dir = '';
-	}
-	$file_path = $phpbb_root_path . $image_dir . '/' . $prefix . $file;
-
-	if ((@file_exists($file_path) && @is_readable($file_path)) && !headers_sent())
-	{
 		header('Cache-Control: public');
 
-		$image_data = @getimagesize($file_path);
-		header('Content-Type: ' . image_type_to_mime_type($image_data[2]));
+		try
+		{
+			header('Content-Type: ' . $file_info->mimetype);
+		}
+		catch (\phpbb\storage\exception\exception $e)
+		{
+			// Just don't send this header
+		}
 
 		if ((strpos(strtolower($browser), 'msie') !== false) && !phpbb_is_greater_ie_version($browser, 7))
 		{
@@ -69,24 +66,26 @@ function send_avatar_to_browser($file, $browser)
 			header('Expires: ' . gmdate('D, d M Y H:i:s', time() + 31536000) . ' GMT');
 		}
 
-		$size = @filesize($file_path);
-		if ($size)
+		try
 		{
-			header("Content-Length: $size");
+			header('Content-Length: ' . $file_info->size);
+		}
+		catch (\phpbb\storage\exception\exception $e)
+		{
+			// Just don't send this header
 		}
 
-		if (@readfile($file_path) == false)
+		try
 		{
-			$fp = @fopen($file_path, 'rb');
-
-			if ($fp !== false)
-			{
-				while (!feof($fp))
-				{
-					echo fread($fp, 8192);
-				}
-				fclose($fp);
-			}
+			$fp = $storage->read_stream($file_path);
+			$output = fopen('php://output', 'w+b');
+			stream_copy_to_stream($fp, $output);
+			fclose($fp);
+			fclose($output);
+		}
+		catch (\Exception $e)
+		{
+			// Send nothing
 		}
 
 		flush();
@@ -122,13 +121,15 @@ function wrap_img_in_html($src, $title)
 /**
 * Send file to browser
 */
-function send_file_to_browser($attachment, $upload_dir, $category)
+function send_file_to_browser($attachment, $category)
 {
-	global $user, $db, $phpbb_root_path, $request;
+	global $user, $db, $phpbb_dispatcher, $request, $phpbb_container;
 
-	$filename = $phpbb_root_path . $upload_dir . '/' . $attachment['physical_filename'];
+	$storage = $phpbb_container->get('storage.attachment');
 
-	if (!@file_exists($filename))
+	$filename = $attachment['physical_filename'];
+
+	if (!$storage->exists($filename))
 	{
 		send_status_line(404, 'Not Found');
 		trigger_error('ERROR_NO_ATTACHMENT');
@@ -147,20 +148,39 @@ function send_file_to_browser($attachment, $upload_dir, $category)
 	}
 
 	// Now send the File Contents to the Browser
-	$size = @filesize($filename);
+	try
+	{
+		$file_info = $storage->file_info($filename);
+		$size = $file_info->size;
+	}
+	catch (\Exception $e)
+	{
+		$size = 0;
+	}
+
+	/**
+	* Event to alter attachment before it is sent to browser.
+	*
+	* @event core.send_file_to_browser_before
+	* @var	array	attachment	Attachment data
+	* @var	int		category	Attachment category
+	* @var	string	filename	Path to file, including filename
+	* @var	int		size		File size
+	* @since 3.1.11-RC1
+	*/
+	$vars = array(
+		'attachment',
+		'category',
+		'filename',
+		'size',
+	);
+	extract($phpbb_dispatcher->trigger_event('core.send_file_to_browser_before', compact($vars)));
 
 	// To correctly display further errors we need to make sure we are using the correct headers for both (unsetting content-length may not work)
 
 	// Check if headers already sent or not able to get the file contents.
-	if (headers_sent() || !@file_exists($filename) || !@is_readable($filename))
+	if (headers_sent())
 	{
-		// PHP track_errors setting On?
-		if (!empty($php_errormsg))
-		{
-			send_status_line(500, 'Internal Server Error');
-			trigger_error($user->lang['UNABLE_TO_DELIVER_FILE'] . '<br />' . sprintf($user->lang['TRACKED_PHP_ERROR'], $php_errormsg));
-		}
-
 		send_status_line(500, 'Internal Server Error');
 		trigger_error('UNABLE_TO_DELIVER_FILE');
 	}
@@ -176,7 +196,7 @@ function send_file_to_browser($attachment, $upload_dir, $category)
 	}
 
 	// Now the tricky part... let's dance
-	header('Cache-Control: public');
+	header('Cache-Control: private');
 
 	// Send out the Headers. Do not set Content-Disposition to inline please, it is a security measure for users using the Internet Explorer.
 	header('Content-Type: ' . $attachment['mimetype']);
@@ -186,54 +206,25 @@ function send_file_to_browser($attachment, $upload_dir, $category)
 		header('X-Content-Type-Options: nosniff');
 	}
 
-	if ($category == ATTACHMENT_CATEGORY_FLASH && $request->variable('view', 0) === 1)
+	if (empty($user->browser) || ((strpos(strtolower($user->browser), 'msie') !== false) && !phpbb_is_greater_ie_version($user->browser, 7)))
 	{
-		// We use content-disposition: inline for flash files and view=1 to let it correctly play with flash player 10 - any other disposition will fail to play inline
-		header('Content-Disposition: inline');
+		header('Content-Disposition: attachment; ' . header_filename(htmlspecialchars_decode($attachment['real_filename'], ENT_COMPAT)));
+		if (empty($user->browser) || (strpos(strtolower($user->browser), 'msie 6.0') !== false))
+		{
+			header('Expires: ' . gmdate('D, d M Y H:i:s', time()) . ' GMT');
+		}
 	}
 	else
 	{
-		if (empty($user->browser) || ((strpos(strtolower($user->browser), 'msie') !== false) && !phpbb_is_greater_ie_version($user->browser, 7)))
+		header('Content-Disposition: ' . ((strpos($attachment['mimetype'], 'image') === 0) ? 'inline' : 'attachment') . '; ' . header_filename(htmlspecialchars_decode($attachment['real_filename'], ENT_COMPAT)));
+		if (phpbb_is_greater_ie_version($user->browser, 7) && (strpos($attachment['mimetype'], 'image') !== 0))
 		{
-			header('Content-Disposition: attachment; ' . header_filename(htmlspecialchars_decode($attachment['real_filename'])));
-			if (empty($user->browser) || (strpos(strtolower($user->browser), 'msie 6.0') !== false))
-			{
-				header('Expires: ' . gmdate('D, d M Y H:i:s', time()) . ' GMT');
-			}
-		}
-		else
-		{
-			header('Content-Disposition: ' . ((strpos($attachment['mimetype'], 'image') === 0) ? 'inline' : 'attachment') . '; ' . header_filename(htmlspecialchars_decode($attachment['real_filename'])));
-			if (phpbb_is_greater_ie_version($user->browser, 7) && (strpos($attachment['mimetype'], 'image') !== 0))
-			{
-				header('X-Download-Options: noopen');
-			}
+			header('X-Download-Options: noopen');
 		}
 	}
 
-	// Close the db connection before sending the file etc.
-	file_gc(false);
-
 	if (!set_modified_headers($attachment['filetime'], $user->browser))
 	{
-		// We make sure those have to be enabled manually by defining a constant
-		// because of the potential disclosure of full attachment path
-		// in case support for features is absent in the webserver software.
-		if (defined('PHPBB_ENABLE_X_ACCEL_REDIRECT') && PHPBB_ENABLE_X_ACCEL_REDIRECT)
-		{
-			// X-Accel-Redirect - http://wiki.nginx.org/XSendfile
-			header('X-Accel-Redirect: ' . $user->page['root_script_path'] . $upload_dir . '/' . $attachment['physical_filename']);
-			exit;
-		}
-		else if (defined('PHPBB_ENABLE_X_SENDFILE') && PHPBB_ENABLE_X_SENDFILE && !phpbb_http_byte_range($size))
-		{
-			// X-Sendfile - http://blog.lighttpd.net/articles/2006/07/02/x-sendfile
-			// Lighttpd's X-Sendfile does not support range requests as of 1.4.26
-			// and always requires an absolute path.
-			header('X-Sendfile: ' . dirname(__FILE__) . "/../$upload_dir/{$attachment['physical_filename']}");
-			exit;
-		}
-
 		if ($size)
 		{
 			header("Content-Length: $size");
@@ -242,39 +233,16 @@ function send_file_to_browser($attachment, $upload_dir, $category)
 		// Try to deliver in chunks
 		@set_time_limit(0);
 
-		$fp = @fopen($filename, 'rb');
+		$fp = $storage->read_stream($filename);
+
+		// Close the db connection before sending the file etc.
+		file_gc(false);
 
 		if ($fp !== false)
 		{
-			// Deliver file partially if requested
-			if ($range = phpbb_http_byte_range($size))
-			{
-				fseek($fp, $range['byte_pos_start']);
-
-				send_status_line(206, 'Partial Content');
-				header('Content-Range: bytes ' . $range['byte_pos_start'] . '-' . $range['byte_pos_end'] . '/' . $range['bytes_total']);
-				header('Content-Length: ' . $range['bytes_requested']);
-
-				// First read chunks
-				while (!feof($fp) && ftell($fp) < $range['byte_pos_end'] - 8192)
-				{
-					echo fread($fp, 8192);
-				}
-				// Then, read the remainder
-				echo fread($fp, $range['bytes_requested'] % 8192);
-			}
-			else
-			{
-				while (!feof($fp))
-				{
-					echo fread($fp, 8192);
-				}
-			}
+			$output = fopen('php://output', 'w+b');
+			stream_copy_to_stream($fp, $output);
 			fclose($fp);
-		}
-		else
-		{
-			@readfile($filename);
 		}
 
 		flush();
@@ -315,7 +283,7 @@ function download_allowed()
 		return true;
 	}
 
-	$url = htmlspecialchars_decode($request->header('Referer'));
+	$url = htmlspecialchars_decode($request->header('Referer'), ENT_COMPAT);
 
 	if (!$url)
 	{
@@ -431,7 +399,7 @@ function set_modified_headers($stamp, $browser)
 		{
 			send_status_line(304, 'Not Modified');
 			// seems that we need those too ... browsers
-			header('Cache-Control: public');
+			header('Cache-Control: private');
 			header('Expires: ' . gmdate('D, d M Y H:i:s', time() + 31536000) . ' GMT');
 			return true;
 		}
@@ -548,7 +516,7 @@ function phpbb_parse_range_request($request_array, $filesize)
 		$range = explode('-', trim($range_string));
 
 		// "-" is invalid, "0-0" however is valid and means the very first byte.
-		if (sizeof($range) != 2 || $range[0] === '' && $range[1] === '')
+		if (count($range) != 2 || $range[0] === '' && $range[1] === '')
 		{
 			continue;
 		}
@@ -642,6 +610,8 @@ function phpbb_increment_downloads($db, $ids)
 */
 function phpbb_download_handle_forum_auth($db, $auth, $topic_id)
 {
+	global $phpbb_container;
+
 	$sql_array = array(
 		'SELECT'	=> 't.topic_visibility, t.forum_id, f.forum_name, f.forum_password, f.parent_id',
 		'FROM'		=> array(
@@ -657,7 +627,9 @@ function phpbb_download_handle_forum_auth($db, $auth, $topic_id)
 	$row = $db->sql_fetchrow($result);
 	$db->sql_freeresult($result);
 
-	if ($row && $row['topic_visibility'] != ITEM_APPROVED && !$auth->acl_get('m_approve', $row['forum_id']))
+	$phpbb_content_visibility = $phpbb_container->get('content.visibility');
+
+	if ($row && !$phpbb_content_visibility->is_visible('topic', $row['forum_id'], $row))
 	{
 		send_status_line(404, 'Not Found');
 		trigger_error('ERROR_NO_ATTACHMENT');
@@ -689,6 +661,8 @@ function phpbb_download_handle_forum_auth($db, $auth, $topic_id)
 */
 function phpbb_download_handle_pm_auth($db, $auth, $user_id, $msg_id)
 {
+	global $phpbb_dispatcher;
+
 	if (!$auth->acl_get('u_pm_download'))
 	{
 		send_status_line(403, 'Forbidden');
@@ -696,6 +670,18 @@ function phpbb_download_handle_pm_auth($db, $auth, $user_id, $msg_id)
 	}
 
 	$allowed = phpbb_download_check_pm_auth($db, $user_id, $msg_id);
+
+	/**
+	* Event to modify PM attachments download auth
+	*
+	* @event core.modify_pm_attach_download_auth
+	* @var	bool	allowed		Whether the user is allowed to download from that PM or not
+	* @var	int		msg_id		The id of the PM to download from
+	* @var	int		user_id		The user id for auth check
+	* @since 3.1.11-RC1
+	*/
+	$vars = array('allowed', 'msg_id', 'user_id');
+	extract($phpbb_dispatcher->trigger_event('core.modify_pm_attach_download_auth', compact($vars)));
 
 	if (!$allowed)
 	{

@@ -135,7 +135,7 @@ class file extends \phpbb\cache\driver\base
 
 		if (file_exists($this->cache_dir . 'data_global.' . $phpEx))
 		{
-			if (!sizeof($this->vars))
+			if (!count($this->vars))
 			{
 				$this->load();
 			}
@@ -290,7 +290,7 @@ class file extends \phpbb\cache\driver\base
 		}
 		else
 		{
-			if (!sizeof($this->vars))
+			if (!count($this->vars))
 			{
 				$this->load();
 			}
@@ -576,12 +576,12 @@ class file extends \phpbb\cache\driver\base
 
 			if (function_exists('opcache_invalidate'))
 			{
-				@opcache_invalidate($this->cache_file);
+				@opcache_invalidate($file);
 			}
 
 			try
 			{
-				$this->filesystem->phpbb_chmod($file, CHMOD_READ | CHMOD_WRITE);
+				$this->filesystem->phpbb_chmod($file, \phpbb\filesystem\filesystem_interface::CHMOD_READ | \phpbb\filesystem\filesystem_interface::CHMOD_WRITE);
 			}
 			catch (\phpbb\filesystem\exception\filesystem_exception $e)
 			{
@@ -608,6 +608,6 @@ class file extends \phpbb\cache\driver\base
 	*/
 	protected function clean_varname($varname)
 	{
-		return str_replace('/', '-', $varname);
+		return str_replace(array('/', '\\'), '-', $varname);
 	}
 }

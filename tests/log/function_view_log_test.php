@@ -11,15 +11,15 @@
 *
 */
 
-require_once dirname(__FILE__) . '/../../phpBB/includes/functions_admin.php';
-require_once dirname(__FILE__) . '/../mock/user.php';
-require_once dirname(__FILE__) . '/../mock/cache.php';
+require_once __DIR__ . '/../../phpBB/includes/functions_admin.php';
+require_once __DIR__ . '/../mock/user.php';
+require_once __DIR__ . '/../mock/cache.php';
 
 class phpbb_log_function_view_log_test extends phpbb_database_test_case
 {
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/full_log.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/full_log.xml');
 	}
 
 	public static function view_log_function_data()
@@ -274,7 +274,7 @@ class phpbb_log_function_view_log_test extends phpbb_database_test_case
 				// Offset that will be returned from the function
 				'expected_returned'	=> 0,
 				// view_log parameters (see includes/functions_admin.php for docblock)
-				// $log is ommited!
+				// $log is omitted!
 				'mod', 5, 0, 12, 45,
 			),
 			*/
@@ -378,7 +378,7 @@ class phpbb_log_function_view_log_test extends phpbb_database_test_case
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 
 		// Create auth mock
-		$auth = $this->getMock('\phpbb\auth\auth');
+		$auth = $this->createMock('\phpbb\auth\auth');
 		$acl_get_map = array(
 			array('f_read', 23, true),
 			array('m_', 23, true),
@@ -411,6 +411,8 @@ class phpbb_log_function_view_log_test extends phpbb_database_test_case
 				2	=> 'plural (%d)',
 			),
 		);
+		$user->session_id = false;
+		$user->data['user_id'] = 10;
 
 		$phpbb_log = new \phpbb\log\log($db, $user, $auth, $phpbb_dispatcher, $phpbb_root_path, 'adm/', $phpEx, LOG_TABLE);
 

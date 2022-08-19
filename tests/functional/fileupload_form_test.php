@@ -18,14 +18,14 @@ class phpbb_functional_fileupload_form_test extends phpbb_functional_test_case
 {
 	private $path;
 
-	public function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 		$this->path = __DIR__ . '/fixtures/files/';
 		$this->add_lang('posting');
 	}
 
-	public function tearDown()
+	protected function tearDown(): void
 	{
 		$iterator = new DirectoryIterator(__DIR__ . '/../../phpBB/files/');
 		foreach ($iterator as $fileinfo)
@@ -46,6 +46,13 @@ class phpbb_functional_fileupload_form_test extends phpbb_functional_test_case
 
 	private function upload_file($filename, $mimetype)
 	{
+		$crawler = self::$client->request(
+			'GET',
+			'posting.php?mode=reply&f=2&t=1&sid=' . $this->sid
+		);
+
+		$file_form_data = array_merge(['add_file' => $this->lang('ADD_FILE')], $this->get_hidden_fields($crawler, 'posting.php?mode=reply&f=2&t=1&sid=' . $this->sid));
+
 		$file = array(
 			'tmp_name' => $this->path . $filename,
 			'name' => $filename,
@@ -57,7 +64,7 @@ class phpbb_functional_fileupload_form_test extends phpbb_functional_test_case
 		$crawler = self::$client->request(
 			'POST',
 			'posting.php?mode=reply&f=2&t=1&sid=' . $this->sid,
-			array('add_file' => $this->lang('ADD_FILE')),
+			$file_form_data,
 			array('fileupload' => $file)
 		);
 
@@ -99,7 +106,6 @@ class phpbb_functional_fileupload_form_test extends phpbb_functional_test_case
 
 		$form = $crawler->selectButton('Submit')->form(array(
 			'config[check_attachment_content]'	=> 0,
-			'config[img_imagick]'				=> '',
 		));
 		self::submit($form);
 
@@ -137,7 +143,7 @@ class phpbb_functional_fileupload_form_test extends phpbb_functional_test_case
 		$crawler = $this->upload_file('valid.jpg', 'image/jpeg');
 
 		// Ensure there was no error message rendered
-		$this->assertNotContains('<h2>' . $this->lang('INFORMATION') . '</h2>', $this->get_content());
+		$this->assertStringNotContainsString('<h2>' . $this->lang('INFORMATION') . '</h2>', $this->get_content());
 
 		// Also the file name should be in the first row of the files table
 		$this->assertEquals('valid.jpg', $crawler->filter('span.file-name')->eq(1)->text());

@@ -13,7 +13,7 @@
 
 class get_schema_steps_test extends phpbb_test_case
 {
-	public function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 

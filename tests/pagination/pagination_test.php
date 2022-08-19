@@ -11,7 +11,7 @@
 *
 */
 
-require_once dirname(__FILE__) . '/../template/template_test_case.php';
+require_once __DIR__ . '/../template/template_test_case.php';
 
 class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 {
@@ -22,31 +22,31 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 		return implode('-', func_get_args());
 	}
 
-	public function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 
 		global $phpbb_dispatcher, $phpbb_root_path, $phpEx;
 
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
-		$this->user = $this->getMock('\phpbb\user', array(), array(
-			new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx)),
-			'\phpbb\datetime'
-		));
+		$this->user = $this->createMock('\phpbb\user');
 		$this->user->expects($this->any())
 			->method('lang')
 			->will($this->returnCallback(array($this, 'return_callback_implode')));
 
-		$filesystem = new \phpbb\filesystem\filesystem();
-		$manager = new phpbb_mock_extension_manager(dirname(__FILE__) . '/', array());
-
 		$this->config = new \phpbb\config\config(array('enable_mod_rewrite' => '1'));
 
+		$manager = new phpbb_mock_extension_manager(__DIR__ . '/', array());
+
 		$loader = new \Symfony\Component\Routing\Loader\YamlFileLoader(
-			new \phpbb\routing\file_locator($filesystem, dirname(__FILE__) . '/')
+			new \phpbb\routing\file_locator(__DIR__ . '/')
 		);
-		$resources_locator = new \phpbb\routing\resources_locator\default_resources_locator(dirname(__FILE__) . '/', PHPBB_ENVIRONMENT, $manager);
-		$router = new phpbb_mock_router(new phpbb_mock_container_builder(), $resources_locator, $loader, dirname(__FILE__) . '/', 'php');
+		$resources_locator = new \phpbb\routing\resources_locator\default_resources_locator(__DIR__ . '/', PHPBB_ENVIRONMENT, $manager);
+
+		$mock_container = new phpbb_mock_container_builder();
+		$mock_container->set('cron.task_collection', []);
+
+		$router = new phpbb_mock_router(new phpbb_mock_container_builder(), $resources_locator, $loader, 'php', __DIR__ . '/', true, true);
 
 		$request = new phpbb_mock_request();
 		$request->overwrite('SCRIPT_NAME', '/app.php', \phpbb\request\request_interface::SERVER);
@@ -57,8 +57,28 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 			$request
 		);
 
-		$this->routing_helper = new \phpbb\routing\helper($this->config, $router, $symfony_request, $request, $filesystem, '', 'php');
-		$this->helper = new phpbb_mock_controller_helper($this->template, $this->user, $this->config, $symfony_request, $request, $this->routing_helper);
+		$db = $this->getMockBuilder('\phpbb\db\driver\mysqli')
+			->disableOriginalConstructor()
+			->getMock();
+
+		$this->routing_helper = new \phpbb\routing\helper($this->config, $router, $symfony_request, $request, '', 'php');
+		$this->helper = new phpbb_mock_controller_helper(
+			new \phpbb\auth\auth(),
+			new \phpbb\cache\driver\dummy(),
+			$this->config,
+			new \phpbb\cron\manager($mock_container, $this->routing_helper, '', 'php'),
+			$db,
+			new phpbb_mock_event_dispatcher(),
+			new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx)),
+			$request,
+			$this->routing_helper,
+			$symfony_request,
+			$this->template,
+			$this->user,
+			$phpbb_root_path,
+			'adm/',
+			'php'
+		);
 		$this->pagination = new \phpbb\pagination($this->template, $this->user, $this->helper, $phpbb_dispatcher);
 	}
 
@@ -216,6 +236,12 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 				10,
 				10,
 				0,
+				'PAGE_OF-1-1',
+			),
+			array(
+				'10',
+				'10',
+				'0',
 				'PAGE_OF-1-1',
 			),
 		);

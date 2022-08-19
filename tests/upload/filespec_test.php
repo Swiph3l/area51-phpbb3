@@ -15,7 +15,6 @@ class phpbb_filespec_test extends phpbb_test_case
 {
 	const TEST_COUNT = 100;
 	const PREFIX = 'phpbb_';
-	const MAX_STR_LEN = 50;
 	const UPLOAD_MAX_FILESIZE = 1000;
 
 	private $config;
@@ -28,7 +27,9 @@ class phpbb_filespec_test extends phpbb_test_case
 	/** @var string phpBB root path */
 	protected $phpbb_root_path;
 
-	protected function setUp()
+	protected $mimetype_guesser;
+
+	protected function setUp(): void
 	{
 		// Global $config required by unique_id
 		global $config, $phpbb_root_path, $phpEx;
@@ -65,8 +66,8 @@ class phpbb_filespec_test extends phpbb_test_case
 		}
 
 		$guessers = array(
-			new \Symfony\Component\HttpFoundation\File\MimeType\FileinfoMimeTypeGuesser(),
-			new \Symfony\Component\HttpFoundation\File\MimeType\FileBinaryMimeTypeGuesser(),
+			new \Symfony\Component\Mime\FileinfoMimeTypeGuesser(),
+			new \Symfony\Component\Mime\FileBinaryMimeTypeGuesser(),
 			new \phpbb\mimetype\content_guesser(),
 			new \phpbb\mimetype\extension_guesser(),
 		);
@@ -79,7 +80,7 @@ class phpbb_filespec_test extends phpbb_test_case
 		$this->phpbb_root_path = $phpbb_root_path;
 	}
 
-	private function set_reflection_property(&$class, $property_name, $value)
+	private function set_reflection_property($class, $property_name, $value)
 	{
 		$property = new ReflectionProperty($class, $property_name);
 		$property->setAccessible(true);
@@ -101,7 +102,7 @@ class phpbb_filespec_test extends phpbb_test_case
 		return $filespec->set_upload_ary(array_merge($upload_ary, $override));
 	}
 
-	protected function tearDown()
+	protected function tearDown(): void
 	{
 		$this->config = array();
 
@@ -374,7 +375,7 @@ class phpbb_filespec_test extends phpbb_test_case
 	public function test_move_file($tmp_name, $realname, $mime_type, $extension, $error, $expected)
 	{
 		// Global $phpbb_root_path and $phpEx are required by phpbb_chmod
-		global $phpbb_root_path, $phpEx;
+		global $phpbb_root_path;
 		$this->phpbb_root_path = '';
 
 		$upload = new phpbb_mock_fileupload();
@@ -420,7 +421,7 @@ class phpbb_filespec_test extends phpbb_test_case
 	/**
 	 * @dataProvider data_move_file_copy
 	 */
-	public function test_move_file_copy($tmp_name, $move_success, $safe_mode_on, $expected_error)
+	public function test_move_file_copy($tmp_name, $move_success, $open_basedir_on, $expected_error)
 	{
 		// Initialise a blank filespec object for use with trivial methods
 		$upload_ary = array(
@@ -436,7 +437,7 @@ class phpbb_filespec_test extends phpbb_test_case
 		$php_ini->expects($this->any())
 			->method('getBool')
 			->with($this->anything())
-			->willReturn($safe_mode_on);
+			->willReturn($open_basedir_on);
 		$upload = new phpbb_mock_fileupload();
 		$upload->max_filesize = self::UPLOAD_MAX_FILESIZE;
 		$filespec = new \phpbb\files\filespec($this->filesystem, $this->language, $php_ini, new \FastImageSize\FastImagesize,  '', $this->mimetype_guesser);
@@ -529,7 +530,7 @@ class phpbb_filespec_test extends phpbb_test_case
 		$type_cast_helper->set_var($upload_name, $filename, 'string', true, true);
 		$filespec = $this->get_filespec(array('name'=> $upload_name));
 
-		$this->assertSame(trim(utf8_basename(htmlspecialchars($filename))), $filespec->get('uploadname'));
+		$this->assertSame(trim(utf8_basename(htmlspecialchars($filename, ENT_COMPAT))), $filespec->get('uploadname'));
 	}
 
 	public function test_is_uploaded()

@@ -49,8 +49,6 @@ $lang = array_merge($lang, array(
 	'BUMPED_BY'				=> 'Last bumped by %1$s on %2$s.',
 	'BUMP_TOPIC'			=> 'Bump topic',
 
-	'CODE'					=> 'Code',
-
 	'DELETE_TOPIC'			=> 'Delete topic',
 	'DELETED_INFORMATION'	=> 'Deleted by %1$s on %2$s',
 	'DISAPPROVE'					=> 'Disapprove',
@@ -88,6 +86,7 @@ $lang = array_merge($lang, array(
 	'NO_UNREAD_POSTS'		=> 'There are no new unread posts for this topic.',
 	'NO_VOTE_OPTION'		=> 'You must specify an option when voting.',
 	'NO_VOTES'				=> 'No votes',
+	'NO_AUTH_PRINT_TOPIC'	=> 'You are not authorised to print topics.',
 
 	'POLL_ENDED_AT'			=> 'Poll ended at %s',
 	'POLL_RUN_TILL'			=> 'Poll runs till %s',
@@ -97,7 +96,6 @@ $lang = array_merge($lang, array(
 
 	'QUICK_MOD'				=> 'Quick-mod tools',
 	'QUICKREPLY'			=> 'Quick Reply',
-	'QUOTE'					=> 'Quote',
 
 	'REPLY_TO_TOPIC'		=> 'Reply to topic',
 	'RESTORE'				=> 'Restore',

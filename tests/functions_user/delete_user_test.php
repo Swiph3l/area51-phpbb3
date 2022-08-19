@@ -7,7 +7,7 @@
 *
 */
 
-require_once dirname(__FILE__) . '/../../phpBB/includes/functions_user.php';
+require_once __DIR__ . '/../../phpBB/includes/functions_user.php';
 
 class phpbb_functions_user_delete_user_test extends phpbb_database_test_case
 {
@@ -16,26 +16,34 @@ class phpbb_functions_user_delete_user_test extends phpbb_database_test_case
 
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/delete_user.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/delete_user.xml');
 	}
 
-	protected function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 
-		global $cache, $config, $db, $phpbb_dispatcher, $phpbb_container, $phpbb_root_path;
+		global $cache, $config, $db, $user, $phpbb_dispatcher, $phpbb_container, $phpbb_root_path, $phpEx;
 
 		$db = $this->db = $this->new_dbal();
+
+		$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
+		$lang = new \phpbb\language\language($lang_loader);
+		$user = new \phpbb\user($lang, '\phpbb\datetime');
+
 		$config = new \phpbb\config\config(array(
 			'load_online_time'	=> 5,
-			'search_type'		=> '\phpbb\search\fulltext_mysql',
+			'search_type'		=> '\phpbb\search\backend\fulltext_mysql',
 		));
 		$cache = new phpbb_mock_null_cache();
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 		$phpbb_container = new phpbb_mock_container_builder();
 		$phpbb_container->set('notification_manager', new phpbb_mock_notification_manager());
+
+		$storage = $this->createMock('\phpbb\storage\storage');
+
 		// Works as a workaround for tests
-		$phpbb_container->set('attachment.manager', new \phpbb\attachment\delete($config, $db, new \phpbb_mock_event_dispatcher(), new \phpbb\filesystem\filesystem(), new \phpbb\attachment\resync($db), $phpbb_root_path));
+		$phpbb_container->set('attachment.manager', new \phpbb\attachment\delete($config, $db, new \phpbb_mock_event_dispatcher(), new \phpbb\attachment\resync($db), $storage));
 		$phpbb_container->set(
 			'auth.provider.db',
 			new phpbb_mock_auth_provider()
@@ -46,6 +54,18 @@ class phpbb_functions_user_delete_user_test extends phpbb_database_test_case
 			'auth.provider_collection',
 			$provider_collection
 		);
+
+		$search_backend = $this->createMock(\phpbb\search\backend\search_backend_interface::class);
+		$search_backend_factory = $this->createMock(\phpbb\search\search_backend_factory::class);
+		$search_backend_factory->method('get_active')->willReturn($search_backend);
+		$phpbb_container->set('search.backend_factory', $search_backend_factory);
+
+
+		$phpbb_container->setParameter('tables.auth_provider_oauth_token_storage', 'phpbb_oauth_tokens');
+		$phpbb_container->setParameter('tables.auth_provider_oauth_states', 'phpbb_oauth_states');
+		$phpbb_container->setParameter('tables.auth_provider_oauth_account_assoc', 'phpbb_oauth_accounts');
+
+		$phpbb_container->setParameter('tables.user_notifications', 'phpbb_user_notifications');
 	}
 
 	 public function first_last_post_data()
@@ -54,16 +74,16 @@ class phpbb_functions_user_delete_user_test extends phpbb_database_test_case
 			array(
 				'retain', false,
 				array(
-					array('post_id' => 1, 'poster_id' => ANONYMOUS, 'post_username' => ''),
+					array('post_id' => 1, 'poster_id' => ANONYMOUS, 'post_username' => 'Guest'),
 					array('post_id' => 2, 'poster_id' => ANONYMOUS, 'post_username' => 'Other'),
-					array('post_id' => 3, 'poster_id' => ANONYMOUS, 'post_username' => ''),
+					array('post_id' => 3, 'poster_id' => ANONYMOUS, 'post_username' => 'Guest'),
 					array('post_id' => 4, 'poster_id' => ANONYMOUS, 'post_username' => 'Other'),
 				),
 				array(
 					array(
 						'topic_id' => 1,
-						'topic_poster' => ANONYMOUS, 'topic_first_poster_name' => '', 'topic_first_poster_colour' => '',
-						'topic_last_poster_id' => ANONYMOUS, 'topic_last_poster_name' => '', 'topic_last_poster_colour' => '',
+						'topic_poster' => ANONYMOUS, 'topic_first_poster_name' => 'Guest', 'topic_first_poster_colour' => '',
+						'topic_last_poster_id' => ANONYMOUS, 'topic_last_poster_name' => 'Guest', 'topic_last_poster_colour' => '',
 					),
 					array(
 						'topic_id' => 2,
@@ -72,8 +92,8 @@ class phpbb_functions_user_delete_user_test extends phpbb_database_test_case
 					),
 					array(
 						'topic_id' => 3,
-						'topic_poster' => ANONYMOUS, 'topic_first_poster_name' => '', 'topic_first_poster_colour' => '',
-						'topic_last_poster_id' => ANONYMOUS, 'topic_last_poster_name' => '', 'topic_last_poster_colour' => '',
+						'topic_poster' => ANONYMOUS, 'topic_first_poster_name' => 'Guest', 'topic_first_poster_colour' => '',
+						'topic_last_poster_id' => ANONYMOUS, 'topic_last_poster_name' => 'Guest', 'topic_last_poster_colour' => '',
 					),
 					array(
 						'topic_id' => 4,
@@ -82,9 +102,9 @@ class phpbb_functions_user_delete_user_test extends phpbb_database_test_case
 					),
 				),
 				array(
-					array('forum_id' => 1, 'forum_last_poster_id' => ANONYMOUS, 'forum_last_poster_name' => '', 'forum_last_poster_colour' => ''),
+					array('forum_id' => 1, 'forum_last_poster_id' => ANONYMOUS, 'forum_last_poster_name' => 'Guest', 'forum_last_poster_colour' => ''),
 					array('forum_id' => 2, 'forum_last_poster_id' => ANONYMOUS, 'forum_last_poster_name' => 'Other', 'forum_last_poster_colour' => ''),
-					array('forum_id' => 3, 'forum_last_poster_id' => ANONYMOUS, 'forum_last_poster_name' => '', 'forum_last_poster_colour' => ''),
+					array('forum_id' => 3, 'forum_last_poster_id' => ANONYMOUS, 'forum_last_poster_name' => 'Guest', 'forum_last_poster_colour' => ''),
 					array('forum_id' => 4, 'forum_last_poster_id' => ANONYMOUS, 'forum_last_poster_name' => 'Other', 'forum_last_poster_colour' => ''),
 				),
 			),

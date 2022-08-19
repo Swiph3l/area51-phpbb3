@@ -13,7 +13,7 @@
 
 namespace
 {
-	require_once dirname(__FILE__) . '/fixtures/ext/vendor/enabled_4/di/extension.php';
+	require_once __DIR__ . '/fixtures/ext/vendor/enabled_4/di/extension.php';
 
 	class phpbb_di_container_test extends \phpbb_test_case
 	{
@@ -26,9 +26,9 @@ namespace
 		protected $phpbb_root_path;
 		protected $filename;
 
-		public function setUp()
+		protected function setUp(): void
 		{
-			$this->phpbb_root_path = dirname(__FILE__) . '/';
+			$this->phpbb_root_path = __DIR__ . '/';
 			$this->config_php = new \phpbb\config_php_file($this->phpbb_root_path . 'fixtures/', 'php');
 			$this->builder = new phpbb_mock_phpbb_di_container_builder($this->phpbb_root_path . 'fixtures/', 'php');
 			$this->builder->with_config($this->config_php);
@@ -46,15 +46,16 @@ namespace
 		{
 			$container = $this->builder->get_container();
 			$this->assertInstanceOf('Symfony\Component\DependencyInjection\ContainerBuilder', $container);
+			$this->assertFalse($container->hasParameter('container_exception'));
 
 			// Checks the core services
 			$this->assertTrue($container->hasParameter('core'));
 
 			// Checks compile_container
-			$this->assertTrue($container->isFrozen());
+			$this->assertTrue($container->isCompiled());
 
 			// Checks inject_config
-			$this->assertTrue($container->hasParameter('dbal.dbhost'));
+			$this->assertTrue($container->hasParameter('core.table_prefix'));
 
 			// Checks use_extensions
 			$this->assertTrue($container->hasParameter('enabled'));
@@ -73,9 +74,19 @@ namespace
 			// Checks the construction of a dumped container
 			$container = $this->builder->get_container();
 			$this->assertInstanceOf('phpbb_cache_container', $container);
-			$this->assertFalse($container->isFrozen());
-			$container->getParameterBag(); // needed, otherwise the container is not marked as frozen
-			$this->assertTrue($container->isFrozen());
+			$this->assertTrue($container->isCompiled());
+		}
+
+		public function test_tables_mapping()
+		{
+			$this->builder->without_cache();
+			$container = $this->builder->get_container();
+			$this->assertTrue($container->hasParameter('tables'));
+			$tables = $container->getParameter('tables');
+			$this->assertGreaterThan(0, count($tables));
+			$this->assertTrue($container->hasParameter('tables.foo_bar'));
+			$this->assertTrue(isset($tables['foo_bar']));
+			$this->assertEquals($tables['acl_groups'], 'phpbb_some_other');
 		}
 
 		public function test_without_cache()
@@ -91,7 +102,7 @@ namespace
 			$container = $this->builder->get_container();
 			$this->assertNotInstanceOf('phpbb_cache_container', $container);
 			$this->assertInstanceOf('Symfony\Component\DependencyInjection\ContainerBuilder', $container);
-			$this->assertTrue($container->isFrozen());
+			$this->assertTrue($container->isCompiled());
 		}
 
 		public function test_without_extensions()
@@ -116,7 +127,7 @@ namespace
 			$this->assertInstanceOf('Symfony\Component\DependencyInjection\ContainerBuilder', $container);
 
 			// Checks compile_container
-			$this->assertFalse($container->isFrozen());
+			$this->assertFalse($container->isCompiled());
 		}
 
 		public function test_with_config_path()
@@ -151,10 +162,10 @@ namespace phpbb\extension
 		public function all_enabled($phpbb_relative = true)
 		{
 			return array(
-				'vendor/enabled' => dirname(__FILE__) . '/fixtures/ext/vendor/enabled/',
-				'vendor/enabled-2' => dirname(__FILE__) . '/fixtures/ext/vendor/enabled-2/',
-				'vendor/enabled-3' => dirname(__FILE__) . '/fixtures/ext/vendor/enabled-3/',
-				'vendor/enabled_4' => dirname(__FILE__) . '/fixtures/ext/vendor/enabled_4/',
+				'vendor/enabled' => __DIR__ . '/fixtures/ext/vendor/enabled/',
+				'vendor/enabled-2' => __DIR__ . '/fixtures/ext/vendor/enabled-2/',
+				'vendor/enabled-3' => __DIR__ . '/fixtures/ext/vendor/enabled-3/',
+				'vendor/enabled_4' => __DIR__ . '/fixtures/ext/vendor/enabled_4/',
 			);
 		}
 	}

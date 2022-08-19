@@ -37,14 +37,14 @@ interface type_interface
 	*
 	* @param array $type_data The type specific data
 	*/
-	static public function get_item_id($type_data);
+	public static function get_item_id($type_data);
 
 	/**
 	* Get the id of the parent
 	*
 	* @param array $type_data The type specific data
 	*/
-	static public function get_item_parent_id($type_data);
+	public static function get_item_parent_id($type_data);
 
 	/**
 	* Is this type available to the current user (defines whether or not it will be shown in the UCP Edit notification options)
@@ -170,7 +170,7 @@ interface type_interface
 	*
 	* @param array $type_data The type specific data
 	* @param array $notify_users Notify users list
-	* 		Formated from find_users_for_notification()
+	* 		Formatted from find_users_for_notification()
 	* @return array Whatever you want to send to create_insert_array().
 	*/
 	public function pre_create_insert_array($type_data, $notify_users);

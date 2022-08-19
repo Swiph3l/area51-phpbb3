@@ -13,36 +13,30 @@
 
 namespace phpbb\template\twig;
 
+use phpbb\filesystem\helper as filesystem_helper;
+
 /**
 * Twig Template loader
 */
-class loader extends \Twig_Loader_Filesystem
+class loader extends \Twig\Loader\FilesystemLoader
 {
 	protected $safe_directories = array();
 
 	/**
-	 * @var \phpbb\filesystem\filesystem_interface
-	 */
-	protected $filesystem;
-
-	/**
 	 * Constructor
 	 *
-	 * @param \phpbb\filesystem\filesystem_interface $filesystem
 	 * @param string|array	$paths
 	 */
-	public function __construct(\phpbb\filesystem\filesystem_interface $filesystem, $paths = array())
+	public function __construct($paths = array())
 	{
-		$this->filesystem = $filesystem;
-
-		parent::__construct($paths);
+		parent::__construct($paths, __DIR__);
 	}
 
 	/**
 	* Set safe directories
 	*
 	* @param array $directories Array of directories that are safe (empty to clear)
-	* @return \Twig_Loader_Filesystem
+	* @return \Twig\Loader\FilesystemLoader
 	*/
 	public function setSafeDirectories($directories = array())
 	{
@@ -63,11 +57,11 @@ class loader extends \Twig_Loader_Filesystem
 	* Add safe directory
 	*
 	* @param string $directory Directory that should be added
-	* @return \Twig_Loader_Filesystem
+	* @return \Twig\Loader\FilesystemLoader
 	*/
 	public function addSafeDirectory($directory)
 	{
-		$directory = $this->filesystem->realpath($directory);
+		$directory = filesystem_helper::realpath($directory);
 
 		if ($directory !== false)
 		{
@@ -101,12 +95,22 @@ class loader extends \Twig_Loader_Filesystem
 	}
 
 	/**
-	* Find the template
-	*
-	* Override for Twig_Loader_Filesystem::findTemplate to add support
-	*	for loading from safe directories.
-	*/
-	protected function findTemplate($name)
+	 * Adds a realpath call to fix a BC break in Twig 1.26 (https://github.com/twigphp/Twig/issues/2145)
+	 *
+	 * {@inheritdoc}
+	 */
+	public function addPath($path, $namespace = self::MAIN_NAMESPACE) : void
+	{
+		parent::addPath(filesystem_helper::realpath($path), $namespace);
+	}
+
+	/**
+	 * Find the template
+	 *
+	 * Override for \Twig\Loader\FilesystemLoader::findTemplate
+	 * to add support for loading from safe directories.
+	 */
+	protected function findTemplate($name, $throw = true)
 	{
 		$name = (string) $name;
 
@@ -122,14 +126,14 @@ class loader extends \Twig_Loader_Filesystem
 
 		// First, find the template name. The override above of validateName
 		//	causes the validateName process to be skipped for this call
-		$file = parent::findTemplate($name);
+		$file = parent::findTemplate($name, $throw);
 
 		try
 		{
 			// Try validating the name (which may throw an exception)
-			parent::validateName($name);
+			$this->validateName($name);
 		}
-		catch (\Twig_Error_Loader $e)
+		catch (\Twig\Error\LoaderError $e)
 		{
 			if (strpos($e->getRawMessage(), 'Looks like you try to load a template outside configured directories') === 0)
 			{
@@ -137,7 +141,7 @@ class loader extends \Twig_Loader_Filesystem
 				//	can now check if we're within a "safe" directory
 
 				// Find the real path of the directory the file is in
-				$directory = $this->filesystem->realpath(dirname($file));
+				$directory = filesystem_helper::realpath(dirname($file));
 
 				if ($directory === false)
 				{

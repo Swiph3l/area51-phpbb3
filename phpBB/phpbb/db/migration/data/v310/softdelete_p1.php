@@ -20,7 +20,7 @@ class softdelete_p1 extends \phpbb\db\migration\migration
 		return $this->db_tools->sql_column_exists($this->table_prefix . 'posts', 'post_visibility');
 	}
 
-	static public function depends_on()
+	public static function depends_on()
 	{
 		return array('\phpbb\db\migration\data\v310\dev');
 	}
@@ -132,7 +132,7 @@ class softdelete_p1 extends \phpbb\db\migration\migration
 		/*
 		* Using sql_case here to avoid "BIGINT UNSIGNED value is out of range" errors.
 		* As we update all topics in 2 queries, one broken topic would stop the conversion
-		* for all topics and the surpressed error will cause the admin to not even notice it.
+		* for all topics and the suppressed error will cause the admin to not even notice it.
 		*/
 		$sql = 'UPDATE ' . $this->table_prefix . 'topics
 			SET topic_posts_approved = topic_replies + 1,

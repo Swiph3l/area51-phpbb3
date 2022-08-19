@@ -16,12 +16,20 @@ namespace phpbb\event;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\KernelEvents;
-use Symfony\Component\HttpKernel\Event\GetResponseForExceptionEvent;
+use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpFoundation\Response;
 
 class kernel_exception_subscriber implements EventSubscriberInterface
 {
+	/**
+	 * Set to true to show full exception messages
+	 *
+	 * @var bool
+	 */
+	protected $debug;
+
 	/**
 	* Template object
 	*
@@ -36,34 +44,48 @@ class kernel_exception_subscriber implements EventSubscriberInterface
 	*/
 	protected $language;
 
+	/** @var \phpbb\request\type_cast_helper */
+	protected $type_caster;
+
 	/**
 	* Construct method
 	*
 	* @param \phpbb\template\template	$template	Template object
 	* @param \phpbb\language\language	$language	Language object
+	* @param bool						$debug		Set to true to show full exception messages
 	*/
-	public function __construct(\phpbb\template\template $template, \phpbb\language\language $language)
+	public function __construct(\phpbb\template\template $template, \phpbb\language\language $language, $debug = false)
 	{
+		$this->debug = $debug || defined('DEBUG');
 		$this->template = $template;
 		$this->language = $language;
+		$this->type_caster = new \phpbb\request\type_cast_helper();
 	}
 
 	/**
 	* This listener is run when the KernelEvents::EXCEPTION event is triggered
 	*
-	* @param GetResponseForExceptionEvent $event
+	* @param ExceptionEvent $event
 	* @return null
 	*/
-	public function on_kernel_exception(GetResponseForExceptionEvent $event)
+	public function on_kernel_exception(ExceptionEvent $event)
 	{
-		$exception = $event->getException();
+		$exception = $event->getThrowable();
 
 		$message = $exception->getMessage();
+		$this->type_caster->set_var($message, $message, 'string', true, false);
 
 		if ($exception instanceof \phpbb\exception\exception_interface)
 		{
 			$message = $this->language->lang_array($message, $exception->get_parameters());
 		}
+		else if (!$this->debug && $exception instanceof NotFoundHttpException)
+		{
+			$message = $this->language->lang('PAGE_NOT_FOUND');
+		}
+
+		// Show <strong> text in bold
+		$message = preg_replace('#&lt;(/?strong)&gt;#i', '<$1>', $message);
 
 		if (!$event->getRequest()->isXmlHttpRequest())
 		{
@@ -91,7 +113,7 @@ class kernel_exception_subscriber implements EventSubscriberInterface
 				$data['message'] = $message;
 			}
 
-			if (defined('DEBUG'))
+			if ($this->debug)
 			{
 				$data['trace'] = $exception->getTrace();
 			}
@@ -108,7 +130,7 @@ class kernel_exception_subscriber implements EventSubscriberInterface
 		$event->setResponse($response);
 	}
 
-	static public function getSubscribedEvents()
+	public static function getSubscribedEvents()
 	{
 		return array(
 			KernelEvents::EXCEPTION		=> 'on_kernel_exception',

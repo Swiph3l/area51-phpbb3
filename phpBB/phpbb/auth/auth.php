@@ -72,8 +72,8 @@ class auth
 
 		// Verify bitstring length with options provided...
 		$renew = false;
-		$global_length = sizeof($this->acl_options['global']);
-		$local_length = sizeof($this->acl_options['local']);
+		$global_length = count($this->acl_options['global']);
+		$local_length = count($this->acl_options['local']);
 
 		// Specify comparing length (bitstring is padded to 31 bits)
 		$global_length = ($global_length % 31) ? ($global_length - ($global_length % 31) + 31) : $global_length;
@@ -95,8 +95,6 @@ class auth
 			$this->acl_cache($userdata);
 			$this->_fill_acl($userdata['user_permissions']);
 		}
-
-		return;
 	}
 
 	/**
@@ -213,7 +211,7 @@ class auth
 	* @param bool	$clean set to true if only values needs to be returned which are set/unset
 	*
 	* @return array Contains the forum ids with the specified permission set to true.
-					This is a nested array: array => forum_id => permission => true
+	*				This is a nested array: array => forum_id => permission => true
 	*/
 	function acl_getf($opt, $clean = false)
 	{
@@ -236,7 +234,7 @@ class auth
 				$sql = 'SELECT forum_id
 					FROM ' . FORUMS_TABLE;
 
-				if (sizeof($this->acl))
+				if (count($this->acl))
 				{
 					$sql .= ' WHERE ' . $db->sql_in_set('forum_id', array_keys($this->acl), true);
 				}
@@ -278,7 +276,7 @@ class auth
 		}
 
 		// If we get forum_ids not having this permission, we need to fill the remaining parts
-		if ($negate && sizeof($this->acl_forum_ids))
+		if ($negate && count($this->acl_forum_ids))
 		{
 			foreach ($this->acl_forum_ids as $f)
 			{
@@ -455,7 +453,7 @@ class auth
 	{
 		$hold_str = '';
 
-		if (sizeof($hold_ary))
+		if (count($hold_ary))
 		{
 			ksort($hold_ary);
 
@@ -514,7 +512,7 @@ class auth
 	*/
 	function acl_clear_prefetch($user_id = false)
 	{
-		global $db, $cache;
+		global $db, $cache, $phpbb_dispatcher;
 
 		// Rebuild options cache
 		$cache->destroy('_role_cache');
@@ -524,19 +522,19 @@ class auth
 			ORDER BY role_id ASC';
 		$result = $db->sql_query($sql);
 
-		$this->role_cache = array();
+		$role_cache = array();
 		while ($row = $db->sql_fetchrow($result))
 		{
-			$this->role_cache[$row['role_id']][$row['auth_option_id']] = (int) $row['auth_setting'];
+			$role_cache[$row['role_id']][$row['auth_option_id']] = (int) $row['auth_setting'];
 		}
 		$db->sql_freeresult($result);
 
-		foreach ($this->role_cache as $role_id => $role_options)
+		foreach ($role_cache as $role_id => $role_options)
 		{
-			$this->role_cache[$role_id] = serialize($role_options);
+			$role_cache[$role_id] = serialize($role_options);
 		}
 
-		$cache->put('_role_cache', $this->role_cache);
+		$cache->put('_role_cache', $role_cache);
 
 		// Now empty user permissions
 		$where_sql = '';
@@ -553,7 +551,15 @@ class auth
 			$where_sql";
 		$db->sql_query($sql);
 
-		return;
+		/**
+		* Event is triggered after user(s) permission settings cache has been cleared
+		*
+		* @event core.acl_clear_prefetch_after
+		* @var	mixed	user_id	User ID(s)
+		* @since 3.1.11-RC1
+		*/
+		$vars = array('user_id');
+		extract($phpbb_dispatcher->trigger_event('core.acl_clear_prefetch_after', compact($vars)));
 	}
 
 	/**
@@ -818,9 +824,9 @@ class auth
 		global $db, $cache;
 
 		// Check if the role-cache is there
-		if (($this->role_cache = $cache->get('_role_cache')) === false)
+		if (($role_cache = $cache->get('_role_cache')) === false)
 		{
-			$this->role_cache = array();
+			$role_cache = array();
 
 			// We pre-fetch roles
 			$sql = 'SELECT *
@@ -830,16 +836,16 @@ class auth
 
 			while ($row = $db->sql_fetchrow($result))
 			{
-				$this->role_cache[$row['role_id']][$row['auth_option_id']] = (int) $row['auth_setting'];
+				$role_cache[$row['role_id']][$row['auth_option_id']] = (int) $row['auth_setting'];
 			}
 			$db->sql_freeresult($result);
 
-			foreach ($this->role_cache as $role_id => $role_options)
+			foreach ($role_cache as $role_id => $role_options)
 			{
-				$this->role_cache[$role_id] = serialize($role_options);
+				$role_cache[$role_id] = serialize($role_options);
 			}
 
-			$cache->put('_role_cache', $this->role_cache);
+			$cache->put('_role_cache', $role_cache);
 		}
 
 		$hold_ary = array();
@@ -855,7 +861,7 @@ class auth
 			// If a role is assigned, assign all options included within this role. Else, only set this one option.
 			if ($row['auth_role_id'])
 			{
-				$hold_ary[$row['forum_id']] = (empty($hold_ary[$row['forum_id']])) ? unserialize($this->role_cache[$row['auth_role_id']]) : $hold_ary[$row['forum_id']] + unserialize($this->role_cache[$row['auth_role_id']]);
+				$hold_ary[$row['forum_id']] = (empty($hold_ary[$row['forum_id']])) ? unserialize($role_cache[$row['auth_role_id']]) : $hold_ary[$row['forum_id']] + unserialize($role_cache[$row['auth_role_id']]);
 			}
 			else
 			{
@@ -880,9 +886,9 @@ class auth
 			{
 				$this->_set_group_hold_ary($hold_ary[$row['forum_id']], $row['auth_option_id'], $row['auth_setting']);
 			}
-			else if (!empty($this->role_cache[$row['auth_role_id']]))
+			else if (!empty($role_cache[$row['auth_role_id']]))
 			{
-				foreach (unserialize($this->role_cache[$row['auth_role_id']]) as $option_id => $setting)
+				foreach (unserialize($role_cache[$row['auth_role_id']]) as $option_id => $setting)
 				{
 					$this->_set_group_hold_ary($hold_ary[$row['forum_id']], $option_id, $setting);
 				}

@@ -4,7 +4,7 @@
 	"type": "project",
 	"keywords": ["phpbb", "forum"],
 	"homepage": "https://www.phpbb.com",
-	"license": "GPL-2.0",
+	"license": "GPL-2.0-only",
 	"authors": [
 		{
 			"name": "phpBB Limited",
@@ -25,42 +25,49 @@
 		"phpbb/phpbb-core": "self.version"
 	},
 	"require": {
-		"php": ">=5.5.9",
-		"bantu/ini-get-wrapper": "1.0.*",
+		"php": "^7.3 || ^8.0",
+		"ext-json": "*",
+		"ext-mbstring": "*",
+		"ext-pdo": "*",
+		"bantu/ini-get-wrapper": "~1.0",
+		"chita/topological_sort": "^3.0",
+		"composer/composer": "^2.0",
+		"composer/installers": "^1.9",
+		"composer/package-versions-deprecated": "^1.11",
+		"doctrine/dbal": "^3.0",
 		"google/recaptcha": "~1.1",
-		"guzzlehttp/guzzle": "~6.2",
+		"guzzlehttp/guzzle": "~6.3",
 		"lusitanian/oauth": "^0.8.1",
-		"marc1706/fast-image-size": "~1.1",
-		"paragonie/random_compat": "^1.2",
-		"patchwork/utf8": "1.1.*",
-		"s9e/text-formatter": "^0.6",
-		"symfony/config": "~3.1",
-		"symfony/console": "~3.1",
-		"symfony/debug": "~3.1",
-		"symfony/dependency-injection": "~3.1",
-		"symfony/event-dispatcher": "~3.1",
-		"symfony/filesystem": "~3.1",
-		"symfony/finder": "~3.1",
-		"symfony/http-foundation": "~3.1",
-		"symfony/http-kernel": "~3.1",
-		"symfony/proxy-manager-bridge": "~3.1",
-		"symfony/routing": "~3.1",
-		"symfony/twig-bridge": "~3.1",
-		"symfony/yaml": "~3.1",
-		"twig/twig": "1.*",
-		"qafoolabs/profiler": "@stable"
+		"marc1706/fast-image-size": "^1.1",
+		"patchwork/utf8": "^1.1",
+		"s9e/text-formatter": "^2.0",
+		"symfony/config": "~5.2",
+		"symfony/console": "~5.2",
+		"symfony/debug": "~4.4",
+		"symfony/dependency-injection": "~5.2",
+		"symfony/event-dispatcher": "~5.2",
+		"symfony/filesystem": "~5.2",
+		"symfony/finder": "~5.2",
+		"symfony/http-foundation": "~5.2",
+		"symfony/http-kernel": "~5.2",
+		"symfony/mime": "~5.2",
+		"symfony/process": "^5.2",
+		"symfony/proxy-manager-bridge": "~5.2",
+		"symfony/routing": "~5.2",
+		"symfony/twig-bridge": "~5.2",
+		"symfony/yaml": "~5.2",
+		"twig/twig": "^3.0"
 	},
 	"require-dev": {
-		"fabpot/goutte": "~3.1",
-		"facebook/webdriver": "~1.1",
-		"laravel/homestead": "~3.0",
-		"phing/phing": "2.4.*",
-		"phpunit/dbunit": "~2.0",
-		"phpunit/phpunit": "~4.8",
-		"squizlabs/php_codesniffer": "2.*",
-		"symfony/browser-kit": "~3.1",
-		"symfony/css-selector": "~3.1",
-		"symfony/dom-crawler": "~3.1"
+		"fabpot/goutte": "~3.2",
+		"laravel/homestead": "~10.17",
+		"misantron/dbunit": "~5.0",
+		"phing/phing": "~2.4",
+		"phpunit/phpunit": "^9.0",
+		"squizlabs/php_codesniffer": "~3.4",
+		"symfony/browser-kit": "~5.2",
+		"symfony/css-selector": "~5.2",
+		"symfony/dom-crawler": "~5.2"
 	},
 	"extra": {
 		"branch-alias": {
@@ -69,7 +76,7 @@
 	},
 	"config": {
 		"platform": {
-			"php": "5.5.9"
+			"php": "7.3.0"
 		}
 	}
 }

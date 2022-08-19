@@ -16,7 +16,7 @@
 */
 class phpbb_functional_notification_test extends phpbb_functional_test_case
 {
-	static public function user_subscription_data()
+	public static function user_subscription_data()
 	{
 		return array(
 			// Rows inserted by phpBB/install/schemas/schema_data.sql
@@ -67,7 +67,7 @@ class phpbb_functional_notification_test extends phpbb_functional_test_case
 		// Post a new post that needs approval
 		$this->create_post(2, 1, 'Re: Welcome to phpBB3', 'This is a test [b]post[/b] posted by notificationtestuser.', array(), 'POST_STORED_MOD');
 		$crawler = self::request('GET', "viewtopic.php?t=1&sid={$this->sid}");
-		$this->assertNotContains('This is a test post posted by notificationtestuser.', $crawler->filter('html')->text());
+		$this->assertStringNotContainsString('This is a test post posted by notificationtestuser.', $crawler->filter('html')->text());
 
 		// Login as admin
 		$this->logout();
@@ -77,11 +77,12 @@ class phpbb_functional_notification_test extends phpbb_functional_test_case
 		$crawler = self::request('GET', 'ucp.php?i=ucp_notifications');
 
 		// At least one notification should exist
-		$this->assertGreaterThan(0, $crawler->filter('#notification_list_button strong')->text());
+		$this->assertGreaterThan(0, $crawler->filter('#notification-button strong')->text());
 
 		// Get form token
 		$link = $crawler->selectLink($this->lang('NOTIFICATIONS_MARK_ALL_READ'))->link()->getUri();
 		$crawler = self::request('GET', substr($link, strpos($link, 'ucp.')));
-		$this->assertEquals(0, $crawler->filter('#notification_list_button strong')->text());
+		$this->assertCount(1, $crawler->filter('#notification-button strong.badge.hidden'));
+		$this->assertEquals("0", $crawler->filter('#notification-button strong.badge.hidden')->text());
 	}
 }

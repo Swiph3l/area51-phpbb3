@@ -11,9 +11,9 @@
 *
 */
 
-require_once dirname(__FILE__) . '/../../phpBB/includes/functions_user.php';
-require_once dirname(__FILE__) . '/../mock/cache.php';
-require_once dirname(__FILE__) . '/validate_data_helper.php';
+require_once __DIR__ . '/../../phpBB/includes/functions_user.php';
+require_once __DIR__ . '/../mock/cache.php';
+require_once __DIR__ . '/validate_data_helper.php';
 
 class phpbb_functions_validate_data_test extends phpbb_database_test_case
 {
@@ -23,10 +23,10 @@ class phpbb_functions_validate_data_test extends phpbb_database_test_case
 
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/validate_username.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/validate_username.xml');
 	}
 
-	protected function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 
@@ -47,6 +47,7 @@ class phpbb_functions_validate_data_test extends phpbb_database_test_case
 				'foobar_letter_num'	=> array(),
 				'foobar_letter_num_sp'	=> array(),
 				'foobar_quot'		=> array('INVALID_CHARS'),
+				'foobar_emoji'		=> array('INVALID_EMOJIS'),
 				'barfoo_disallow'	=> array('USERNAME_DISALLOWED'),
 				'admin_taken'		=> array('USERNAME_TAKEN'),
 				'group_taken'		=> array('USERNAME_TAKEN'),
@@ -60,6 +61,7 @@ class phpbb_functions_validate_data_test extends phpbb_database_test_case
 				'foobar_letter_num'	=> array(),
 				'foobar_letter_num_sp'	=> array('INVALID_CHARS'),
 				'foobar_quot'		=> array('INVALID_CHARS'),
+				'foobar_emoji'		=> array('INVALID_EMOJIS'),
 				'barfoo_disallow'	=> array('USERNAME_DISALLOWED'),
 				'admin_taken'		=> array('USERNAME_TAKEN'),
 				'group_taken'		=> array('INVALID_CHARS'),
@@ -73,6 +75,7 @@ class phpbb_functions_validate_data_test extends phpbb_database_test_case
 				'foobar_letter_num'	=> array(),
 				'foobar_letter_num_sp'	=> array('INVALID_CHARS'),
 				'foobar_quot'		=> array('INVALID_CHARS'),
+				'foobar_emoji'		=> array('INVALID_EMOJIS'),
 				'barfoo_disallow'	=> array('USERNAME_DISALLOWED'),
 				'admin_taken'		=> array('USERNAME_TAKEN'),
 				'group_taken'		=> array('USERNAME_TAKEN'),
@@ -86,6 +89,7 @@ class phpbb_functions_validate_data_test extends phpbb_database_test_case
 				'foobar_letter_num'	=> array(),
 				'foobar_letter_num_sp'	=> array('INVALID_CHARS'),
 				'foobar_quot'		=> array('INVALID_CHARS'),
+				'foobar_emoji'		=> array('INVALID_EMOJIS'),
 				'barfoo_disallow'	=> array('USERNAME_DISALLOWED'),
 				'admin_taken'		=> array('USERNAME_TAKEN'),
 				'group_taken'		=> array('INVALID_CHARS'),
@@ -99,6 +103,7 @@ class phpbb_functions_validate_data_test extends phpbb_database_test_case
 				'foobar_letter_num'	=> array(),
 				'foobar_letter_num_sp'	=> array(),
 				'foobar_quot'		=> array('INVALID_CHARS'),
+				'foobar_emoji'		=> array('INVALID_EMOJIS'),
 				'barfoo_disallow'	=> array('USERNAME_DISALLOWED'),
 				'admin_taken'		=> array('USERNAME_TAKEN'),
 				'group_taken'		=> array('USERNAME_TAKEN'),
@@ -112,6 +117,7 @@ class phpbb_functions_validate_data_test extends phpbb_database_test_case
 				'foobar_letter_num'	=> array(),
 				'foobar_letter_num_sp'	=> array('INVALID_CHARS'),
 				'foobar_quot'		=> array('INVALID_CHARS'),
+				'foobar_emoji'		=> array('INVALID_EMOJIS'),
 				'barfoo_disallow'	=> array('USERNAME_DISALLOWED'),
 				'admin_taken'		=> array('USERNAME_TAKEN'),
 				'group_taken'		=> array('USERNAME_TAKEN'),
@@ -124,11 +130,13 @@ class phpbb_functions_validate_data_test extends phpbb_database_test_case
 	*/
 	public function test_validate_username($allow_name_chars, $expected)
 	{
-		global $cache, $config, $db;
+		global $cache, $config, $db, $user;
 
 		$db = $this->db;
 		$cache = $this->cache;
 		$cache->put('_disallowed_usernames', array('barfoo'));
+		$user = new phpbb_mock_user();
+		$user->data['username_clean'] = 'username';
 
 		$config['allow_name_chars'] = $allow_name_chars;
 
@@ -171,6 +179,11 @@ class phpbb_functions_validate_data_test extends phpbb_database_test_case
 			'foobar_quot' => array(
 				$expected['foobar_quot'],
 				'"foobar"',
+				array('username'),
+			),
+			'foobar_emoji' => array(
+				$expected['foobar_emoji'],
+				'username😮',
 				array('username'),
 			),
 			'barfoo_disallow' => array(

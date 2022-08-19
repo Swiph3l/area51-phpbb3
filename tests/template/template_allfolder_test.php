@@ -11,7 +11,7 @@
 *
 */
 
-require_once dirname(__FILE__) . '/template_test_case.php';
+require_once __DIR__ . '/template_test_case.php';
 
 class phpbb_template_allfolder_test extends phpbb_template_template_test_case
 {
@@ -39,14 +39,13 @@ class phpbb_template_allfolder_test extends phpbb_template_template_test_case
 			new \phpbb\symfony_request(
 				new phpbb_mock_request()
 			),
-			$filesystem,
-			$this->getMock('\phpbb\request\request'),
+			$this->createMock('\phpbb\request\request'),
 			$phpbb_root_path,
 			$phpEx
 		);
 
 		$this->extension_manager = new phpbb_mock_extension_manager(
-			dirname(__FILE__) . '/',
+			__DIR__ . '/',
 			array(
 				'vendor4/bar' => array(
 					'ext_name' => 'vendor4/bar',
@@ -56,10 +55,9 @@ class phpbb_template_allfolder_test extends phpbb_template_template_test_case
 			)
 		);
 
-		$container = new phpbb_mock_container_builder();
 		$cache_path = $phpbb_root_path . 'cache/twig';
 		$context = new \phpbb\template\context();
-		$loader = new \phpbb\template\twig\loader(new \phpbb\filesystem\filesystem(), '');
+		$loader = new \phpbb\template\twig\loader('');
 		$twig = new \phpbb\template\twig\environment(
 			$config,
 			$filesystem,
@@ -67,6 +65,7 @@ class phpbb_template_allfolder_test extends phpbb_template_template_test_case
 			$cache_path,
 			$this->extension_manager,
 			$loader,
+			new \phpbb\event\dispatcher(),
 			array(
 				'cache'			=> false,
 				'debug'			=> false,
@@ -74,7 +73,7 @@ class phpbb_template_allfolder_test extends phpbb_template_template_test_case
 				'autoescape'	=> false,
 			)
 		);
-		$this->template = new \phpbb\template\twig\twig($path_helper, $config, $context, $twig, $cache_path, $this->user, array(new \phpbb\template\twig\extension($context, $this->user)), $this->extension_manager);
+		$this->template = new \phpbb\template\twig\twig($path_helper, $config, $context, $twig, $cache_path, $this->user, array(new \phpbb\template\twig\extension($context, $twig, $this->user)), $this->extension_manager);
 		$twig->setLexer(new \phpbb\template\twig\lexer($twig));
 
 		$this->template_path = $this->test_path . '/templates';

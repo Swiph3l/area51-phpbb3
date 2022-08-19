@@ -11,12 +11,11 @@
 *
 */
 
-class phpbb_lint_test extends phpbb_test_case
+class lint_test extends phpbb_test_case
 {
-	static protected $php_binary;
-	static protected $exclude;
+	protected static $php_binary;
 
-	static public function setUpBeforeClass()
+	static public function setUpBeforeClass(): void
 	{
 		// Try to use PHP_BINARY constant if available so lint tests are run
 		// using the same php binary as phpunit. If not available (pre PHP
@@ -45,11 +44,6 @@ class phpbb_lint_test extends phpbb_test_case
 	 */
 	public function test_lint($path)
 	{
-		if (version_compare(PHP_VERSION, '5.3.0', '<'))
-		{
-			$this->markTestSkipped('phpBB uses PHP 5.3 syntax in some files, linting on PHP < 5.3 will fail');
-		}
-
 		$cmd = sprintf('(%s -l %s) 2>&1', self::$php_binary, escapeshellarg($path));
 		$output = array();
 		$status = 1;
@@ -60,13 +54,19 @@ class phpbb_lint_test extends phpbb_test_case
 
 	public function lint_data()
 	{
-		return $this->check(dirname(__FILE__) . '/..');
+		return $this->check(__DIR__ . '/..');
 	}
 
 	protected function check($root)
 	{
 		$files = array();
 		$dh = opendir($root);
+
+		if ($dh === false)
+		{
+			return $files;
+		}
+
 		while (($filename = readdir($dh)) !== false)
 		{
 			if ($filename == '.' || $filename == '..')
@@ -80,15 +80,16 @@ class phpbb_lint_test extends phpbb_test_case
 				continue;
 			}
 			if (is_dir($path) && !in_array($path, array(
-					dirname(__FILE__) . '/../.git',
-					dirname(__FILE__) . '/../build/new_version',
-					dirname(__FILE__) . '/../build/old_versions',
-					dirname(__FILE__) . '/../phpBB/cache',
-					dirname(__FILE__) . '/../phpBB/ext',
-					dirname(__FILE__) . '/../phpBB/store',
+					__DIR__ . '/../.git',
+					__DIR__ . '/../build/new_version',
+					__DIR__ . '/../build/old_versions',
+					__DIR__ . '/../phpBB/cache',
+					__DIR__ . '/../phpBB/ext',
+					__DIR__ . '/../phpBB/store',
 					// PHP Fatal error:  Cannot declare class Container because the name is already in use in /var/www/projects/phpbb3/tests/../phpBB/vendor/symfony/dependency-injection/Symfony/Component/DependencyInjection/Tests/Fixtures/php/services1-1.php on line 20
 					// https://gist.github.com/e003913ffd493da63cbc
-					dirname(__FILE__) . '/../phpBB/vendor',
+					__DIR__ . '/../phpBB/vendor',
+					__DIR__ . '/../node_modules',
 				)))
 			{
 				$files = array_merge($files, $this->check($path));

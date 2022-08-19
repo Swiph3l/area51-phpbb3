@@ -30,7 +30,7 @@ class phpbb_functional_plupload_test extends phpbb_functional_test_case
 		$db->sql_query($query);
 	}
 
-	public function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 		$this->purge_cache();
@@ -40,7 +40,7 @@ class phpbb_functional_plupload_test extends phpbb_functional_test_case
 		$this->login();
 	}
 
-	public function tearDown()
+	protected function tearDown(): void
 	{
 		$this->set_extension_group_permission(0);
 		$iterator = new DirectoryIterator(__DIR__ . '/../../phpBB/files/');
@@ -76,6 +76,10 @@ class phpbb_functional_plupload_test extends phpbb_functional_test_case
 		$chunk_size = ceil(filesize($this->path . 'valid.jpg') / self::CHUNKS);
 		$handle = fopen($this->path . 'valid.jpg', 'rb');
 
+		$crawler = self::$client->request('POST', $url . '&sid=' . $this->sid);
+
+		$file_form_data = $this->get_hidden_fields($crawler, $url);
+
 		for ($i = 0; $i < self::CHUNKS; $i++)
 		{
 			$chunk = fread($handle, $chunk_size);
@@ -94,20 +98,20 @@ class phpbb_functional_plupload_test extends phpbb_functional_test_case
 			$crawler = self::$client->request(
 				'POST',
 				$url . '&sid=' . $this->sid,
-				array(
+				array_merge(array(
 					'chunk' => $i,
 					'chunks' => self::CHUNKS,
 					'name' => md5('valid') . '.jpg',
 					'real_filename' => 'valid.jpg',
 					'add_file' => $this->lang('ADD_FILE'),
-				),
+				), $file_form_data),
 				array('fileupload' => $file),
 				array('X-PHPBB-USING-PLUPLOAD' => '1')
 			);
 
 			if ($i < self::CHUNKS - 1)
 			{
-				$this->assertContains('{"jsonrpc":"2.0","id":"id","result":null}', self::get_content());
+				$this->assertStringContainsString('{"jsonrpc":"2.0","id":"id","result":null}', self::get_content());
 			}
 			else
 			{
@@ -134,17 +138,19 @@ class phpbb_functional_plupload_test extends phpbb_functional_test_case
 			'error' => UPLOAD_ERR_OK,
 		);
 
+		$file_form_data = $this->get_hidden_fields(null, $url);
+
 		self::$client->setServerParameter('HTTP_X_PHPBB_USING_PLUPLOAD', '1');
 		self::$client->request(
 			'POST',
 			$url . '&sid=' . $this->sid,
-			array(
+			array_merge(array(
 				'chunk' => '0',
 				'chunks' => '1',
 				'name' => md5('valid') . '.jpg',
 				'real_filename' => 'valid.jpg',
 				'add_file' => $this->lang('ADD_FILE'),
-			),
+			), $file_form_data),
 			array('fileupload' => $file)
 		);
 

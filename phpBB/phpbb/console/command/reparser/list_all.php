@@ -13,8 +13,10 @@
 
 namespace phpbb\console\command\reparser;
 
+use Symfony\Component\Console\Command\Command as symfony_command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 class list_all extends \phpbb\console\command\command
 {
@@ -33,10 +35,10 @@ class list_all extends \phpbb\console\command\command
 	{
 		parent::__construct($user);
 		$this->reparser_names = array();
-		foreach ($reparsers as $name => $reparser)
+		foreach ($reparsers as $reparser)
 		{
 			// Store the names without the "text_reparser." prefix
-			$this->reparser_names[] = preg_replace('(^text_reparser\\.)', '', $name);
+			$this->reparser_names[] = $reparser->get_name();
 		}
 	}
 
@@ -54,16 +56,18 @@ class list_all extends \phpbb\console\command\command
 	}
 
 	/**
-	* Executes the command reparser:reparse
+	* Executes the command reparser:list
 	*
 	* @param InputInterface $input
 	* @param OutputInterface $output
-	* @return integer
+	* @return int
 	*/
 	protected function execute(InputInterface $input, OutputInterface $output)
 	{
-		$output->writeln('<info>' . implode(', ', $this->reparser_names) . '</info>');
+		$io = new SymfonyStyle($input, $output);
+		$io->section($this->user->lang('CLI_DESCRIPTION_REPARSER_AVAILABLE'));
+		$io->listing($this->reparser_names);
 
-		return 0;
+		return symfony_command::SUCCESS;
 	}
 }

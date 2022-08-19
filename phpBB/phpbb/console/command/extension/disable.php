@@ -12,12 +12,17 @@
 */
 namespace phpbb\console\command\extension;
 
+use Symfony\Component\Console\Command\Command as symfony_command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 class disable extends command
 {
+	/**
+	 * {@inheritdoc}
+	 */
 	protected function configure()
 	{
 		$this
@@ -31,22 +36,42 @@ class disable extends command
 		;
 	}
 
+	/**
+	 * Executes the command extension:disable.
+	 *
+	 * Disables the specified extension
+	 *
+	 * @param InputInterface  $input  An InputInterface instance
+	 * @param OutputInterface $output An OutputInterface instance
+	 *
+	 * @return int
+	 */
 	protected function execute(InputInterface $input, OutputInterface $output)
 	{
+		$io = new SymfonyStyle($input, $output);
+
 		$name = $input->getArgument('extension-name');
+
+		if (!$this->manager->is_enabled($name))
+		{
+			$io->error($this->user->lang('CLI_EXTENSION_DISABLED', $name));
+			return 2;
+		}
+
 		$this->manager->disable($name);
 		$this->manager->load_extensions();
 
 		if ($this->manager->is_enabled($name))
 		{
-			$output->writeln('<error>' . $this->user->lang('CLI_EXTENSION_DISABLE_FAILURE', $name) . '</error>');
-			return 1;
+			$io->error($this->user->lang('CLI_EXTENSION_DISABLE_FAILURE', $name));
+			return symfony_command::FAILURE;
 		}
 		else
 		{
 			$this->log->add('admin', ANONYMOUS, '', 'LOG_EXT_DISABLE', time(), array($name));
-			$output->writeln('<info>' . $this->user->lang('CLI_EXTENSION_DISABLE_SUCCESS', $name) . '</info>');
-			return 0;
+			$this->check_apcu_cache($io);
+			$io->success($this->user->lang('CLI_EXTENSION_DISABLE_SUCCESS', $name));
+			return symfony_command::SUCCESS;
 		}
 	}
 }

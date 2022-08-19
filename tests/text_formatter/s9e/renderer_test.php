@@ -26,7 +26,7 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 			'<?php class renderer_foo { public function setParameter() {} }'
 		);
 
-		$cache = $this->getMock('phpbb_mock_cache');
+		$cache = $this->createMock('phpbb_mock_cache');
 		$cache->expects($this->once())
 		      ->method('get')
 		      ->with('_foo_renderer')
@@ -50,7 +50,7 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 	{
 		$mock = $this->getMockForAbstractClass('s9e\\TextFormatter\\Renderer');
 
-		$cache = $this->getMock('phpbb_mock_cache');
+		$cache = $this->createMock('phpbb_mock_cache');
 		$cache->expects($this->once())
 		      ->method('get')
 		      ->with('_foo_renderer')
@@ -61,7 +61,10 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 		                ->getMock();
 		$factory->expects($this->once())
 		        ->method('regenerate')
-		        ->will($this->returnValue(array('parser' => $mock)));
+		        ->will($this->returnValue([
+					'parser' => $mock,
+					'renderer' => $mock,
+				]));
 
 		$renderer = new \phpbb\textformatter\s9e\renderer(
 			$cache,
@@ -115,7 +118,7 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 			),
 			array(
 				'<r><E>:)</E></r>',
-				'<img class="smilies" src="phpBB/images/smilies/icon_e_smile.gif" alt=":)" title="Smile">',
+				'<img class="smilies" src="phpBB/images/smilies/icon_e_smile.gif" width="15" height="17" alt=":)" title="Smile">',
 				array('set_viewsmilies' => true)
 			),
 			array(
@@ -160,6 +163,7 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 					$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
 					$lang = new \phpbb\language\language($lang_loader);
 					$user = new \phpbb\user($lang, '\phpbb\datetime');
+					$user->data['user_options'] = 230271;
 					$user->optionset('viewcensors', false);
 
 					$phpbb_container->set('user', $user);
@@ -175,6 +179,7 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 					$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
 					$lang = new \phpbb\language\language($lang_loader);
 					$user = new \phpbb\user($lang, '\phpbb\datetime');
+					$user->data['user_options'] = 230271;
 					$user->optionset('viewcensors', false);
 
 					$config = new \phpbb\config\config(array('allow_nocensors' => true));
@@ -193,11 +198,12 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 					$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
 					$lang = new \phpbb\language\language($lang_loader);
 					$user = new \phpbb\user($lang, '\phpbb\datetime');
+					$user->data['user_options'] = 230271;
 					$user->optionset('viewcensors', false);
 
 					$config = new \phpbb\config\config(array('allow_nocensors' => true));
 
-					$auth = $test->getMock('phpbb\\auth\\auth');
+					$auth = $test->createMock('phpbb\\auth\\auth');
 					$auth->expects($test->any())
 					     ->method('acl_get')
 					     ->with('u_chgcensors')
@@ -222,6 +228,7 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 					$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
 					$lang = new \phpbb\language\language($lang_loader);
 					$user = new \phpbb\user($lang, '\phpbb\datetime');
+					$user->data['user_options'] = 230271;
 					$user->optionset('viewflash', false);
 
 					$phpbb_container->set('user', $user);
@@ -241,6 +248,7 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 					$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
 					$lang = new \phpbb\language\language($lang_loader);
 					$user = new \phpbb\user($lang, '\phpbb\datetime');
+					$user->data['user_options'] = 230271;
 					$user->optionset('viewimg', false);
 
 					$phpbb_container->set('user', $user);
@@ -248,7 +256,7 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 			),
 			array(
 				'<r><E>:)</E></r>',
-				'<img class="smilies" src="phpBB/images/smilies/icon_e_smile.gif" alt=":)" title="Smile">'
+				'<img class="smilies" src="phpBB/images/smilies/icon_e_smile.gif" width="15" height="17" alt=":)" title="Smile">'
 			),
 			array(
 				'<r><E>:)</E></r>',
@@ -260,7 +268,8 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 					$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
 					$lang = new \phpbb\language\language($lang_loader);
 					$user = new \phpbb\user($lang, '\phpbb\datetime');
-					$user->optionset('smilies', false);
+					$user->data['user_options'] = 230271;
+					$user->optionset('viewsmilies', false);
 
 					$phpbb_container->set('user', $user);
 				}
@@ -393,7 +402,7 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 	public function test_setup_event()
 	{
 		$container = $this->get_test_case_helpers()->set_s9e_services();
-		$dispatcher = $this->getMock('phpbb\\event\\dispatcher_interface');
+		$dispatcher = $this->createMock('phpbb\\event\\dispatcher_interface');
 		$dispatcher
 			->expects($this->once())
 			->method('trigger_event')
@@ -424,26 +433,10 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 	public function test_render_event()
 	{
 		$container = $this->get_test_case_helpers()->set_s9e_services();
-		$dispatcher = $this->getMock('phpbb\\event\\dispatcher_interface');
+		$dispatcher = $this->createMock('phpbb\\event\\dispatcher_interface');
 		$dispatcher
 			->expects($this->any())
 			->method('trigger_event')
-			->will($this->returnArgument(1));
-		$dispatcher
-			->expects($this->at(1))
-			->method('trigger_event')
-			->with(
-				'core.text_formatter_s9e_render_before',
-				$this->callback(array($this, 'render_before_event_callback'))
-			)
-			->will($this->returnArgument(1));
-		$dispatcher
-			->expects($this->at(2))
-			->method('trigger_event')
-			->with(
-				'core.text_formatter_s9e_render_after',
-				$this->callback(array($this, 'render_after_event_callback'))
-			)
 			->will($this->returnArgument(1));
 
 		$renderer = new \phpbb\textformatter\s9e\renderer(
@@ -453,6 +446,16 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 			$container->get('text_formatter.s9e.factory'),
 			$dispatcher
 		);
+
+		$dispatcher
+			->expects($this->exactly(2))
+			->method('trigger_event')
+			->withConsecutive(
+				['core.text_formatter_s9e_render_before', $this->callback(array($this, 'render_before_event_callback'))],
+				['core.text_formatter_s9e_render_after', $this->callback(array($this, 'render_after_event_callback'))]
+			)
+			->will($this->returnArgument(1));
+
 		$renderer->render('<t>...</t>');
 	}
 

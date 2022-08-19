@@ -11,9 +11,11 @@
 *
 */
 
-abstract class phpbb_database_test_case extends PHPUnit_Extensions_Database_TestCase
+use PHPUnit\DbUnit\TestCase;
+
+abstract class phpbb_database_test_case extends TestCase
 {
-	static private $already_connected;
+	private static $already_connected;
 
 	private $db_connections;
 
@@ -21,44 +23,58 @@ abstract class phpbb_database_test_case extends PHPUnit_Extensions_Database_Test
 
 	protected $fixture_xml_data;
 
-	static protected $schema_file;
+	protected static $schema_file;
 
-	static protected $phpbb_schema_copy;
+	protected static $phpbb_schema_copy;
 
-	static protected $install_schema_file;
+	protected static $install_schema_file;
 
-	public function __construct($name = NULL, array $data = array(), $dataName = '')
+	protected static $phpunit_version;
+
+	public function __construct($name = NULL, array $data = [], $dataName = '')
 	{
 		parent::__construct($name, $data, $dataName);
-		$this->backupStaticAttributesBlacklist += array(
-			'PHP_CodeCoverage' => array('instance'),
-			'PHP_CodeCoverage_Filter' => array('instance'),
-			'PHP_CodeCoverage_Util' => array('ignoredLines', 'templateMethods'),
-			'PHP_Timer' => array('startTimes',),
-			'PHP_Token_Stream' => array('customTokens'),
-			'PHP_Token_Stream_CachingFactory' => array('cache'),
 
-			'phpbb_database_test_case' => array('already_connected'),
-		);
+		self::$phpunit_version = PHPUnit\Runner\Version::id();
 
-		$this->db_connections = array();
+		$backupStaticAttributesBlacklist = [
+			'SebastianBergmann\CodeCoverage\CodeCoverage' => ['instance'],
+			'SebastianBergmann\CodeCoverage\Filter' => ['instance'],
+			'SebastianBergmann\CodeCoverage\Util' => ['ignoredLines', 'templateMethods'],
+			'SebastianBergmann\Timer\Timer' => ['startTimes'],
+			'PHP_Token_Stream' => ['customTokens'],
+			'PHP_Token_Stream_CachingFactory' => ['cache'],
+
+			'phpbb_database_test_case' => ['already_connected'],
+		];
+
+		if (version_compare(self::$phpunit_version, '9.0', '>='))
+		{
+			$this->backupStaticAttributesExcludeList += $backupStaticAttributesBlacklist;
+		}
+		else
+		{
+			$this->backupStaticAttributesBlacklist += $backupStaticAttributesBlacklist;
+		}
+
+		$this->db_connections = [];
 	}
 
 	/**
 	* @return array List of extensions that should be set up
 	*/
-	static protected function setup_extensions()
+	protected static function setup_extensions()
 	{
 		return array();
 	}
 
-	static public function setUpBeforeClass()
+	public static function setUpBeforeClass(): void
 	{
 		global $phpbb_root_path, $phpEx;
 
 		$setup_extensions = static::setup_extensions();
 
-		$finder = new \phpbb\finder(new \phpbb\filesystem\filesystem(), $phpbb_root_path, null, $phpEx);
+		$finder = new \phpbb\finder($phpbb_root_path, null, $phpEx);
 		$finder->core_path('phpbb/db/migration/data/');
 		if (!empty($setup_extensions))
 		{
@@ -73,14 +89,13 @@ abstract class phpbb_database_test_case extends PHPUnit_Extensions_Database_Test
 
 		if (!file_exists(self::$schema_file))
 		{
-
 			global $table_prefix;
 
-			$db = new \phpbb\db\driver\sqlite();
+			$db = new \phpbb\db\driver\sqlite3();
 			$factory = new \phpbb\db\tools\factory();
 			$db_tools = $factory->get($db, true);
 
-			$schema_generator = new \phpbb\db\migration\schema_generator($classes, new \phpbb\config\config(array()), $db, $db_tools, $phpbb_root_path, $phpEx, $table_prefix);
+			$schema_generator = new \phpbb\db\migration\schema_generator($classes, new \phpbb\config\config(array()), $db, $db_tools, $phpbb_root_path, $phpEx, $table_prefix, self::get_core_tables());
 			file_put_contents(self::$schema_file, json_encode($schema_generator->get_schema()));
 		}
 
@@ -89,7 +104,7 @@ abstract class phpbb_database_test_case extends PHPUnit_Extensions_Database_Test
 		parent::setUpBeforeClass();
 	}
 
-	static public function tearDownAfterClass()
+	public static function tearDownAfterClass(): void
 	{
 		if (file_exists(self::$install_schema_file))
 		{
@@ -99,7 +114,7 @@ abstract class phpbb_database_test_case extends PHPUnit_Extensions_Database_Test
 		parent::tearDownAfterClass();
 	}
 
-	protected function tearDown()
+	protected function tearDown(): void
 	{
 		parent::tearDown();
 
@@ -113,7 +128,7 @@ abstract class phpbb_database_test_case extends PHPUnit_Extensions_Database_Test
 		}
 	}
 
-	protected function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 
@@ -142,9 +157,86 @@ abstract class phpbb_database_test_case extends PHPUnit_Extensions_Database_Test
 		$manager->database_synchronisation($table_column_map);
 	}
 
+	/**
+	 * Create xml data set for insertion into database
+	 *
+	 * @param string $path Path to fixture XML
+	 * @return PHPUnit\DbUnit\DataSet\DefaultDataSet|PHPUnit\DbUnit\DataSet\XmlDataSet
+	 */
 	public function createXMLDataSet($path)
 	{
 		$this->fixture_xml_data = parent::createXMLDataSet($path);
+
+		// Extend XML data set on MSSQL
+		if (strpos($this->get_database_config()['dbms'], 'mssql') !== false)
+		{
+			$newXmlData = new PHPUnit\DbUnit\DataSet\DefaultDataSet([]);
+			$db = $this->new_dbal();
+			foreach ($this->fixture_xml_data as $key => $value)
+			{
+				/** @var PHPUnit\DbUnit\DataSet\DefaultTableMetaData $tableMetaData */
+				$tableMetaData = $value->getTableMetaData();
+				$columns = $tableMetaData->getColumns();
+				$primaryKeys = $tableMetaData->getPrimaryKeys();
+
+				$sql = "SELECT COLUMN_NAME AS identity_column
+					FROM INFORMATION_SCHEMA.COLUMNS
+					WHERE COLUMNPROPERTY(object_id(TABLE_SCHEMA + '.' + TABLE_NAME), COLUMN_NAME, 'IsIdentity') = 1
+						AND TABLE_NAME = '$key'
+					ORDER BY TABLE_NAME";
+				$result = $db->sql_query($sql);
+				$identity_columns = $db->sql_fetchrowset($result);
+				$has_default_identity = false;
+				$add_primary_keys = false;
+
+				// Iterate over identity columns to check for missing primary
+				// keys in data set and special identity column 'mssqlindex'
+				// that might have been added when no default identity column
+				// exists in the current table.
+				foreach ($identity_columns as $column)
+				{
+					if (in_array($column['identity_column'], $columns) && !in_array($column['identity_column'], $primaryKeys))
+					{
+						$primaryKeys[] = $column['identity_column'];
+						$add_primary_keys = true;
+					}
+
+					if ($column['identity_column'] === 'mssqlindex')
+					{
+						$has_default_identity = true;
+						break;
+					}
+				}
+
+				if ($has_default_identity || $add_primary_keys)
+				{
+					// Add default identity column to columns list
+					if ($has_default_identity)
+					{
+						$columns[] = 'mssqlindex';
+					}
+
+					$newMetaData = new PHPUnit\DbUnit\DataSet\DefaultTableMetaData($key, $columns, $primaryKeys);
+					$newTable = new PHPUnit\DbUnit\DataSet\DefaultTable($newMetaData);
+					for ($i = 0; $i < $value->getRowCount(); $i++)
+					{
+						$dataRow = $value->getRow($i);
+						if ($has_default_identity)
+						{
+							$dataRow['mssqlindex'] = $i + 1;
+						}
+						$newTable->addRow($dataRow);
+					}
+					$newXmlData->addTable($newTable);
+				}
+				else
+				{
+					$newXmlData->addTable($value);
+				}
+			}
+
+			$this->fixture_xml_data = $newXmlData;
+		}
 		return $this->fixture_xml_data;
 	}
 
@@ -225,11 +317,45 @@ abstract class phpbb_database_test_case extends PHPUnit_Extensions_Database_Test
 		return new phpbb_database_test_connection_manager($config);
 	}
 
+	/** array_diff() does not corretly compare multidimensionsl arrays
+	 *  This solution used for that https://www.codeproject.com/Questions/780780/PHP-Finding-differences-in-two-multidimensional-ar
+	 */
+	function array_diff_assoc_recursive($array1, $array2)
+	{
+		$difference = array();
+		foreach ($array1 as $key => $value)
+		{
+			if (is_array($value))
+			{
+				if (!isset($array2[$key]))
+				{
+					$difference[$key] = $value;
+				}
+				else if (!is_array($array2[$key]))
+				{
+					$difference[$key] = $value;
+				}
+				else
+				{
+					$new_diff = $this->array_diff_assoc_recursive($value, $array2[$key]);
+					if (!empty($new_diff))
+					{
+						$difference[$key] = $new_diff;
+					}
+				}
+			}
+			else if (!isset($array2[$key]) || $array2[$key] != $value)
+			{
+				$difference[$key] = $value;
+			}
+		}
+		return $difference;
+	}
+
 	public function assert_array_content_equals($one, $two)
 	{
-		// http://stackoverflow.com/questions/3838288/phpunit-assert-two-arrays-are-equal-but-order-of-elements-not-important
-		// but one array_diff is not enough!
-		if (sizeof(array_diff($one, $two)) || sizeof(array_diff($two, $one)))
+		// one-way comparison is not enough!
+		if (count($this->array_diff_assoc_recursive($one, $two)) || count($this->array_diff_assoc_recursive($two, $one)))
 		{
 			// get a nice error message
 			$this->assertEquals($one, $two);
@@ -238,6 +364,77 @@ abstract class phpbb_database_test_case extends PHPUnit_Extensions_Database_Test
 		{
 			// increase assertion count
 			$this->assertTrue(true);
+		}
+	}
+
+	public static function get_core_tables() : array
+	{
+		global $phpbb_root_path, $table_prefix;
+
+		static $core_tables = [];
+
+		if (empty($core_tables))
+		{
+			$tables_yml_data = \Symfony\Component\Yaml\Yaml::parseFile($phpbb_root_path . '/config/default/container/tables.yml');
+
+			foreach ($tables_yml_data['parameters'] as $parameter => $table)
+			{
+				$core_tables[str_replace('tables.', '', $parameter)] = str_replace('%core.table_prefix%', $table_prefix, $table);
+			}
+		}
+
+		return $core_tables;
+	}
+
+	/**
+	 * PHPUnit deprecates several methods and properties in its recent versions
+	 * Provide BC layer to be able to test in multiple environment settings
+	 */
+	public function expectException(string $exception): void
+	{
+		if (version_compare(self::$phpunit_version, '9.0', '>='))
+		{
+			switch ($exception) {
+				case PHPUnit\Framework\Error\Deprecated::class:
+					parent::expectDeprecation();
+				break;
+
+				case PHPUnit\Framework\Error\Error::class:
+					parent::expectError();
+				break;
+
+				case PHPUnit\Framework\Error\Notice::class:
+					parent::expectNotice();
+				break;
+
+				case PHPUnit\Framework\Error\Warning::class:
+					parent::expectWarning();
+				break;
+
+				default:
+					parent::expectException($exception);
+				break;
+			}
+		}
+		else
+		{
+			parent::expectException($exception);
+		}
+	}
+
+	/**
+	 * PHPUnit deprecates several methods and properties in its recent versions
+	 * Provide BC layer to be able to test in multiple environment settings
+	 */
+	public static function assertFileNotExists(string $filename, string $message = ''): void
+	{
+		if (version_compare(self::$phpunit_version, '9.0', '>='))
+		{
+			parent::assertFileDoesNotExist($filename, $message);
+		}
+		else
+		{
+			parent::assertFileNotExists($filename, $message);
 		}
 	}
 }

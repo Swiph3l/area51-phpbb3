@@ -13,7 +13,7 @@
 
 class phpbb_migrator_convert_timezones_test extends phpbb_database_test_case
 {
-	protected $notifications, $db, $container, $user, $config, $auth, $cache;
+	protected $db;
 
 	public function getDataSet()
 	{
@@ -24,7 +24,7 @@ class phpbb_migrator_convert_timezones_test extends phpbb_database_test_case
 		// user_dst doesn't exist anymore, must re-add it to test this
 		$db_tools->sql_column_add('phpbb_users', 'user_dst', array('BOOL', 1));
 
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/convert_timezones.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/convert_timezones.xml');
 	}
 
 	public function revert_schema()
@@ -49,7 +49,7 @@ class phpbb_migrator_convert_timezones_test extends phpbb_database_test_case
 		);
 	}
 
-	protected function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 
@@ -64,7 +64,8 @@ class phpbb_migrator_convert_timezones_test extends phpbb_database_test_case
 			$factory->get($this->db),
 			$phpbb_root_path,
 			$phpEx,
-			'phpbb_'
+			'phpbb_',
+			self::get_core_tables()
 		);
 	}
 

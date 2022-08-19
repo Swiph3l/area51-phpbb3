@@ -29,10 +29,10 @@ class phpbb_console_command_thumbnail_test extends phpbb_database_test_case
 
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/thumbnail.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/thumbnail.xml');
 	}
 
-	public function setUp()
+	protected function setUp(): void
 	{
 		global $config, $phpbb_root_path, $phpEx, $phpbb_filesystem;
 
@@ -46,37 +46,35 @@ class phpbb_console_command_thumbnail_test extends phpbb_database_test_case
 		$config = $this->config = new \phpbb\config\config(array(
 			'img_min_thumb_filesize' => 2,
 			'img_max_thumb_width' => 2,
-			'img_imagick' => '',
+			'upload_path' => 'files',
 		));
 
 		$this->db = $this->db = $this->new_dbal();
-		$this->user = $this->getMock('\phpbb\user', array(), array(
-				new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx)),
-				'\phpbb\datetime')
-		);
+		$this->language = new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx));
+		$this->user = new \phpbb\user($this->language, '\phpbb\datetime');
 		$this->phpbb_root_path = $phpbb_root_path;
 		$this->phpEx = $phpEx;
 
-		$this->cache = $this->getMock('\phpbb\cache\service', array(), array(new phpbb_mock_cache(), $this->config, $this->db, $this->phpbb_root_path, $this->phpEx));
+		$this->cache = $this->createMock('\phpbb\cache\service');
 		$this->cache->expects(self::any())->method('obtain_attach_extensions')->will(self::returnValue(array(
 			'png' => array('display_cat' => ATTACHMENT_CATEGORY_IMAGE),
 			'txt' => array('display_cat' => ATTACHMENT_CATEGORY_NONE),
 		)));
 
 		$this->application = new Application();
-		$this->application->add(new generate($this->user, $this->db, $this->cache, $this->phpbb_root_path, $this->phpEx));
-		$this->application->add(new delete($this->user, $this->db, $this->phpbb_root_path));
+		$this->application->add(new generate($config, $this->user, $this->db, $this->cache, $this->phpbb_root_path, $this->phpEx));
+		$this->application->add(new delete($config, $this->user, $this->db, $this->phpbb_root_path));
 		$this->application->add(new recreate($this->user));
 
 		$phpbb_filesystem = new \phpbb\filesystem\filesystem();
 
-		copy(dirname(__FILE__) . '/fixtures/png.png', $this->phpbb_root_path . 'files/test_png_1');
-		copy(dirname(__FILE__) . '/fixtures/png.png', $this->phpbb_root_path . 'files/test_png_2');
-		copy(dirname(__FILE__) . '/fixtures/png.png', $this->phpbb_root_path . 'files/thumb_test_png_2');
-		copy(dirname(__FILE__) . '/fixtures/txt.txt', $this->phpbb_root_path . 'files/test_txt');
+		copy(__DIR__ . '/fixtures/png.png', $this->phpbb_root_path . 'files/test_png_1');
+		copy(__DIR__ . '/fixtures/png.png', $this->phpbb_root_path . 'files/test_png_2');
+		copy(__DIR__ . '/fixtures/png.png', $this->phpbb_root_path . 'files/thumb_test_png_2');
+		copy(__DIR__ . '/fixtures/txt.txt', $this->phpbb_root_path . 'files/test_txt');
 	}
 
-	protected function tearDown()
+	protected function tearDown(): void
 	{
 		parent::tearDown();
 

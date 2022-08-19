@@ -11,7 +11,7 @@
 *
 */
 
-require_once dirname(__FILE__) . '/template_test_case_with_tree.php';
+require_once __DIR__ . '/template_test_case_with_tree.php';
 
 class phpbb_template_template_includecss_test extends phpbb_template_template_test_case_with_tree
 {
@@ -34,18 +34,16 @@ class phpbb_template_template_includecss_test extends phpbb_template_template_te
 			new \phpbb\symfony_request(
 				new phpbb_mock_request()
 			),
-			$filesystem,
-			$this->getMock('\phpbb\request\request'),
+			$this->createMock('\phpbb\request\request'),
 			$phpbb_root_path,
 			$phpEx
 		);
 
 		$this->template_path = $this->test_path . '/templates';
 		$this->parent_template_path = $this->test_path . '/parent_templates';
-		$container = new phpbb_mock_container_builder();
 		$cache_path = $phpbb_root_path . 'cache/twig';
 		$context = new \phpbb\template\context();
-		$loader = new \phpbb\template\twig\loader(new \phpbb\filesystem\filesystem(), '');
+		$loader = new \phpbb\template\twig\loader('');
 		$twig = new \phpbb\template\twig\environment(
 			$config,
 			$filesystem,
@@ -53,6 +51,7 @@ class phpbb_template_template_includecss_test extends phpbb_template_template_te
 			$cache_path,
 			null,
 			$loader,
+			new \phpbb\event\dispatcher(),
 			array(
 				'cache'			=> false,
 				'debug'			=> false,
@@ -67,9 +66,9 @@ class phpbb_template_template_includecss_test extends phpbb_template_template_te
 			$twig,
 			$cache_path,
 			$this->user,
-			array(new \phpbb\template\twig\extension($context, $this->user)),
+			array(new \phpbb\template\twig\extension($context, $twig, $this->user)),
 			new phpbb_mock_extension_manager(
-				dirname(__FILE__) . '/',
+				__DIR__ . '/',
 				array(
 					'include/css' => array(
 						'ext_name' => 'include/css',
@@ -94,19 +93,19 @@ class phpbb_template_template_includecss_test extends phpbb_template_template_te
 			*/
 			array(
 				array('TEST' => 1),
-				'<link href="tests/template/templates/child_only.css?assets_version=1" rel="stylesheet" type="text/css" media="screen" />',
+				'<link href="tests/template/templates/child_only.css?assets_version=1" rel="stylesheet" media="screen" />',
 			),
 			array(
 				array('TEST' => 2),
-				'<link href="tests/template/parent_templates/parent_only.css?assets_version=1" rel="stylesheet" type="text/css" media="screen" />',
+				'<link href="tests/template/parent_templates/parent_only.css?assets_version=1" rel="stylesheet" media="screen" />',
 			),
 			array(
 				array('TEST' => 3),
-				'<link href="tests/template/ext/include/css/styles/all/theme/test.css?assets_version=1" rel="stylesheet" type="text/css" media="screen" />',
+				'<link href="tests/template/ext/include/css/styles/all/theme/test.css?assets_version=1" rel="stylesheet" media="screen" />',
 			),
 			array(
 				array('TEST' => 4),
-				'<link href="tests/template/ext/include/css/styles/all/theme/child_only.css?assets_version=1" rel="stylesheet" type="text/css" media="screen" />',
+				'<link href="tests/template/ext/include/css/styles/all/theme/child_only.css?assets_version=1" rel="stylesheet" media="screen" />',
 			),
 		);
 	}

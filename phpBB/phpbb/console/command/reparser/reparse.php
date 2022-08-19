@@ -14,6 +14,7 @@
 namespace phpbb\console\command\reparser;
 
 use phpbb\exception\runtime_exception;
+use Symfony\Component\Console\Command\Command as symfony_command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
@@ -126,7 +127,7 @@ class reparse extends \phpbb\console\command\command
 	*
 	* @param InputInterface $input
 	* @param OutputInterface $output
-	* @return integer
+	* @return int
 	*/
 	protected function execute(InputInterface $input, OutputInterface $output)
 	{
@@ -140,13 +141,9 @@ class reparse extends \phpbb\console\command\command
 		}
 
 		$name = $input->getArgument('reparser-name');
-		if (isset($name))
+		if ($name)
 		{
-			// Allow "post_text" to be an alias for "text_reparser.post_text"
-			if (!isset($this->reparsers[$name]))
-			{
-				$name = 'text_reparser.' . $name;
-			}
+			$name = $this->reparser_manager->find_reparser($name);
 			$this->reparse($name);
 		}
 		else
@@ -161,7 +158,7 @@ class reparse extends \phpbb\console\command\command
 
 		$this->reparse_lock->release();
 
-		return 0;
+		return symfony_command::SUCCESS;
 	}
 
 	/**
@@ -187,7 +184,7 @@ class reparse extends \phpbb\console\command\command
 	/**
 	* Reparse all text handled by given reparser within given range
 	*
-	* @param string $name Reparser name
+	* @param string $name Reparser service name
 	*/
 	protected function reparse($name)
 	{
@@ -208,7 +205,7 @@ class reparse extends \phpbb\console\command\command
 		$size = $this->get_option('range-size');
 
 		// range-max has no default value, it must be computed for each reparser
-		if ($max == null)
+		if ($max === null)
 		{
 			$max = $reparser->get_max_id();
 		}
@@ -218,10 +215,10 @@ class reparse extends \phpbb\console\command\command
 			return;
 		}
 
-		$this->io->section($this->user->lang('CLI_REPARSER_REPARSE_REPARSING', preg_replace('(^text_reparser\\.)', '', $name), $min, $max));
+		$this->io->section($this->user->lang('CLI_REPARSER_REPARSE_REPARSING', $reparser->get_name(), $min, $max));
 
 		$progress = $this->create_progress_bar($max, $this->io, $this->output, true);
-		$progress->setMessage($this->user->lang('CLI_REPARSER_REPARSE_REPARSING_START', preg_replace('(^text_reparser\\.)', '', $name)));
+		$progress->setMessage($this->user->lang('CLI_REPARSER_REPARSE_REPARSING_START', $reparser->get_name()));
 		$progress->start();
 
 		// Start from $max and decrement $current by $size until we reach $min
@@ -231,7 +228,7 @@ class reparse extends \phpbb\console\command\command
 			$start = max($min, $current + 1 - $size);
 			$end   = max($min, $current);
 
-			$progress->setMessage($this->user->lang('CLI_REPARSER_REPARSE_REPARSING', preg_replace('(^text_reparser\\.)', '', $name), $start, $end));
+			$progress->setMessage($this->user->lang('CLI_REPARSER_REPARSE_REPARSING', $reparser->get_name(), $start, $end));
 			$reparser->reparse_range($start, $end);
 
 			$current = $start - 1;

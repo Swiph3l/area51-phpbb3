@@ -22,6 +22,7 @@ if (!defined('IN_PHPBB'))
 class acp_main
 {
 	var $u_action;
+	private $php_ini;
 
 	function main($id, $mode)
 	{
@@ -275,7 +276,6 @@ class acp_main
 					case 'db_track':
 						switch ($db->get_sql_layer())
 						{
-							case 'sqlite':
 							case 'sqlite3':
 								$db->sql_query('DELETE FROM ' . TOPICS_POSTED_TABLE);
 							break;
@@ -338,7 +338,7 @@ class acp_main
 							}
 							unset($posted);
 
-							if (sizeof($sql_ary))
+							if (count($sql_ary))
 							{
 								$db->sql_multi_insert(TOPICS_POSTED_TABLE, $sql_ary);
 							}
@@ -386,7 +386,6 @@ class acp_main
 						{
 							switch ($db->get_sql_layer())
 							{
-								case 'sqlite':
 								case 'sqlite3':
 									$db->sql_query("DELETE FROM $table");
 								break;
@@ -431,30 +430,39 @@ class acp_main
 		// Version check
 		$user->add_lang('install');
 
-		if ($auth->acl_get('a_server') && version_compare(PHP_VERSION, '5.4', '<'))
+		if ($auth->acl_get('a_server') && version_compare(PHP_VERSION, '7.1.3', '<'))
 		{
 			$template->assign_vars(array(
 				'S_PHP_VERSION_OLD'	=> true,
-				'L_PHP_VERSION_OLD'	=> sprintf($user->lang['PHP_VERSION_OLD'], '<a href="https://www.phpbb.com/community/viewtopic.php?f=14&amp;t=2152375">', '</a>'),
+				'L_PHP_VERSION_OLD'	=> sprintf($user->lang['PHP_VERSION_OLD'], PHP_VERSION, '7.1.3', '<a href="https://www.phpbb.com/support/docs/en/3.3/ug/quickstart/requirements">', '</a>'),
 			));
 		}
 
 		if ($auth->acl_get('a_board'))
 		{
-			/* @var $version_helper \phpbb\version_helper */
 			$version_helper = $phpbb_container->get('version_helper');
 			try
 			{
 				$recheck = $request->variable('versioncheck_force', false);
-				$updates_available = $version_helper->get_suggested_updates($recheck);
+				$updates_available = $version_helper->get_update_on_branch($recheck);
+				$upgrades_available = $version_helper->get_suggested_updates();
+				if (!empty($upgrades_available))
+				{
+					$upgrades_available = array_pop($upgrades_available);
+				}
 
-				$template->assign_var('S_VERSION_UP_TO_DATE', empty($updates_available));
+				$template->assign_vars(array(
+					'S_VERSION_UP_TO_DATE'		=> empty($updates_available),
+					'S_VERSION_UPGRADEABLE'		=> !empty($upgrades_available),
+					'UPGRADE_INSTRUCTIONS'		=> !empty($upgrades_available) ? $user->lang('UPGRADE_INSTRUCTIONS', $upgrades_available['current'], $upgrades_available['announcement']) : false,
+				));
 			}
 			catch (\RuntimeException $e)
 			{
+				$message = call_user_func_array(array($user, 'lang'), array_merge(array($e->getMessage()), $e->get_parameters()));
 				$template->assign_vars(array(
 					'S_VERSIONCHECK_FAIL'		=> true,
-					'VERSIONCHECK_FAIL_REASON'	=> ($e->getMessage() !== $user->lang('VERSIONCHECK_FAIL')) ? $e->getMessage() : '',
+					'VERSIONCHECK_FAIL_REASON'	=> ($e->getMessage() !== 'VERSIONCHECK_FAIL') ? $message : '',
 				));
 			}
 		}
@@ -476,7 +484,7 @@ class acp_main
 		* @event core.acp_main_notice
 		* @since 3.1.0-RC3
 		*/
-		$phpbb_dispatcher->dispatch('core.acp_main_notice');
+		$phpbb_dispatcher->trigger_event('core.acp_main_notice');
 
 		// Get forum statistics
 		$total_posts = $config['num_posts'];
@@ -486,7 +494,7 @@ class acp_main
 
 		$start_date = $user->format_date($config['board_startdate']);
 
-		$boarddays = (time() - $config['board_startdate']) / 86400;
+		$boarddays = (time() - (int) $config['board_startdate']) / 86400;
 
 		$posts_per_day = sprintf('%.2f', $total_posts / $boarddays);
 		$topics_per_day = sprintf('%.2f', $total_topics / $boarddays);
@@ -495,26 +503,8 @@ class acp_main
 
 		$upload_dir_size = get_formatted_filesize($config['upload_dir_size']);
 
-		$avatar_dir_size = 0;
-
-		if ($avatar_dir = @opendir($phpbb_root_path . $config['avatar_path']))
-		{
-			while (($file = readdir($avatar_dir)) !== false)
-			{
-				if ($file[0] != '.' && $file != 'CVS' && strpos($file, 'index.') === false)
-				{
-					$avatar_dir_size += filesize($phpbb_root_path . $config['avatar_path'] . '/' . $file);
-				}
-			}
-			closedir($avatar_dir);
-
-			$avatar_dir_size = get_formatted_filesize($avatar_dir_size);
-		}
-		else
-		{
-			// Couldn't open Avatar dir.
-			$avatar_dir_size = $user->lang['NOT_AVAILABLE'];
-		}
+		$storage_avatar = $phpbb_container->get('storage.avatar');
+		$avatar_dir_size = get_formatted_filesize($storage_avatar->get_size());
 
 		if ($posts_per_day > $total_posts)
 		{
@@ -570,6 +560,7 @@ class acp_main
 			'S_TOTAL_ORPHAN'	=> ($total_orphan === false) ? false : true,
 			'GZIP_COMPRESSION'	=> ($config['gzip_compress'] && @extension_loaded('zlib')) ? $user->lang['ON'] : $user->lang['OFF'],
 			'DATABASE_INFO'		=> $db->sql_server_info(),
+			'PHP_VERSION_INFO'	=> PHP_VERSION,
 			'BOARD_VERSION'		=> $config['version'],
 
 			'U_ACTION'			=> $this->u_action,
@@ -577,6 +568,7 @@ class acp_main
 			'U_INACTIVE_USERS'	=> append_sid("{$phpbb_admin_path}index.$phpEx", 'i=inactive&amp;mode=list'),
 			'U_VERSIONCHECK'	=> append_sid("{$phpbb_admin_path}index.$phpEx", 'i=update&amp;mode=version_check'),
 			'U_VERSIONCHECK_FORCE'	=> append_sid("{$phpbb_admin_path}index.$phpEx", 'versioncheck_force=1'),
+			'U_ATTACH_ORPHAN'	=> append_sid("{$phpbb_admin_path}index.$phpEx", 'i=acp_attachments&mode=orphan'),
 
 			'S_VERSIONCHECK'	=> ($auth->acl_get('a_board')) ? true : false,
 			'S_ACTION_OPTIONS'	=> ($auth->acl_get('a_board')) ? true : false,
@@ -648,17 +640,30 @@ class acp_main
 		}
 
 		// Warn if install is still present
-		if (file_exists($phpbb_root_path . 'install') && !is_file($phpbb_root_path . 'install'))
+		if (!$phpbb_container->getParameter('allow_install_dir') && file_exists($phpbb_root_path . 'install') && !is_file($phpbb_root_path . 'install'))
 		{
 			$template->assign_var('S_REMOVE_INSTALL', true);
 		}
 
 		// Warn if no search index is created
-		if ($config['num_posts'] && class_exists($config['search_type']))
+		if ($config['num_posts'])
 		{
-			$error = false;
-			$search_type = $config['search_type'];
-			$search = new $search_type($error, $phpbb_root_path, $phpEx, $auth, $config, $db, $user, $phpbb_dispatcher);
+			try
+			{
+				$search_backend_factory = $phpbb_container->get('search.backend_factory');
+				$search = $search_backend_factory->get_active();
+			}
+			catch (RuntimeException $e)
+			{
+				if (strpos($e->getMessage(), 'No service found') === 0)
+				{
+					trigger_error('NO_SUCH_SEARCH_MODULE');
+				}
+				else
+				{
+					throw $e;
+				}
+			}
 
 			if (!$search->index_created())
 			{
@@ -669,27 +674,33 @@ class acp_main
 			}
 		}
 
-		if (!defined('PHPBB_DISABLE_CONFIG_CHECK') && file_exists($phpbb_root_path . 'config.' . $phpEx) && $phpbb_filesystem->is_writable($phpbb_root_path . 'config.' . $phpEx))
+		if (!defined('PHPBB_DISABLE_CONFIG_CHECK'))
 		{
 			// World-Writable? (000x)
 			$template->assign_var('S_WRITABLE_CONFIG', (bool) (@fileperms($phpbb_root_path . 'config.' . $phpEx) & 0x0002));
 		}
 
+		$this->php_ini			= $phpbb_container->get('php_ini');
+		$func_overload			= $this->php_ini->getNumeric('mbstring.func_overload');
+		$encoding_translation	= $this->php_ini->getString('mbstring.encoding_translation');
+		$http_input				= $this->php_ini->getString('mbstring.http_input');
+		$http_output			= $this->php_ini->getString('mbstring.http_output');
+		$default_charset		= $this->php_ini->getString('default_charset');
+
 		if (extension_loaded('mbstring'))
 		{
-			$template->assign_vars(array(
+			/**
+			 * “mbstring.http_input” and “mbstring.http_output” are deprecated as of PHP 5.6.0
+			 * @link https://www.php.net/manual/mbstring.configuration.php#ini.mbstring.http-input
+			 */
+			$template->assign_vars([
 				'S_MBSTRING_LOADED'						=> true,
-				'S_MBSTRING_FUNC_OVERLOAD_FAIL'			=> (intval(@ini_get('mbstring.func_overload')) & (MB_OVERLOAD_MAIL | MB_OVERLOAD_STRING)),
-				'S_MBSTRING_ENCODING_TRANSLATION_FAIL'	=> (@ini_get('mbstring.encoding_translation') != 0),
-				'S_MBSTRING_HTTP_INPUT_FAIL'			=> !in_array(@ini_get('mbstring.http_input'), array('pass', '')),
-				'S_MBSTRING_HTTP_OUTPUT_FAIL'			=> !in_array(@ini_get('mbstring.http_output'), array('pass', '')),
-			));
-		}
-
-		// Fill dbms version if not yet filled
-		if (empty($config['dbms_version']))
-		{
-			$config->set('dbms_version', $db->sql_server_info(true));
+				'S_MBSTRING_FUNC_OVERLOAD_FAIL'			=> $func_overload && ($func_overload & (MB_OVERLOAD_MAIL | MB_OVERLOAD_STRING)),
+				'S_MBSTRING_ENCODING_TRANSLATION_FAIL'	=> $encoding_translation && ($encoding_translation != 0),
+				'S_MBSTRING_HTTP_INPUT_FAIL'			=> !empty($http_input),
+				'S_MBSTRING_HTTP_OUTPUT_FAIL'			=> !empty($http_output),
+				'S_DEFAULT_CHARSET_FAIL'				=> $default_charset !== null && strtolower($default_charset) !== 'utf-8',
+			]);
 		}
 
 		$this->tpl_name = 'acp_main';

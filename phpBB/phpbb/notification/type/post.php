@@ -50,7 +50,7 @@ class post extends \phpbb\notification\type\base
 	* @var bool|array False if the service should use it's default data
 	* 					Array of data (including keys 'id', 'lang', and 'group')
 	*/
-	static public $notification_option = array(
+	public static $notification_option = array(
 		'lang'	=> 'NOTIFICATION_TYPE_POST',
 		'group'	=> 'NOTIFICATION_GROUP_POSTING',
 	);
@@ -85,7 +85,7 @@ class post extends \phpbb\notification\type\base
 	* @param array $post The data from the post
 	* @return int The post id
 	*/
-	static public function get_item_id($post)
+	public static function get_item_id($post)
 	{
 		return (int) $post['post_id'];
 	}
@@ -96,7 +96,7 @@ class post extends \phpbb\notification\type\base
 	* @param array $post The data from the post
 	* @return int The topic id
 	*/
-	static public function get_item_parent_id($post)
+	public static function get_item_parent_id($post)
 	{
 		return (int) $post['topic_id'];
 	}
@@ -120,18 +120,6 @@ class post extends \phpbb\notification\type\base
 		$sql = 'SELECT user_id
 			FROM ' . TOPICS_WATCH_TABLE . '
 			WHERE topic_id = ' . (int) $post['topic_id'] . '
-				AND notify_status = ' . NOTIFY_YES . '
-				AND user_id <> ' . (int) $post['poster_id'];
-		$result = $this->db->sql_query($sql);
-		while ($row = $this->db->sql_fetchrow($result))
-		{
-			$users[] = (int) $row['user_id'];
-		}
-		$this->db->sql_freeresult($result);
-
-		$sql = 'SELECT user_id
-			FROM ' . FORUMS_WATCH_TABLE . '
-			WHERE forum_id = ' . (int) $post['forum_id'] . '
 				AND notify_status = ' . NOTIFY_YES . '
 				AND user_id <> ' . (int) $post['poster_id'];
 		$result = $this->db->sql_query($sql);
@@ -202,9 +190,9 @@ class post extends \phpbb\notification\type\base
 			'username'		=> $this->get_data('post_username'),
 		)), $responders);
 
-		$responders_cnt = sizeof($responders);
+		$responders_cnt = count($responders);
 		$responders = $this->trim_user_ary($responders);
-		$trimmed_responders_cnt = $responders_cnt - sizeof($responders);
+		$trimmed_responders_cnt = $responders_cnt - count($responders);
 
 		foreach ($responders as $responder)
 		{
@@ -274,9 +262,9 @@ class post extends \phpbb\notification\type\base
 		}
 
 		return array(
-			'AUTHOR_NAME'				=> htmlspecialchars_decode($username),
-			'POST_SUBJECT'				=> htmlspecialchars_decode(censor_text($this->get_data('post_subject'))),
-			'TOPIC_TITLE'				=> htmlspecialchars_decode(censor_text($this->get_data('topic_title'))),
+			'AUTHOR_NAME'				=> htmlspecialchars_decode($username, ENT_COMPAT),
+			'POST_SUBJECT'				=> htmlspecialchars_decode(censor_text($this->get_data('post_subject')), ENT_COMPAT),
+			'TOPIC_TITLE'				=> htmlspecialchars_decode(censor_text($this->get_data('topic_title')), ENT_COMPAT),
 
 			'U_VIEW_POST'				=> generate_board_url() . "/viewtopic.{$this->php_ext}?p={$this->item_id}#p{$this->item_id}",
 			'U_NEWEST_POST'				=> generate_board_url() . "/viewtopic.{$this->php_ext}?f={$this->get_data('forum_id')}&t={$this->item_parent_id}&e=1&view=unread#unread",
@@ -337,7 +325,7 @@ class post extends \phpbb\notification\type\base
 	*/
 	public function trim_user_ary($users)
 	{
-		if (sizeof($users) > 4)
+		if (count($users) > 4)
 		{
 			array_splice($users, 3);
 		}
@@ -352,12 +340,12 @@ class post extends \phpbb\notification\type\base
 	*
 	* @param array $post Post data from submit_post
 	* @param array $notify_users Notify users list
-	* 		Formated from find_users_for_notification()
+	* 		Formatted from find_users_for_notification()
 	* @return array Whatever you want to send to create_insert_array().
 	*/
 	public function pre_create_insert_array($post, $notify_users)
 	{
-		if (!sizeof($notify_users) || !$this->inherit_read_status)
+		if (!count($notify_users) || !$this->inherit_read_status)
 		{
 			return array();
 		}
@@ -426,7 +414,7 @@ class post extends \phpbb\notification\type\base
 		// Do not add more than 25 responders,
 		// we trim the username list to "a, b, c and x others" anyway
 		// so there is no use to add all of them anyway.
-		if (sizeof($responders) > 25)
+		if (count($responders) > 25)
 		{
 			return array();
 		}
@@ -456,6 +444,18 @@ class post extends \phpbb\notification\type\base
 			return array();
 		}
 
-		return array('notification_data' => $serialized_data);
+		$data_array = array_merge(array(
+			'poster_id'		=> $post['poster_id'],
+			'topic_title'	=> $post['topic_title'],
+			'post_subject'	=> $post['post_subject'],
+			'post_username'	=> $post['post_username'],
+			'forum_id'		=> $post['forum_id'],
+			'forum_name'	=> $post['forum_name'],
+			'post_time'		=> $post['post_time'],
+			'post_id'		=> $post['post_id'],
+			'topic_id'		=> $post['topic_id']
+		), $this->get_data(false));
+
+		return $data_array;
 	}
 }

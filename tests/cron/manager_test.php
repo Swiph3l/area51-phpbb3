@@ -11,16 +11,19 @@
 *
 */
 
-require_once dirname(__FILE__) . '/includes/cron/task/core/dummy_task.php';
-require_once dirname(__FILE__) . '/includes/cron/task/core/second_dummy_task.php';
-require_once dirname(__FILE__) . '/ext/testext/cron/dummy_task.php';
-require_once dirname(__FILE__) . '/tasks/simple_ready.php';
-require_once dirname(__FILE__) . '/tasks/simple_not_runnable.php';
-require_once dirname(__FILE__) . '/tasks/simple_should_not_run.php';
+require_once __DIR__ . '/includes/cron/task/core/dummy_task.php';
+require_once __DIR__ . '/includes/cron/task/core/second_dummy_task.php';
+require_once __DIR__ . '/ext/testext/cron/dummy_task.php';
+require_once __DIR__ . '/tasks/simple_ready.php';
+require_once __DIR__ . '/tasks/simple_not_runnable.php';
+require_once __DIR__ . '/tasks/simple_should_not_run.php';
 
 class phpbb_cron_manager_test extends \phpbb_test_case
 {
-	public function setUp()
+	protected $manager;
+	protected $task_name;
+
+	protected function setUp(): void
 	{
 		$this->manager = $this->create_cron_manager(array(
 			new phpbb_cron_task_core_dummy_task(),
@@ -40,7 +43,7 @@ class phpbb_cron_manager_test extends \phpbb_test_case
 	public function test_manager_finds_all_ready_tasks()
 	{
 		$tasks = $this->manager->find_all_ready_tasks();
-		$this->assertEquals(3, sizeof($tasks));
+		$this->assertEquals(3, count($tasks));
 	}
 
 	public function test_manager_finds_one_ready_task()
@@ -97,11 +100,16 @@ class phpbb_cron_manager_test extends \phpbb_test_case
 			$mock_router,
 			new \phpbb\symfony_request($request),
 			$request,
-			new \phpbb\filesystem\filesystem(),
 			$phpbb_root_path,
 			$phpEx
 		);
 
-		return new \phpbb\cron\manager($tasks, $routing_helper, $phpbb_root_path, $phpEx);
+		$mock_container = new phpbb_mock_container_builder();
+		$mock_container->set('cron.task_collection', []);
+
+		$cron_manager = new \phpbb\cron\manager($mock_container, $routing_helper, $phpbb_root_path, $phpEx);
+		$cron_manager->load_tasks($tasks);
+
+		return $cron_manager;
 	}
 }

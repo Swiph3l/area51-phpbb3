@@ -19,6 +19,9 @@ class phpbb_functional_fileupload_remote_test extends phpbb_functional_test_case
 	/** @var \phpbb\filesystem\filesystem_interface */
 	protected $filesystem;
 
+	/** @var \phpbb\filesystem\temp */
+	protected $temp;
+
 	/** @var \phpbb\files\factory */
 	protected $factory;
 
@@ -34,7 +37,7 @@ class phpbb_functional_fileupload_remote_test extends phpbb_functional_test_case
 	/** @var string phpBB root path */
 	protected $phpbb_root_path;
 
-	public function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 		// Only doing this within the functional framework because we need a
@@ -53,19 +56,20 @@ class phpbb_functional_fileupload_remote_test extends phpbb_functional_test_case
 		$config['remote_upload_verify'] = 0;
 
 		$this->filesystem = new \phpbb\filesystem\filesystem();
+		$this->temp = new \phpbb\filesystem\temp($this->filesystem, '');
 		$this->language = new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx));
-		$this->request = $this->getMock('\phpbb\request\request');
+		$this->request = $this->createMock('\phpbb\request\request');
 		$this->php_ini = new \bantu\IniGetWrapper\IniGetWrapper;
 
 		$container = new phpbb_mock_container_builder();
 		$container->set('files.filespec', new \phpbb\files\filespec($this->filesystem, $this->language, $this->php_ini, new \FastImageSize\FastImageSize(), $this->phpbb_root_path));
 		$this->factory = new \phpbb\files\factory($container);
 		$container->set('files.factory', $this->factory);
-		$container->set('files.types.remote', new \phpbb\files\types\remote($config, $this->factory, $this->language, $this->php_ini, $this->request, $phpbb_root_path));
+		$container->set('files.types.remote', new \phpbb\files\types\remote($config, $this->factory, $this->temp, $this->language, $this->php_ini, $this->request));
 		$this->phpbb_root_path = $phpbb_root_path;
 	}
 
-	public function tearDown()
+	protected function tearDown(): void
 	{
 		global $config, $user;
 		$user = null;
@@ -75,7 +79,7 @@ class phpbb_functional_fileupload_remote_test extends phpbb_functional_test_case
 	public function test_invalid_extension()
 	{
 		/** @var \phpbb\files\upload $upload */
-		$upload = new \phpbb\files\upload($this->filesystem, $this->factory, $this->language, $this->php_ini, $this->request, $this->phpbb_root_path);
+		$upload = new \phpbb\files\upload($this->factory, $this->language, $this->php_ini, $this->request);
 		$upload->set_error_prefix('')
 			->set_allowed_extensions(array('jpg'))
 			->set_max_filesize(100);
@@ -86,7 +90,7 @@ class phpbb_functional_fileupload_remote_test extends phpbb_functional_test_case
 	public function test_empty_file()
 	{
 		/** @var \phpbb\files\upload $upload */
-		$upload = new \phpbb\files\upload($this->filesystem, $this->factory, $this->language, $this->php_ini, $this->request, $this->phpbb_root_path);
+		$upload = new \phpbb\files\upload($this->factory, $this->language, $this->php_ini, $this->request);
 		$upload->set_error_prefix('')
 			->set_allowed_extensions(array('jpg'))
 			->set_max_filesize(100);
@@ -97,12 +101,12 @@ class phpbb_functional_fileupload_remote_test extends phpbb_functional_test_case
 	public function test_successful_upload()
 	{
 		/** @var \phpbb\files\upload $upload */
-		$upload = new \phpbb\files\upload($this->filesystem, $this->factory, $this->language, $this->php_ini, $this->request, $this->phpbb_root_path);
+		$upload = new \phpbb\files\upload($this->factory, $this->language, $this->php_ini, $this->request);
 		$upload->set_error_prefix('')
 			->set_allowed_extensions(array('gif'))
-			->set_max_filesize(1000);
-		$file = $upload->handle_upload('files.types.remote', self::$root_url . 'styles/prosilver/theme/images/forum_read.gif');
-		$this->assertEquals(0, sizeof($file->error));
+			->set_max_filesize(2000);
+		$file = $upload->handle_upload('files.types.remote', self::$root_url . 'develop/test.gif');
+		$this->assertEquals(0, count($file->error));
 		$this->assertTrue(file_exists($file->get('filename')));
 		$this->assertTrue($file->is_uploaded());
 	}
@@ -110,12 +114,12 @@ class phpbb_functional_fileupload_remote_test extends phpbb_functional_test_case
 	public function test_too_large()
 	{
 		/** @var \phpbb\files\upload $upload */
-		$upload = new \phpbb\files\upload($this->filesystem, $this->factory, $this->language, $this->php_ini, $this->request, $this->phpbb_root_path);
+		$upload = new \phpbb\files\upload($this->factory, $this->language, $this->php_ini, $this->request);
 		$upload->set_error_prefix('')
 			->set_allowed_extensions(array('gif'))
 			->set_max_filesize(100);
-		$file = $upload->handle_upload('files.types.remote', self::$root_url . 'styles/prosilver/theme/images/forum_read.gif');
-		$this->assertEquals(1, sizeof($file->error));
+		$file = $upload->handle_upload('files.types.remote', self::$root_url . 'develop/test.gif');
+		$this->assertEquals(1, count($file->error));
 		$this->assertEquals('WRONG_FILESIZE', $file->error[0]);
 	}
 }

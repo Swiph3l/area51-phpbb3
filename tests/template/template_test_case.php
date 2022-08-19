@@ -23,9 +23,9 @@ class phpbb_template_template_test_case extends phpbb_test_case
 	// Keep the contents of the cache for debugging?
 	const PRESERVE_CACHE = true;
 
-	static protected $language_reflection_lang;
+	protected static $language_reflection_lang;
 
-	static public function setUpBeforeClass()
+	public static function setUpBeforeClass(): void
 	{
 		parent::setUpBeforeClass();
 
@@ -86,18 +86,16 @@ class phpbb_template_template_test_case extends phpbb_test_case
 			new \phpbb\symfony_request(
 				new phpbb_mock_request()
 			),
-			$filesystem,
-			$this->getMock('\phpbb\request\request'),
+			$this->createMock('\phpbb\request\request'),
 			$phpbb_root_path,
 			$phpEx
 		);
 
 		$this->template_path = $this->test_path . '/templates';
 
-		$container = new phpbb_mock_container_builder();
 		$cache_path = $phpbb_root_path . 'cache/twig';
 		$context = new \phpbb\template\context();
-		$loader = new \phpbb\template\twig\loader(new \phpbb\filesystem\filesystem(), '');
+		$loader = new \phpbb\template\twig\loader('');
 		$twig = new \phpbb\template\twig\environment(
 			$config,
 			$filesystem,
@@ -105,6 +103,7 @@ class phpbb_template_template_test_case extends phpbb_test_case
 			$cache_path,
 			null,
 			$loader,
+			new \phpbb\event\dispatcher(),
 			array(
 				'cache'			=> false,
 				'debug'			=> false,
@@ -112,12 +111,12 @@ class phpbb_template_template_test_case extends phpbb_test_case
 				'autoescape'	=> false,
 			)
 		);
-		$this->template = new phpbb\template\twig\twig($path_helper, $config, $context, $twig, $cache_path, $this->user, array(new \phpbb\template\twig\extension($context, $this->user)));
+		$this->template = new phpbb\template\twig\twig($path_helper, $config, $context, $twig, $cache_path, $this->user, array(new \phpbb\template\twig\extension($context, $twig, $this->user)));
 		$twig->setLexer(new \phpbb\template\twig\lexer($twig));
 		$this->template->set_custom_style('tests', $this->template_path);
 	}
 
-	protected function setUp()
+	protected function setUp(): void
 	{
 		// Test the engine can be used
 		$this->setup_engine();
@@ -129,7 +128,7 @@ class phpbb_template_template_test_case extends phpbb_test_case
 		$phpbb_filesystem = new \phpbb\filesystem\filesystem();
 	}
 
-	protected function tearDown()
+	protected function tearDown(): void
 	{
 		if ($this->template)
 		{

@@ -34,6 +34,27 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 	$author_id	= (int) $message_row['author_id'];
 	$view		= $request->variable('view', '');
 
+	/**
+	* Modify private message data before it is prepared to be displayed
+	*
+	* @event core.ucp_pm_view_message_before
+	* @var int		folder_id		ID of the folder the message is in
+	* @var array	folder			Array with data of user's message folders
+	* @var int		msg_id			ID of the private message
+	* @var array	message_row		Array with message data
+	* @var int		author_id		ID of the message author
+	* @since 3.2.10-RC1
+	* @since 3.3.1-RC1
+	*/
+	$vars = [
+		'folder_id',
+		'folder',
+		'msg_id',
+		'message_row',
+		'author_id',
+	];
+	extract($phpbb_dispatcher->trigger_event('core.ucp_pm_view_message_before', compact($vars)));
+
 	// Not able to view message, it was deleted by the sender
 	if ($message_row['pm_deleted'])
 	{
@@ -113,7 +134,7 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 			$db->sql_freeresult($result);
 
 			// No attachments exist, but message table thinks they do so go ahead and reset attach flags
-			if (!sizeof($attachments))
+			if (!count($attachments))
 			{
 				$sql = 'UPDATE ' . PRIVMSGS_TABLE . "
 					SET message_attachment = 0
@@ -134,7 +155,7 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 		parse_attachments(false, $message, $attachments, $update_count);
 
 		// Update the attachment download counts
-		if (sizeof($update_count))
+		if (count($update_count))
 		{
 			$sql = 'UPDATE ' . ATTACHMENTS_TABLE . '
 				SET download_count = download_count + 1
@@ -200,7 +221,6 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 
 		'RANK_TITLE'		=> $user_info['rank_title'],
 		'RANK_IMG'			=> $user_info['rank_image'],
-		'AUTHOR_AVATAR'		=> (isset($user_info['avatar'])) ? $user_info['avatar'] : '',
 		'AUTHOR_JOINED'		=> $user->format_date($user_info['user_regdate']),
 		'AUTHOR_POSTS'		=> (int) $user_info['user_posts'],
 		'U_AUTHOR_POSTS'	=> ($config['load_search'] && $auth->acl_get('u_search')) ? append_sid("{$phpbb_root_path}search.$phpEx", "author_id=$author_id&amp;sr=posts") : '',
@@ -240,7 +260,7 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 
 		'U_PM_ACTION'		=> $url . '&amp;mode=compose&amp;f=' . $folder_id . '&amp;p=' . $message_row['msg_id'],
 
-		'S_HAS_ATTACHMENTS'	=> (sizeof($attachments)) ? true : false,
+		'S_HAS_ATTACHMENTS'	=> (count($attachments)) ? true : false,
 		'S_DISPLAY_NOTICE'	=> $display_notice && $message_row['message_attachment'],
 		'S_AUTHOR_DELETED'	=> ($author_id == ANONYMOUS) ? true : false,
 		'S_SPECIAL_FOLDER'	=> in_array($folder_id, array(PRIVMSGS_NO_BOX, PRIVMSGS_OUTBOX)),
@@ -251,6 +271,15 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 		'U_PRINT_PM'		=> ($config['print_pm'] && $auth->acl_get('u_pm_printpm')) ? "$url&amp;f=$folder_id&amp;p=" . $message_row['msg_id'] . "&amp;view=print" : '',
 		'U_FORWARD_PM'		=> ($config['forward_pm'] && $auth->acl_get('u_sendpm') && $auth->acl_get('u_pm_forward')) ? "$url&amp;mode=compose&amp;action=forward&amp;f=$folder_id&amp;p=" . $message_row['msg_id'] : '',
 	);
+
+	if (!empty($user_info['avatar']))
+	{
+		/** @var \phpbb\avatar\helper $avatar_helper */
+		$avatar_helper = $phpbb_container->get('avatar.helper');
+
+		$avatar_data = $avatar_helper->get_template_vars($user_info['avatar'], 'AUTHOR_');
+		$msg_data = array_merge($msg_data, $avatar_data);
+	}
 
 	/**
 	* Modify pm and sender data before it is assigned to the template
@@ -267,6 +296,8 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 	* @var 	array	user_info	User data of the sender
 	* @since 3.1.0-a1
 	* @changed 3.1.6-RC1		Added user_info into event
+	* @changed 3.2.2-RC1		Deprecated
+	* @deprecated 4.0.0			Event name is misspelled and is replaced with new event with correct name
 	*/
 	$vars = array(
 		'id',
@@ -280,6 +311,37 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 		'user_info',
 	);
 	extract($phpbb_dispatcher->trigger_event('core.ucp_pm_view_messsage', compact($vars)));
+
+	/**
+	 * Modify pm and sender data before it is assigned to the template
+	 *
+	 * @event core.ucp_pm_view_message
+	 * @var	mixed	id			Active module category (can be int or string)
+	 * @var	string	mode		Active module
+	 * @var	int		folder_id	ID of the folder the message is in
+	 * @var	int		msg_id		ID of the private message
+	 * @var	array	folder		Array with data of user's message folders
+	 * @var	array	message_row	Array with message data
+	 * @var	array	cp_row		Array with senders custom profile field data
+	 * @var	array	msg_data	Template array with message data
+	 * @var array	user_info	User data of the sender
+	 * @var array	attachments	Attachments data
+	 * @since 3.2.2-RC1
+	 * @changed 3.2.5-RC1 Added attachments
+	 */
+	$vars = array(
+		'id',
+		'mode',
+		'folder_id',
+		'msg_id',
+		'folder',
+		'message_row',
+		'cp_row',
+		'msg_data',
+		'user_info',
+		'attachments',
+	);
+	extract($phpbb_dispatcher->trigger_event('core.ucp_pm_view_message', compact($vars)));
 
 	$template->assign_vars($msg_data);
 
@@ -330,7 +392,7 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 	}
 
 	// Display not already displayed Attachments for this post, we already parsed them. ;)
-	if (isset($attachments) && sizeof($attachments))
+	if (isset($attachments) && count($attachments))
 	{
 		foreach ($attachments as $attachment)
 		{
@@ -355,7 +417,7 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 */
 function get_user_information($user_id, $user_row)
 {
-	global $db, $auth, $user;
+	global $db, $auth, $user, $phpbb_container;
 	global $phpbb_root_path, $phpEx, $config;
 
 	if (!$user_id)
@@ -395,7 +457,10 @@ function get_user_information($user_id, $user_row)
 		}
 	}
 
-	$user_row['avatar'] = ($user->optionget('viewavatars')) ? phpbb_get_user_avatar($user_row) : '';
+	/** @var \phpbb\avatar\helper $avatar_helper */
+	$avatar_helper = $phpbb_container->get('avatar.helper');
+
+	$user_row['avatar'] = ($user->optionget('viewavatars')) ? $avatar_helper->get_user_avatar($user_row) : [];
 
 	if (!function_exists('phpbb_get_user_rank'))
 	{

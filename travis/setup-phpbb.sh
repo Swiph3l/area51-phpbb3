@@ -14,6 +14,7 @@ set -x
 DB=$1
 TRAVIS_PHP_VERSION=$2
 NOTESTS=$3
+MYSQL8=$4
 
 if [ "$NOTESTS" == '1' ]
 then
@@ -26,7 +27,12 @@ then
 	travis/setup-mariadb.sh
 fi
 
-if [ "$NOTESTS" != '1' -a "$TRAVIS_PHP_VERSION" != "hhvm" ]
+if [ "$MYSQL8" == '1' ]
+then
+	travis/setup-mysql8.sh
+fi
+
+if [ "$NOTESTS" != '1' ]
 then
 	travis/setup-php-extensions.sh
 fi
@@ -38,4 +44,9 @@ fi
 
 cd phpBB
 php ../composer.phar install --dev --no-interaction
+if [[ "$TRAVIS_PHP_VERSION" =~ ^nightly$ || "$TRAVIS_PHP_VERSION" =~ ^8 ]]
+then
+	php ../composer.phar remove phpunit/dbunit --dev --update-with-dependencies \
+	&& php ../composer.phar require symfony/yaml:~4.4 misantron/dbunit:~5.0 phpunit/phpunit:^9.3 --dev --update-with-all-dependencies --ignore-platform-reqs
+fi
 cd ..

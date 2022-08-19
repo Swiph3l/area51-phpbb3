@@ -36,14 +36,9 @@ class notify_user extends \phpbb\install\task_base
 	protected $auth;
 
 	/**
-	 * @var \phpbb\config\db
+	 * @var db
 	 */
 	protected $config;
-
-	/**
-	 * @var \phpbb\language\language
-	 */
-	protected $language;
 
 	/**
 	 * @var \phpbb\log\log_interface
@@ -80,7 +75,6 @@ class notify_user extends \phpbb\install\task_base
 		$this->iohandler		= $iohandler;
 
 		$this->auth				= $container->get('auth');
-		$this->language			= $container->get('language');
 		$this->log				= $container->get('log');
 		$this->user				= $container->get('user');
 		$this->phpbb_root_path	= $phpbb_root_path;
@@ -97,6 +91,9 @@ class notify_user extends \phpbb\install\task_base
 			$container->get_parameter('tables.config')
 		);
 
+		global $config;
+		$config = $this->config;
+
 		parent::__construct(true);
 	}
 
@@ -112,18 +109,13 @@ class notify_user extends \phpbb\install\task_base
 		{
 			include ($this->phpbb_root_path . 'includes/functions_messenger.' . $this->php_ext);
 
-			// functions_messenger.php uses config to determine language paths
-			// Remove when able
-			global $config;
-			$config = $this->config;
-
 			$messenger = new \messenger(false);
 			$messenger->template('installed', $this->install_config->get('user_language', 'en'));
 			$messenger->to($this->config['board_email'], $this->install_config->get('admin_name'));
 			$messenger->anti_abuse_headers($this->config, $this->user);
 			$messenger->assign_vars(array(
-					'USERNAME'		=> htmlspecialchars_decode($this->install_config->get('admin_name')),
-					'PASSWORD'		=> htmlspecialchars_decode($this->install_config->get('admin_passwd')))
+					'USERNAME'		=> htmlspecialchars_decode($this->install_config->get('admin_name'), ENT_COMPAT),
+					'PASSWORD'		=> htmlspecialchars_decode($this->install_config->get('admin_passwd'), ENT_COMPAT))
 			);
 			$messenger->send(NOTIFY_EMAIL);
 		}
@@ -159,7 +151,7 @@ class notify_user extends \phpbb\install\task_base
 	/**
 	 * {@inheritdoc}
 	 */
-	static public function get_step_count()
+	public static function get_step_count()
 	{
 		return 1;
 	}

@@ -27,7 +27,7 @@ class flock
 
 	/**
 	* File pointer for the lock file
-	* @var string
+	* @var string|bool
 	*/
 	private $lock_fp;
 
@@ -41,7 +41,7 @@ class flock
 	public function __construct($path)
 	{
 		$this->path = $path;
-		$this->lock_fp = null;
+		$this->lock_fp = false;
 	}
 
 	/**
@@ -73,7 +73,7 @@ class flock
 		// one file for writing simultaneously
 		if (file_exists($this->path . '.lock'))
 		{
-			$mode = 'rb';
+			$mode = 'rb+';
 		}
 		else
 		{
@@ -89,7 +89,7 @@ class flock
 				// Two processes may attempt to create lock file at the same time.
 				// Have the losing process try opening the lock file again for reading
 				// on the assumption that the winning process created it
-				$mode = 'rb';
+				$mode = 'rb+';
 				$this->lock_fp = @fopen($this->path . '.lock', $mode);
 			}
 			else
@@ -101,7 +101,10 @@ class flock
 
 		if ($this->lock_fp)
 		{
-			@flock($this->lock_fp, LOCK_EX);
+			if (!@flock($this->lock_fp, LOCK_EX))
+			{
+				throw new \phpbb\exception\http_exception(500, 'Failure while aqcuiring locks.');
+			}
 		}
 
 		return (bool) $this->lock_fp;
@@ -135,7 +138,7 @@ class flock
 		{
 			@flock($this->lock_fp, LOCK_UN);
 			fclose($this->lock_fp);
-			$this->lock_fp = null;
+			$this->lock_fp = false;
 		}
 	}
 }

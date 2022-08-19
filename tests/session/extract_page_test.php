@@ -11,13 +11,13 @@
 *
 */
 
-require_once dirname(__FILE__) . '/../test_framework/phpbb_session_test_case.php';
+require_once __DIR__ . '/../test_framework/phpbb_session_test_case.php';
 
 class phpbb_session_extract_page_test extends phpbb_session_test_case
 {
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/sessions_empty.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/sessions_empty.xml');
 	}
 
 	static public function extract_current_page_data()
@@ -133,6 +133,22 @@ class phpbb_session_extract_page_test extends phpbb_session_test_case
 					'script_path' => '/test/',
 					//'root_script_path' => '../phpBB/',
 					//'page' => '../test/test.php/foo/bar?page=1&test=2',
+					'forum' => 0,
+				),
+			),
+			array(
+				'./community',
+				'/app.php',
+				'',
+				'/',
+				'/kb',
+				array(
+					'page_name' => 'app.php/kb',
+					'page_dir' => '..',
+					'query_string' => '',
+					'script_path' => '/',
+					'root_script_path' => '/community/',
+					'page' => '../app.php/kb',
 					'forum' => 0,
 				),
 			),

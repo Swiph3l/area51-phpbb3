@@ -22,10 +22,16 @@ class manager
 	protected $config;
 
 	/**
-	* Array that contains a list of enabled drivers
-	* @var array
+	* phpBB event dispatcher
+	* @var \phpbb\event\dispatcher_interface
 	*/
-	static protected $enabled_drivers = false;
+	protected $phpbb_dispatcher;
+
+	/**
+	* Array that contains a list of enabled drivers
+	* @var array|bool
+	*/
+	protected static $enabled_drivers = false;
 
 	/**
 	* Array that contains all available avatar drivers which are passed via the
@@ -38,7 +44,7 @@ class manager
 	* Default avatar data row
 	* @var array
 	*/
-	static protected $default_row = array(
+	protected static $default_row = array(
 		'avatar'		=> '',
 		'avatar_type'	=> '',
 		'avatar_width'	=> 0,
@@ -49,11 +55,13 @@ class manager
 	* Construct an avatar manager object
 	*
 	* @param \phpbb\config\config $config phpBB configuration
+	* @param \phpbb\event\dispatcher_interface $phpbb_dispatcher phpBB event dispatcher
 	* @param array $avatar_drivers Avatar drivers passed via the service container
 	*/
-	public function __construct(\phpbb\config\config $config, $avatar_drivers)
+	public function __construct(\phpbb\config\config $config, \phpbb\event\dispatcher_interface $phpbb_dispatcher, $avatar_drivers)
 	{
 		$this->config = $config;
+		$this->phpbb_dispatcher = $phpbb_dispatcher;
 		$this->register_avatar_drivers($avatar_drivers);
 	}
 
@@ -188,7 +196,7 @@ class manager
 	*			stripped from the preceding "user_" or "group_"
 	*			Also the group id is prefixed with g, when the prefix group is removed.
 	*/
-	static public function clean_row($row, $prefix = '')
+	public static function clean_row($row, $prefix = '')
 	{
 		// Upon creation of a user/group $row might be empty
 		if (empty($row))
@@ -219,7 +227,7 @@ class manager
 	*
 	* @return string Cleaned driver name
 	*/
-	static public function clean_driver_name($name)
+	public static function clean_driver_name($name)
 	{
 		return str_replace(array('\\', '_'), '.', $name);
 	}
@@ -232,7 +240,7 @@ class manager
 	*
 	* @return string Prepared driver name
 	*/
-	static public function prepare_driver_name($name)
+	public static function prepare_driver_name($name)
 	{
 		return str_replace('.', '_', $name);
 	}
@@ -263,7 +271,7 @@ class manager
 		$config_name = $driver->get_config_name();
 
 		return array(
-			'allow_avatar_' . $config_name	=> array('lang' => 'ALLOW_' . strtoupper(str_replace('\\', '_', $config_name)),		'validate' => 'bool',	'type' => 'radio:yes_no', 'explain' => false),
+			'allow_avatar_' . $config_name	=> array('lang' => 'ALLOW_' . strtoupper(str_replace('\\', '_', $config_name)),		'validate' => 'bool',	'type' => 'radio:yes_no', 'explain' => true),
 		);
 	}
 
@@ -331,6 +339,19 @@ class manager
 				WHERE user_avatar = '" . $db->sql_escape($avatar_data['avatar']) . "'";
 			$db->sql_query($sql);
 		}
+
+		/**
+		* Event is triggered after user avatar has been deleted
+		*
+		* @event core.avatar_manager_avatar_delete_after
+		* @var	\phpbb\user	user		phpBB user object
+		* @var	array		avatar_data	Normalised avatar-related user data
+		* @var	string		table		Table to delete avatar from
+		* @var	string		prefix		Column prefix to delete avatar from
+		* @since 3.2.4-RC1
+		*/
+		$vars = array('user', 'avatar_data', 'table', 'prefix');
+		extract($this->phpbb_dispatcher->trigger_event('core.avatar_manager_avatar_delete_after', compact($vars)));
 	}
 
 	/**

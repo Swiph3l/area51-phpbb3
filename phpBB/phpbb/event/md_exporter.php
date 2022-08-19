@@ -39,6 +39,9 @@ class md_exporter
 	/** @var array */
 	protected $events;
 
+	/** @var array */
+	protected $events_by_file;
+
 	/**
 	* @param string $phpbb_root_path
 	* @param mixed $extension	String 'vendor/ext' to filter, null for phpBB core
@@ -87,7 +90,7 @@ class md_exporter
 			$this->validate_events_from_file($file_name, $this->crawl_file_for_events($file_name));
 		}
 
-		return sizeof($this->events);
+		return count($this->events);
 	}
 
 	/**
@@ -113,7 +116,7 @@ class md_exporter
 			}
 		}
 
-		return sizeof($this->events);
+		return count($this->events);
 	}
 
 	/**
@@ -143,11 +146,19 @@ class md_exporter
 
 			list($event_name, $details) = explode("\n===\n", $event, 2);
 			$this->validate_event_name($event_name);
+			$sorted_events = [$this->current_event, $event_name];
+			natsort($sorted_events);
 			$this->current_event = $event_name;
 
 			if (isset($this->events[$this->current_event]))
 			{
 				throw new \LogicException("The event '{$this->current_event}' is defined multiple times");
+			}
+
+			// Use array_values() to get actual first element and check against natural order
+			if (array_values($sorted_events)[0] === $event_name)
+			{
+				throw new \LogicException("The event '{$sorted_events[1]}' should be defined before '{$sorted_events[0]}'");
 			}
 
 			if (($this->filter == 'adm' && strpos($this->current_event, 'acp_') !== 0)
@@ -195,7 +206,7 @@ class md_exporter
 			if (!$this->version_is_filtered($since))
 			{
 				$is_filtered = false;
-				foreach ($changes as $version => $null)
+				foreach (array_keys($changes) as $version)
 				{
 					if ($this->version_is_filtered($version))
 					{
@@ -219,7 +230,7 @@ class md_exporter
 			);
 		}
 
-		return sizeof($this->events);
+		return count($this->events);
 	}
 
 	/**
@@ -235,10 +246,11 @@ class md_exporter
 	}
 
 	/**
-	* Format the php events as a wiki table
+	* Format the md events as a wiki table
 	*
 	* @param string $action
-	* @return string		Number of events found
+	* @return string		Number of events found * @deprecated since 3.2
+	* @deprecated 3.3.5-RC1 (To be removed: 4.0.0-a1)
 	*/
 	public function export_events_for_wiki($action = '')
 	{
@@ -288,6 +300,71 @@ class md_exporter
 		$wiki_page .= '|}' . "\n";
 
 		return $wiki_page;
+	}
+
+	/**
+	 * Format the md events as a rst table
+	 *
+	 * @param string $action
+	 * @return string		Number of events found
+	 */
+	public function export_events_for_rst(string $action = ''): string
+	{
+		$rst_exporter = new rst_exporter();
+
+		if ($this->filter === 'adm')
+		{
+			if ($action === 'diff')
+			{
+				$rst_exporter->add_section_header('h3', 'ACP Template Events');
+			}
+			else
+			{
+				$rst_exporter->add_section_header('h2', 'ACP Template Events');
+			}
+
+			$rst_exporter->set_columns([
+				'event'			=> 'Identifier',
+				'files'			=> 'Placement',
+				'since'			=> 'Added in Release',
+				'description'	=> 'Explanation',
+			]);
+		}
+		else
+		{
+			if ($action === 'diff')
+			{
+				$rst_exporter->add_section_header('h3', 'Template Events');
+			}
+			else
+			{
+				$rst_exporter->add_section_header('h2', 'Template Events');
+			}
+
+			$rst_exporter->set_columns([
+				'event'			=> 'Identifier',
+				'files'			=> 'Prosilver Placement (If applicable)',
+				'since'			=> 'Added in Release',
+				'description'	=> 'Explanation',
+			]);
+		}
+
+		$events = [];
+		foreach ($this->events as $event_name => $event)
+		{
+			$files = $this->filter === 'adm' ? implode(', ', $event['files']['adm']) : implode(', ', $event['files']['prosilver']);
+
+			$events[] = [
+				'event'			=> $event_name,
+				'files'			=> $files,
+				'since'			=> $event['since'],
+				'description'	=> str_replace("\n", '<br>', rtrim($event['description'])),
+			];
+		}
+
+		$rst_exporter->generate_events_table($events);
+
+		return $rst_exporter->get_rst_output();
 	}
 
 	/**
@@ -381,9 +458,16 @@ class md_exporter
 			$files = explode("\n    + ", $file_details);
 			foreach ($files as $file)
 			{
+				if (!preg_match('#^([^ ]+)( \([0-9]+\))?$#', $file))
+				{
+					throw new \LogicException("Invalid event instances for file '{$file}' found for event '{$this->current_event}'", 1);
+				}
+
+				list($file) = explode(" ", $file);
+
 				if (!file_exists($this->path . $file) || substr($file, -5) !== '.html')
 				{
-					throw new \LogicException("Invalid file '{$file}' not found for event '{$this->current_event}'", 1);
+					throw new \LogicException("Invalid file '{$file}' not found for event '{$this->current_event}'", 2);
 				}
 
 				if (($this->filter !== 'adm') && strpos($file, 'styles/prosilver/template/') === 0)
@@ -396,7 +480,7 @@ class md_exporter
 				}
 				else
 				{
-					throw new \LogicException("Invalid file '{$file}' not found for event '{$this->current_event}'", 2);
+					throw new \LogicException("Invalid file '{$file}' not found for event '{$this->current_event}'", 3);
 				}
 
 				$this->events_by_file[$file][] = $this->current_event;
@@ -416,7 +500,7 @@ class md_exporter
 		}
 		else
 		{
-			throw new \LogicException("Invalid file list found for event '{$this->current_event}'", 2);
+			throw new \LogicException("Invalid file list found for event '{$this->current_event}'", 1);
 		}
 
 		return $files_list;
@@ -439,16 +523,9 @@ class md_exporter
 		$event_list = array();
 		$file_content = file_get_contents($this->path . $file);
 
-		$events = explode('<!-- EVENT ', $file_content);
-		// Remove the code before the first event
-		array_shift($events);
-		foreach ($events as $event)
-		{
-			$event = explode(' -->', $event, 2);
-			$event_list[] = array_shift($event);
-		}
+		preg_match_all('/(?:{%|<!--) EVENT (.*) (?:%}|-->)/U', $file_content, $event_list);
 
-		return $event_list;
+		return $event_list[1];
 	}
 
 	/**

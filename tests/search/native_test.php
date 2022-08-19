@@ -11,34 +11,34 @@
 *
 */
 
-require_once dirname(__FILE__) . '/../test_framework/phpbb_search_test_case.php';
+require_once __DIR__ . '/../test_framework/phpbb_search_test_case.php';
 
 class phpbb_search_native_test extends phpbb_search_test_case
 {
 	protected $db;
-	protected $search;
 
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/posts.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/posts.xml');
 	}
 
-	protected function setUp()
+	protected function setUp(): void
 	{
-		global $phpbb_root_path, $phpEx, $config, $user, $cache;
+		global $phpbb_root_path, $phpEx, $config, $cache;
 
 		parent::setUp();
 
 		// dbal uses cache
-		$cache = new phpbb_mock_cache();
+		$cache = $this->createMock('\phpbb\cache\service');
+		$language = new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx));
+		$user = $this->createMock('\phpbb\user');
 
 		$this->db = $this->new_dbal();
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
-		$error = null;
-		$class = self::get_search_wrapper('\phpbb\search\fulltext_native');
+		$class = self::get_search_wrapper('\phpbb\search\backend\fulltext_native');
 		$config['fulltext_native_min_chars'] = 2;
 		$config['fulltext_native_max_chars'] = 14;
-		$this->search = new $class($error, $phpbb_root_path, $phpEx, null, $config, $this->db, $user, $phpbb_dispatcher);
+		$this->search = new $class($config, $this->db, $phpbb_dispatcher, $language, $user, $phpbb_root_path, $phpEx);
 	}
 
 	public function keywords()
@@ -70,7 +70,7 @@ class phpbb_search_native_test extends phpbb_search_test_case
 				'ba*az',
 				'all',
 				true,
-				array('\'ba%az\''),
+				array(4),
 				array(),
 				array(),
 			),
@@ -78,7 +78,7 @@ class phpbb_search_native_test extends phpbb_search_test_case
 				'ba*z',
 				'all',
 				true,
-				array('\'ba%z\''),
+				array(), // <= 3 chars after removing *
 				array(),
 				array(),
 			),
@@ -86,7 +86,7 @@ class phpbb_search_native_test extends phpbb_search_test_case
 				'baa* baaz*',
 				'all',
 				true,
-				array('\'baa%\'', '\'baaz%\''),
+				array('\'baa%\'', 4),
 				array(),
 				array(),
 			),
@@ -94,7 +94,7 @@ class phpbb_search_native_test extends phpbb_search_test_case
 				'ba*z baa*',
 				'all',
 				true,
-				array('\'ba%z\'', '\'baa%\''),
+				array('\'baa%\''), // baz is <= 3 chars, only baa* is left
 				array(),
 				array(),
 			),
@@ -195,7 +195,7 @@ class phpbb_search_native_test extends phpbb_search_test_case
 				'foo foo-',
 				'all',
 				true,
-				array(1),
+				array(1, 1),
 				array(),
 				array(),
 			),
@@ -203,7 +203,7 @@ class phpbb_search_native_test extends phpbb_search_test_case
 				'foo- foo',
 				'all',
 				true,
-				array(1),
+				array(1, 1),
 				array(),
 				array(),
 			),
@@ -219,7 +219,7 @@ class phpbb_search_native_test extends phpbb_search_test_case
 				'foo-bar-foo',
 				'all',
 				true,
-				array(1, 2),
+				array(1, 2, 1),
 				array(),
 				array(),
 			),

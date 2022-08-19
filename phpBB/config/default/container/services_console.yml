@@ -3,7 +3,6 @@ services:
         class: phpbb\console\exception_subscriber
         arguments:
             - '@language'
-            - '%debug.exceptions%'
         tags:
             - { name: kernel.event_subscriber }
 
@@ -111,15 +110,7 @@ services:
 
     console.command.db.revert:
         class: phpbb\console\command\db\revert
-        arguments:
-            - '@user'
-            - '@language'
-            - '@migrator'
-            - '@ext.manager'
-            - '@config'
-            - '@cache'
-            - '@filesystem'
-            - '%core.root_path%'
+        parent: console.command.db.migrate
         tags:
             - { name: console.command }
 
@@ -137,6 +128,7 @@ services:
             - '@user'
             - '@ext.manager'
             - '@log'
+            - '%cache.driver.class%'
         tags:
             - { name: console.command }
 
@@ -146,6 +138,34 @@ services:
             - '@user'
             - '@ext.manager'
             - '@log'
+            - '%cache.driver.class%'
+        tags:
+            - { name: console.command }
+
+    console.command.extension.install:
+        class: phpbb\console\command\extension\install
+        arguments:
+            - '@user'
+            - '@ext.composer.manager'
+            - '@language'
+        tags:
+            - { name: console.command }
+
+    console.command.extension.list_available:
+        class: phpbb\console\command\extension\list_available
+        arguments:
+            - '@user'
+            - '@ext.composer.manager'
+            - '@language'
+        tags:
+            - { name: console.command }
+
+    console.command.extension.manage:
+        class: phpbb\console\command\extension\manage
+        arguments:
+            - '@user'
+            - '@ext.composer.manager'
+            - '@language'
         tags:
             - { name: console.command }
 
@@ -155,6 +175,16 @@ services:
             - '@user'
             - '@ext.manager'
             - '@log'
+            - '%cache.driver.class%'
+        tags:
+            - { name: console.command }
+
+    console.command.extension.remove:
+        class: phpbb\console\command\extension\remove
+        arguments:
+            - '@user'
+            - '@ext.composer.manager'
+            - '@language'
         tags:
             - { name: console.command }
 
@@ -164,14 +194,37 @@ services:
             - '@user'
             - '@ext.manager'
             - '@log'
+            - '%cache.driver.class%'
         tags:
             - { name: console.command }
 
-    console.command.fixup.recalculate_email_hash:
-        class: phpbb\console\command\fixup\recalculate_email_hash
+    console.command.extension.update:
+        class: phpbb\console\command\extension\update
+        arguments:
+            - '@user'
+            - '@ext.composer.manager'
+            - '@language'
+        tags:
+            - { name: console.command }
+
+    console.command.fixup.update_hashes:
+        class: phpbb\console\command\fixup\update_hashes
+        arguments:
+            - '@config'
+            - '@user'
+            - '@dbal.conn'
+            - '@passwords.manager'
+            - '@passwords.driver_collection'
+            - '%passwords.algorithms%'
+        tags:
+            - { name: console.command }
+
+    console.command.fixup.fix_left_right_ids:
+        class: phpbb\console\command\fixup\fix_left_right_ids
         arguments:
             - '@user'
             - '@dbal.conn'
+            - '@cache.driver'
         tags:
             - { name: console.command }
 
@@ -196,6 +249,7 @@ services:
     console.command.thumbnail.delete:
         class: phpbb\console\command\thumbnail\delete
         arguments:
+            - '@config'
             - '@user'
             - '@dbal.conn'
             - '%core.root_path%'
@@ -205,6 +259,7 @@ services:
     console.command.thumbnail.generate:
         class: phpbb\console\command\thumbnail\generate
         arguments:
+            - '@config'
             - '@user'
             - '@dbal.conn'
             - '@cache'
@@ -220,11 +275,20 @@ services:
         tags:
             - { name: console.command }
 
+    console.command.update.check:
+        class: phpbb\console\command\update\check
+        arguments:
+            - '@user'
+            - '@config'
+            - '@service_container'
+            - '@language'
+        tags:
+            - { name: console.command }
+
     console.command.user.activate:
         class: phpbb\console\command\user\activate
         arguments:
             - '@user'
-            - '@dbal.conn'
             - '@config'
             - '@language'
             - '@log'
@@ -252,7 +316,6 @@ services:
         class: phpbb\console\command\user\delete
         arguments:
             - '@user'
-            - '@dbal.conn'
             - '@language'
             - '@log'
             - '@user_loader'

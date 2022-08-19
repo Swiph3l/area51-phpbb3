@@ -13,15 +13,18 @@
 
 namespace phpbb\avatar\driver;
 
+use bantu\IniGetWrapper\IniGetWrapper;
+use phpbb\storage\exception\exception as storage_exception;
+
 /**
 * Handles avatars uploaded to the board
 */
 class upload extends \phpbb\avatar\driver\driver
 {
 	/**
-	 * @var \phpbb\filesystem\filesystem_interface
+	 * @var \phpbb\storage\storage
 	 */
-	protected $filesystem;
+	protected $storage;
 
 	/**
 	* @var \phpbb\event\dispatcher_interface
@@ -34,27 +37,32 @@ class upload extends \phpbb\avatar\driver\driver
 	protected $files_factory;
 
 	/**
+	 * @var IniGetWrapper
+	 */
+	protected $php_ini;
+
+	/**
 	* Construct a driver object
 	*
 	* @param \phpbb\config\config $config phpBB configuration
 	* @param string $phpbb_root_path Path to the phpBB root
 	* @param string $php_ext PHP file extension
-	* @param \phpbb\filesystem\filesystem_interface $filesystem phpBB filesystem helper
+	* @param \phpbb\storage\storage phpBB avatar storage
 	* @param \phpbb\path_helper $path_helper phpBB path helper
 	* @param \phpbb\event\dispatcher_interface $dispatcher phpBB Event dispatcher object
 	* @param \phpbb\files\factory $files_factory File classes factory
-	* @param \phpbb\cache\driver\driver_interface $cache Cache driver
+	* @param IniGetWrapper		$php_ini	ini_get() wrapper
 	*/
-	public function __construct(\phpbb\config\config $config, $phpbb_root_path, $php_ext, \phpbb\filesystem\filesystem_interface $filesystem, \phpbb\path_helper $path_helper, \phpbb\event\dispatcher_interface $dispatcher, \phpbb\files\factory $files_factory, \phpbb\cache\driver\driver_interface $cache = null)
+	public function __construct(\phpbb\config\config $config, $phpbb_root_path, $php_ext, \phpbb\storage\storage $storage, \phpbb\path_helper $path_helper, \phpbb\event\dispatcher_interface $dispatcher, \phpbb\files\factory $files_factory, IniGetWrapper $php_ini)
 	{
 		$this->config = $config;
 		$this->phpbb_root_path = $phpbb_root_path;
 		$this->php_ext = $php_ext;
-		$this->filesystem = $filesystem;
+		$this->storage = $storage;
 		$this->path_helper = $path_helper;
 		$this->dispatcher = $dispatcher;
 		$this->files_factory = $files_factory;
-		$this->cache = $cache;
+		$this->php_ini = $php_ini;
 	}
 
 	/**
@@ -84,6 +92,7 @@ class upload extends \phpbb\avatar\driver\driver
 		$template->assign_vars(array(
 			'S_UPLOAD_AVATAR_URL' => ($this->config['allow_avatar_remote_upload']) ? true : false,
 			'AVATAR_UPLOAD_SIZE' => $this->config['avatar_filesize'],
+			'AVATAR_ALLOWED_EXTENSIONS' => implode(',', preg_replace('/^/', '.', $this->allowed_extensions)),
 		));
 
 		return true;
@@ -116,7 +125,7 @@ class upload extends \phpbb\avatar\driver\driver
 
 		if (!empty($upload_file['name']))
 		{
-			$file = $upload->handle_upload('files.types.form', 'avatar_upload_file');
+			$file = $upload->handle_upload('files.types.form_storage', 'avatar_upload_file');
 		}
 		else if (!empty($this->config['allow_avatar_remote_upload']) && !empty($url))
 		{
@@ -146,7 +155,18 @@ class upload extends \phpbb\avatar\driver\driver
 				return false;
 			}
 
-			$file = $upload->handle_upload('files.types.remote', $url);
+			// Do not allow specifying the port (see RFC 3986) or IP addresses
+			// remote_upload() will do its own check for allowed filetypes
+			if (!preg_match('#^(http|https|ftp)://(?:(.*?\.)*?[a-z0-9\-]+?\.[a-z]{2,4}|(?:\d{1,3}\.){3,5}\d{1,3}):?([0-9]*?).*?\.('. implode('|', $this->allowed_extensions) . ')$#i', $url) ||
+				preg_match('@^(http|https|ftp)://[^/:?#]+:[0-9]+[/:?#]@i', $url) ||
+				preg_match('#^(http|https|ftp)://(?:(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])#i', $url) ||
+				preg_match('#^(http|https|ftp)://(?:(?:(?:[\dA-F]{1,4}:){6}(?:[\dA-F]{1,4}:[\dA-F]{1,4}|(?:(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])))|(?:::(?:[\dA-F]{1,4}:){0,5}(?:[\dA-F]{1,4}(?::[\dA-F]{1,4})?|(?:(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])))|(?:(?:[\dA-F]{1,4}:):(?:[\dA-F]{1,4}:){4}(?:[\dA-F]{1,4}:[\dA-F]{1,4}|(?:(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])))|(?:(?:[\dA-F]{1,4}:){1,2}:(?:[\dA-F]{1,4}:){3}(?:[\dA-F]{1,4}:[\dA-F]{1,4}|(?:(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])))|(?:(?:[\dA-F]{1,4}:){1,3}:(?:[\dA-F]{1,4}:){2}(?:[\dA-F]{1,4}:[\dA-F]{1,4}|(?:(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])))|(?:(?:[\dA-F]{1,4}:){1,4}:(?:[\dA-F]{1,4}:)(?:[\dA-F]{1,4}:[\dA-F]{1,4}|(?:(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])))|(?:(?:[\dA-F]{1,4}:){1,5}:(?:[\dA-F]{1,4}:[\dA-F]{1,4}|(?:(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(?:\d{1,2}|1\d\d|2[0-4]\d|25[0-5])))|(?:(?:[\dA-F]{1,4}:){1,6}:[\dA-F]{1,4})|(?:(?:[\dA-F]{1,4}:){1,7}:)|(?:::))#i', $url))
+			{
+				$error[] = 'AVATAR_URL_INVALID';
+				return false;
+			}
+
+			$file = $upload->handle_upload('files.types.remote_storage', $url);
 		}
 		else
 		{
@@ -157,26 +177,11 @@ class upload extends \phpbb\avatar\driver\driver
 		$file->clean_filename('avatar', $prefix, $row['id']);
 
 		// If there was an error during upload, then abort operation
-		if (sizeof($file->error))
+		if (count($file->error))
 		{
-			$file->remove();
+			$file->remove($this->storage);
 			$error = $file->error;
 			return false;
-		}
-
-		// Calculate new destination
-		$destination = $this->config['avatar_path'];
-
-		// Adjust destination path (no trailing slash)
-		if (substr($destination, -1, 1) == '/' || substr($destination, -1, 1) == '\\')
-		{
-			$destination = substr($destination, 0, -1);
-		}
-
-		$destination = str_replace(array('../', '..\\', './', '.\\'), '', $destination);
-		if ($destination && ($destination[0] == '/' || $destination[0] == "\\"))
-		{
-			$destination = '';
 		}
 
 		$filedata = array(
@@ -193,16 +198,17 @@ class upload extends \phpbb\avatar\driver\driver
 		*
 		* @event core.avatar_driver_upload_move_file_before
 		* @var	array	filedata			Array containing uploaded file data
-		* @var	string	destination			Destination directory where the file is going to be moved
+		* @var	\phpbb\files\filespec file	Instance of filespec class
 		* @var	string	prefix				Prefix for the avatar filename
 		* @var	array	row					Array with avatar row data
 		* @var	array	error				Array of errors, if filled in by this event file will not be moved
 		* @since 3.1.6-RC1
 		* @changed 3.1.9-RC1 Added filedata
+		* @changed 3.2.3-RC1 Added file
 		*/
 		$vars = array(
 			'filedata',
-			'destination',
+			'file',
 			'prefix',
 			'row',
 			'error',
@@ -211,17 +217,17 @@ class upload extends \phpbb\avatar\driver\driver
 
 		unset($filedata);
 
-		if (!sizeof($error))
+		if (!count($error))
 		{
 			// Move file and overwrite any existing image
-			$file->move_file($destination, true);
+			$file->move_file($this->storage, true);
 		}
 
 		// If there was an error during move, then clean up leftovers
 		$error = array_merge($error, $file->error);
-		if (sizeof($error))
+		if (count($error))
 		{
-			$file->remove();
+			$file->remove($this->storage);
 			return false;
 		}
 
@@ -247,7 +253,6 @@ class upload extends \phpbb\avatar\driver\driver
 		return array(
 			'allow_avatar_remote_upload'=> array('lang' => 'ALLOW_REMOTE_UPLOAD', 'validate' => 'bool',	'type' => 'radio:yes_no', 'explain' => true),
 			'avatar_filesize'		=> array('lang' => 'MAX_FILESIZE',			'validate' => 'int:0',	'type' => 'number:0', 'explain' => true, 'append' => ' ' . $user->lang['BYTES']),
-			'avatar_path'			=> array('lang' => 'AVATAR_STORAGE_PATH',	'validate' => 'rpath',	'type' => 'text:20:255', 'explain' => true),
 		);
 	}
 
@@ -258,35 +263,41 @@ class upload extends \phpbb\avatar\driver\driver
 	{
 
 		$error = array();
-		$destination = $this->config['avatar_path'];
 		$prefix = $this->config['avatar_salt'] . '_';
 		$ext = substr(strrchr($row['avatar'], '.'), 1);
-		$filename = $this->phpbb_root_path . $destination . '/' . $prefix . $row['id'] . '.' . $ext;
+		$filename = $prefix . $row['id'] . '.' . $ext;
 
 		/**
 		* Before deleting an existing avatar
 		*
 		* @event core.avatar_driver_upload_delete_before
-		* @var	string	destination			Destination directory where the file is going to be deleted
 		* @var	string	prefix				Prefix for the avatar filename
 		* @var	array	row					Array with avatar row data
 		* @var	array	error				Array of errors, if filled in by this event file will not be deleted
 		* @since 3.1.6-RC1
+		* @changed 3.3.0-a1					Remove destination
 		*/
 		$vars = array(
-			'destination',
 			'prefix',
 			'row',
 			'error',
 		);
 		extract($this->dispatcher->trigger_event('core.avatar_driver_upload_delete_before', compact($vars)));
 
-		if (!sizeof($error) && file_exists($filename))
+		if (!count($error) && $this->storage->exists($filename))
 		{
-			@unlink($filename);
+			try
+			{
+				$this->storage->delete($filename);
+				return true;
+			}
+			catch (storage_exception $e)
+			{
+				// Fail is covered by return statement below
+			}
 		}
 
-		return true;
+		return false;
 	}
 
 	/**
@@ -298,12 +309,12 @@ class upload extends \phpbb\avatar\driver\driver
 	}
 
 	/**
-	* Check if user is able to upload an avatar
+	* Check if user is able to upload an avatar to a temporary folder
 	*
 	* @return bool True if user can upload, false if not
 	*/
 	protected function can_upload()
 	{
-		return (file_exists($this->phpbb_root_path . $this->config['avatar_path']) && $this->filesystem->is_writable($this->phpbb_root_path . $this->config['avatar_path']) && (@ini_get('file_uploads') || strtolower(@ini_get('file_uploads')) == 'on'));
+		return $this->php_ini->getBool('file_uploads');
 	}
 }

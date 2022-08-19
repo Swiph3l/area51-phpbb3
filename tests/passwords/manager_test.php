@@ -19,18 +19,18 @@ class phpbb_passwords_manager_test extends \phpbb_test_case
 
 	protected $default_pw = 'foobar';
 
-	public function setUp()
+	protected function setUp(): void
 	{
 		// Prepare dependencies for manager and driver
 		$config =  new \phpbb\config\config(array());
 		$this->driver_helper = new \phpbb\passwords\driver\helper($config);
 		$request = new phpbb_mock_request(array(), array(), array(), array(), array('password' => 'töst'));
-		$phpbb_root_path = dirname(__FILE__) . '/../../phpBB/';
+		$phpbb_root_path = __DIR__ . '/../../phpBB/';
 		$php_ext = 'php';
 
 		$this->passwords_drivers = array(
-			'passwords.driver.bcrypt_2y'		=> new \phpbb\passwords\driver\bcrypt_2y($config, $this->driver_helper),
-			'passwords.driver.bcrypt'		=> new \phpbb\passwords\driver\bcrypt($config, $this->driver_helper),
+			'passwords.driver.bcrypt_2y'		=> new \phpbb\passwords\driver\bcrypt_2y($config, $this->driver_helper, 10),
+			'passwords.driver.bcrypt'		=> new \phpbb\passwords\driver\bcrypt($config, $this->driver_helper, 10),
 			'passwords.driver.salted_md5'		=> new \phpbb\passwords\driver\salted_md5($config, $this->driver_helper),
 			'passwords.driver.phpass'		=> new \phpbb\passwords\driver\phpass($config, $this->driver_helper),
 			'passwords.driver.convert_password'	=> new \phpbb\passwords\driver\convert_password($config, $this->driver_helper),
@@ -51,26 +51,13 @@ class phpbb_passwords_manager_test extends \phpbb_test_case
 
 	public function hash_password_data()
 	{
-		if (version_compare(PHP_VERSION, '5.3.7', '<'))
-		{
-			return array(
-				array('', '2a', 60),
-				array('passwords.driver.bcrypt_2y', '2a', 60),
-				array('passwords.driver.bcrypt', '2a', 60),
-				array('passwords.driver.salted_md5', 'H', 34),
-				array('passwords.driver.foobar', '', false),
-			);
-		}
-		else
-		{
-			return array(
-				array('', '2y', 60),
-				array('passwords.driver.bcrypt_2y', '2y', 60),
-				array('passwords.driver.bcrypt', '2a', 60),
-				array('passwords.driver.salted_md5', 'H', 34),
-				array('passwords.driver.foobar', '', false),
-			);
-		}
+		return array(
+			array('', '2y', 60),
+			array('passwords.driver.bcrypt_2y', '2y', 60),
+			array('passwords.driver.bcrypt', '2a', 60),
+			array('passwords.driver.salted_md5', 'H', 34),
+			array('passwords.driver.foobar', '', false),
+		);
 	}
 
 	/**
@@ -100,23 +87,12 @@ class phpbb_passwords_manager_test extends \phpbb_test_case
 
 	public function check_password_data()
 	{
-		if (version_compare(PHP_VERSION, '5.3.7', '<'))
-		{
-			return array(
-				array('passwords.driver.bcrypt'),
-				array('passwords.driver.salted_md5'),
-				array('passwords.driver.phpass'),
-			);
-		}
-		else
-		{
-			return array(
-				array('passwords.driver.bcrypt_2y'),
-				array('passwords.driver.bcrypt'),
-				array('passwords.driver.salted_md5'),
-				array('passwords.driver.phpass'),
-			);
-		}
+		return array(
+			array('passwords.driver.bcrypt_2y'),
+			array('passwords.driver.bcrypt'),
+			array('passwords.driver.salted_md5'),
+			array('passwords.driver.phpass'),
+		);
 	}
 
 	/**
@@ -136,7 +112,7 @@ class phpbb_passwords_manager_test extends \phpbb_test_case
 		}
 
 		// Check if convert_flag is correctly set
-		$default_type = (version_compare(PHP_VERSION, '5.3.7', '<')) ? 'passwords.driver.bcrypt' : 'passwords.driver.bcrypt_2y';
+		$default_type = 'passwords.driver.bcrypt_2y';
 		$this->assertEquals(($hash_type !== $default_type), $this->manager->convert_flag);
 	}
 
@@ -200,79 +176,43 @@ class phpbb_passwords_manager_test extends \phpbb_test_case
 	public function test_hash_password_8bit_bcrypt()
 	{
 		$this->assertEquals(false, $this->manager->hash('foobar𝄞', 'passwords.driver.bcrypt'));
-		if (version_compare(PHP_VERSION, '5.3.7', '<'))
-		{
-			$this->assertEquals(false, $this->manager->hash('foobar𝄞', 'passwords.driver.bcrypt_2y'));
-		}
-		else
-		{
-			$this->assertNotEquals(false, $this->manager->hash('foobar𝄞', 'passwords.driver.bcrypt_2y'));
-		}
+		$this->assertNotEquals(false, $this->manager->hash('foobar𝄞', 'passwords.driver.bcrypt_2y'));
 	}
 
 	public function combined_hash_data()
 	{
-		if (version_compare(PHP_VERSION, '5.3.7', '<'))
-		{
-			return array(
-				array(
-					'passwords.driver.salted_md5',
-					array('passwords.driver.bcrypt'),
-				),
-				array(
-					'passwords.driver.phpass',
-					array('passwords.driver.salted_md5'),
-				),
-				array(
-					'passwords.driver.salted_md5',
-					array('passwords.driver.phpass', 'passwords.driver.bcrypt'),
-				),
-				array(
-					'passwords.driver.salted_md5',
-					array('passwords.driver.salted_md5'),
-					false,
-				),
-				array(
-					'$H$',
-					array('$2a$'),
-				),
-			);
-		}
-		else
-		{
-			return array(
-				array(
-					'passwords.driver.salted_md5',
-					array('passwords.driver.bcrypt_2y'),
-				),
-				array(
-					'passwords.driver.salted_md5',
-					array('passwords.driver.bcrypt'),
-				),
-				array(
-					'passwords.driver.phpass',
-					array('passwords.driver.salted_md5'),
-				),
-				array(
-					'passwords.driver.salted_md5',
-					array('passwords.driver.bcrypt_2y', 'passwords.driver.bcrypt'),
-				),
-				array(
-					'passwords.driver.salted_md5',
-					array('passwords.driver.salted_md5'),
-					false,
-				),
-				array(
-					'passwords.driver.bcrypt_2y',
-					array('passwords.driver.salted_md4'),
-					false,
-				),
-				array(
-					'$H$',
-					array('$2y$'),
-				),
-			);
-		}
+		return array(
+			array(
+				'passwords.driver.salted_md5',
+				array('passwords.driver.bcrypt_2y'),
+			),
+			array(
+				'passwords.driver.salted_md5',
+				array('passwords.driver.bcrypt'),
+			),
+			array(
+				'passwords.driver.phpass',
+				array('passwords.driver.salted_md5'),
+			),
+			array(
+				'passwords.driver.salted_md5',
+				array('passwords.driver.bcrypt_2y', 'passwords.driver.bcrypt'),
+			),
+			array(
+				'passwords.driver.salted_md5',
+				array('passwords.driver.salted_md5'),
+				false,
+			),
+			array(
+				'passwords.driver.bcrypt_2y',
+				array('passwords.driver.salted_md4'),
+				false,
+			),
+			array(
+				'$H$',
+				array('$2y$'),
+			),
+		);
 	}
 
 	/**
@@ -343,5 +283,55 @@ class phpbb_passwords_manager_test extends \phpbb_test_case
 	public function test_string_compare($a, $b, $expected)
 	{
 		$this->assertSame($expected, $this->driver_helper->string_compare($a, $b));
+	}
+
+	public function data_driver_interface_driver()
+	{
+		return array(
+			array(false, false, false),
+			array(true, false, false),
+			array(true, true, true),
+		);
+	}
+
+	/**
+	 * @dataProvider data_driver_interface_driver
+	 */
+	public function test_driver_interface_driver($use_new_interface, $needs_rehash, $expected)
+	{
+		if ($use_new_interface)
+		{
+			$test_driver = $this->createMock('\phpbb\passwords\driver\rehashable_driver_interface');
+			$test_driver->method('needs_rehash')
+				->willReturn($needs_rehash);
+		}
+		else
+		{
+			$test_driver = $this->createMock('\phpbb\passwords\driver\driver_interface');
+		}
+		$config = new \phpbb\config\config(array());
+
+		$test_driver->method('is_supported')
+			->willReturn(true);
+		$test_driver->method('get_prefix')
+			->willReturn('$test$');
+		$test_driver->method('check')
+			->with($this->anything())
+			->willReturn(true);
+		$passwords_drivers = array(
+			'passwords.driver.foobar'		=> $test_driver,
+			'passwords.driver.bcrypt_2y'	=> new \phpbb\passwords\driver\bcrypt_2y($config, $this->driver_helper, 10),
+		);
+		// Set up another manager
+		$foobar_manager = new \phpbb\passwords\manager($config, $passwords_drivers, $this->helper, array('passwords.driver.foobar'));
+
+		$this->assertTrue($foobar_manager->check('foobar', '$test$somerandomstuff'));
+		$this->assertEquals($expected, $foobar_manager->convert_flag);
+
+		// Should always return true in case a different driver is default
+		$foobar_manager = new \phpbb\passwords\manager($config, $passwords_drivers, $this->helper, array('passwords.driver.bcrypt_2y', 'passwords.driver.foobar'));
+
+		$this->assertTrue($foobar_manager->check('foobar', '$test$somerandomstuff'));
+		$this->assertTrue($foobar_manager->convert_flag);
 	}
 }

@@ -12,8 +12,10 @@
 */
 namespace phpbb\console\command\cache;
 
+use Symfony\Component\Console\Command\Command as symfony_command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 class purge extends \phpbb\console\command\command
 {
@@ -39,7 +41,7 @@ class purge extends \phpbb\console\command\command
 	* @param \phpbb\cache\driver\driver_interface	$cache	Cache instance
 	* @param \phpbb\db\driver\driver_interface		$db		Database connection
 	* @param \phpbb\auth\auth						$auth	Auth instance
-	* @param \phpbb\log\log							$log	Logger instance
+	* @param \phpbb\log\log_interface				$log	Logger instance
 	* @param \phpbb\config\config					$config	Config instance
 	*/
 	public function __construct(\phpbb\user $user, \phpbb\cache\driver\driver_interface $cache, \phpbb\db\driver\driver_interface $db, \phpbb\auth\auth $auth, \phpbb\log\log_interface $log, \phpbb\config\config $config)
@@ -71,7 +73,7 @@ class purge extends \phpbb\console\command\command
 	* @param InputInterface  $input  An InputInterface instance
 	* @param OutputInterface $output An OutputInterface instance
 	*
-	* @return null
+	* @return int
 	*/
 	protected function execute(InputInterface $input, OutputInterface $output)
 	{
@@ -84,6 +86,9 @@ class purge extends \phpbb\console\command\command
 
 		$this->log->add('admin', ANONYMOUS, '', 'LOG_PURGE_CACHE', time(), array());
 
-		$output->writeln($this->user->lang('PURGE_CACHE_SUCCESS'));
+		$io = new SymfonyStyle($input, $output);
+		$io->success($this->user->lang('PURGE_CACHE_SUCCESS'));
+
+		return symfony_command::SUCCESS;
 	}
 }

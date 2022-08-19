@@ -164,7 +164,7 @@ class compress
 	*
 	* @return array Array of strings of available compression methods (.tar, .tar.gz, .zip, etc.)
 	*/
-	static public function methods()
+	public static function methods()
 	{
 		$methods = array('.tar');
 		$available_methods = array('.tar.gz' => 'zlib', '.tar.bz2' => 'bz2', '.zip' => 'zlib');
@@ -210,7 +210,7 @@ class compress_zip extends compress
 	/**
 	* Constructor
 	*/
-	function compress_zip($mode, $file)
+	function __construct($mode, $file)
 	{
 		global $phpbb_filesystem;
 
@@ -296,7 +296,7 @@ class compress_zip extends compress
 
 									try
 									{
-										$this->filesystem->phpbb_chmod($str, CHMOD_READ | CHMOD_WRITE);
+										$this->filesystem->phpbb_chmod($str, \phpbb\filesystem\filesystem_interface::CHMOD_READ | \phpbb\filesystem\filesystem_interface::CHMOD_WRITE);
 									}
 									catch (\phpbb\filesystem\exception\filesystem_exception $e)
 									{
@@ -305,8 +305,8 @@ class compress_zip extends compress
 								}
 							}
 						}
-						// This is a directory, we are not writting files
-						continue;
+						// This is a directory, we are not writing files
+						continue 2;
 					}
 					else
 					{
@@ -333,7 +333,7 @@ class compress_zip extends compress
 
 								try
 								{
-									$this->filesystem->phpbb_chmod($str, CHMOD_READ | CHMOD_WRITE);
+									$this->filesystem->phpbb_chmod($str, \phpbb\filesystem\filesystem_interface::CHMOD_READ | \phpbb\filesystem\filesystem_interface::CHMOD_WRITE);
 								}
 								catch (\phpbb\filesystem\exception\filesystem_exception $e)
 								{
@@ -409,7 +409,7 @@ class compress_zip extends compress
 	function close()
 	{
 		// Write out central file directory and footer ... if it exists
-		if (sizeof($this->ctrl_dir))
+		if (count($this->ctrl_dir))
 		{
 			fwrite($this->fp, $this->file());
 		}
@@ -511,8 +511,8 @@ class compress_zip extends compress
 		$ctrldir = implode('', $this->ctrl_dir);
 
 		return $ctrldir . $this->eof_cdh .
-			pack('v', sizeof($this->ctrl_dir)) .	// total # of entries "on this disk"
-			pack('v', sizeof($this->ctrl_dir)) .	// total # of entries overall
+			pack('v', count($this->ctrl_dir)) .	// total # of entries "on this disk"
+			pack('v', count($this->ctrl_dir)) .	// total # of entries overall
 			pack('V', strlen($ctrldir)) .			// size of central dir
 			pack('V', $this->datasec_len) .			// offset to start of central dir
 			"\x00\x00";								// .zip file comment length
@@ -569,7 +569,7 @@ class compress_tar extends compress
 	/**
 	* Constructor
 	*/
-	function compress_tar($mode, $file, $type = '')
+	function __construct($mode, $file, $type = '')
 	{
 		global $phpbb_filesystem;
 
@@ -636,7 +636,7 @@ class compress_tar extends compress
 
 								try
 								{
-									$this->filesystem->phpbb_chmod($str, CHMOD_READ | CHMOD_WRITE);
+									$this->filesystem->phpbb_chmod($str, \phpbb\filesystem\filesystem_interface::CHMOD_READ | \phpbb\filesystem\filesystem_interface::CHMOD_WRITE);
 								}
 								catch (\phpbb\filesystem\exception\filesystem_exception $e)
 								{
@@ -671,7 +671,7 @@ class compress_tar extends compress
 
 							try
 							{
-								$this->filesystem->phpbb_chmod($str, CHMOD_READ | CHMOD_WRITE);
+								$this->filesystem->phpbb_chmod($str, \phpbb\filesystem\filesystem_interface::CHMOD_READ | \phpbb\filesystem\filesystem_interface::CHMOD_WRITE);
 							}
 							catch (\phpbb\filesystem\exception\filesystem_exception $e)
 							{
@@ -688,7 +688,7 @@ class compress_tar extends compress
 
 					try
 					{
-						$this->filesystem->phpbb_chmod($target_filename, CHMOD_READ);
+						$this->filesystem->phpbb_chmod($target_filename, \phpbb\filesystem\filesystem_interface::CHMOD_READ);
 					}
 					catch (\phpbb\filesystem\exception\filesystem_exception $e)
 					{

@@ -57,7 +57,7 @@ class acp_logs
 			{
 				$conditions = array();
 
-				if ($deletemark && sizeof($marked))
+				if ($deletemark && count($marked))
 				{
 					$conditions['log_id'] = array('IN' => $marked);
 				}
@@ -109,7 +109,7 @@ class acp_logs
 		$sql_sort = $sort_by_sql[$sort_key] . ' ' . (($sort_dir == 'd') ? 'DESC' : 'ASC');
 
 		$keywords = $request->variable('keywords', '', true);
-		$keywords_param = !empty($keywords) ? '&amp;keywords=' . urlencode(htmlspecialchars_decode($keywords)) : '';
+		$keywords_param = !empty($keywords) ? '&amp;keywords=' . urlencode(htmlspecialchars_decode($keywords, ENT_COMPAT)) : '';
 
 		$l_title = $user->lang['ACP_' . strtoupper($mode) . '_LOGS'];
 		$l_title_explain = $user->lang['ACP_' . strtoupper($mode) . '_LOGS_EXPLAIN'];
@@ -152,7 +152,7 @@ class acp_logs
 		{
 			$data = array();
 
-			$checks = array('viewtopic', 'viewlogs', 'viewforum');
+			$checks = array('viewpost', 'viewtopic', 'viewlogs', 'viewforum');
 			foreach ($checks as $check)
 			{
 				if (isset($row[$check]) && $row[$check])
@@ -168,7 +168,7 @@ class acp_logs
 				'IP'				=> $row['ip'],
 				'DATE'				=> $user->format_date($row['time']),
 				'ACTION'			=> $row['action'],
-				'DATA'				=> (sizeof($data)) ? implode(' | ', $data) : '',
+				'DATA'				=> (count($data)) ? implode(' | ', $data) : '',
 				'ID'				=> $row['id'],
 				)
 			);

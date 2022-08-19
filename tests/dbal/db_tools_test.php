@@ -22,10 +22,10 @@ class phpbb_dbal_db_tools_test extends phpbb_database_test_case
 
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__).'/fixtures/config.xml');
+		return $this->createXMLDataSet(__DIR__.'/fixtures/config.xml');
 	}
 
-	protected function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 
@@ -77,7 +77,7 @@ class phpbb_dbal_db_tools_test extends phpbb_database_test_case
 		$this->table_exists = true;
 	}
 
-	protected function tearDown()
+	protected function tearDown(): void
 	{
 		if ($this->table_exists)
 		{
@@ -99,7 +99,7 @@ class phpbb_dbal_db_tools_test extends phpbb_database_test_case
 		$this->tools->sql_table_drop('prefix_table_name');
 	}
 
-	static protected function get_default_values()
+	protected static function get_default_values()
 	{
 		return array(
 			'c_int_size' => 0,
@@ -182,10 +182,10 @@ class phpbb_dbal_db_tools_test extends phpbb_database_test_case
 
 		// empty table
 		$sql = 'DELETE FROM prefix_table_name';
-		$result = $this->db->sql_query($sql);
+		$this->db->sql_query($sql);
 
 		$sql = 'INSERT INTO prefix_table_name ' . $this->db->sql_build_array('INSERT', $row_insert);
-		$result = $this->db->sql_query($sql);
+		$this->db->sql_query($sql);
 
 		$sql = "SELECT *
 			FROM prefix_table_name";
@@ -203,8 +203,15 @@ class phpbb_dbal_db_tools_test extends phpbb_database_test_case
 
 	public function test_list_columns()
 	{
+		$config = $this->get_database_config();
+		$table_columns = $this->table_data['COLUMNS'];
+
+		if (strpos($config['dbms'], 'mssql') !== false)
+		{
+			ksort($table_columns);
+		}
 		$this->assertEquals(
-			array_keys($this->table_data['COLUMNS']),
+			array_keys($table_columns),
 			array_values($this->tools->sql_list_columns('prefix_table_name'))
 		);
 	}
@@ -339,21 +346,18 @@ class phpbb_dbal_db_tools_test extends phpbb_database_test_case
 
 	public function test_perform_schema_changes_drop_tables()
 	{
-		$db_tools = $this->getMock('\phpbb\db\tools\tools', array(
-			'sql_table_exists',
-			'sql_table_drop',
-		), array(&$this->db));
+		$db_tools = $this->getMockBuilder('\phpbb\db\tools\tools')
+			->setMethods(array('sql_table_exists', 'sql_table_drop'))
+			->setConstructorArgs(array(&$this->db))
+			->getMock();
 
 		// pretend all tables exist
 		$db_tools->expects($this->any())->method('sql_table_exists')
 			->will($this->returnValue(true));
 
 		// drop tables
-		$db_tools->expects($this->exactly(2))->method('sql_table_drop');
-		$db_tools->expects($this->at(1))->method('sql_table_drop')
-			->with($this->equalTo('dropped_table_1'));
-		$db_tools->expects($this->at(3))->method('sql_table_drop')
-			->with($this->equalTo('dropped_table_2'));
+		$db_tools->expects($this->exactly(2))->method('sql_table_drop')
+			->withConsecutive([$this->equalTo('dropped_table_1')], [$this->equalTo('dropped_table_2')]);
 
 		$db_tools->perform_schema_changes(array(
 			'drop_tables' => array(
@@ -365,10 +369,10 @@ class phpbb_dbal_db_tools_test extends phpbb_database_test_case
 
 	public function test_perform_schema_changes_drop_columns()
 	{
-		$db_tools = $this->getMock('\phpbb\db\tools\tools', array(
-			'sql_column_exists',
-			'sql_column_remove',
-		), array(&$this->db));
+		$db_tools = $this->getMockBuilder('\phpbb\db\tools\tools')
+			->setMethods(array('sql_column_exists', 'sql_column_remove'))
+			->setConstructorArgs(array(&$this->db))
+			->getMock();
 
 		// pretend all columns exist
 		$db_tools->expects($this->any())->method('sql_column_exists')
@@ -377,11 +381,11 @@ class phpbb_dbal_db_tools_test extends phpbb_database_test_case
 			->will($this->returnValue(true));
 
 		// drop columns
-		$db_tools->expects($this->exactly(2))->method('sql_column_remove');
-		$db_tools->expects($this->at(1))->method('sql_column_remove')
-			->with($this->equalTo('existing_table'), $this->equalTo('dropped_column_1'));
-		$db_tools->expects($this->at(3))->method('sql_column_remove')
-			->with($this->equalTo('existing_table'), $this->equalTo('dropped_column_2'));
+		$db_tools->expects($this->exactly(2))->method('sql_column_remove')
+			->withConsecutive(
+				[$this->equalTo('existing_table'), $this->equalTo('dropped_column_1')],
+				[$this->equalTo('existing_table'), $this->equalTo('dropped_column_2')]
+			);
 
 		$db_tools->perform_schema_changes(array(
 			'drop_columns' => array(
@@ -418,7 +422,53 @@ class phpbb_dbal_db_tools_test extends phpbb_database_test_case
 	public function test_create_int_default_null()
 	{
 		$this->assertFalse($this->tools->sql_column_exists('prefix_table_name', 'c_bug_13282'));
-		$this->assertTrue($this->tools->sql_column_add('prefix_table_name', 'c_bug_13282', array('TINT:2')));
+		$this->assertTrue($this->tools->sql_column_add('prefix_table_name', 'c_bug_13282', array('TINT:2', null)));
 		$this->assertTrue($this->tools->sql_column_exists('prefix_table_name', 'c_bug_13282'));
+	}
+
+	public function test_create_index_with_long_name()
+	{
+		// This constant is being used for checking table prefix.
+		$table_prefix = substr(CONFIG_TABLE, 0, -6); // strlen(config)
+
+		if (strlen($table_prefix) > 20)
+		{
+			$this->markTestIncomplete('The table prefix length is too long for proper testing of index shortening function.');
+		}
+
+		$max_index_length = 30;
+
+		if ($this->tools instanceof \phpbb\db\tools\mssql)
+		{
+			$max_length_method = new ReflectionMethod('\phpbb\db\tools\mssql', 'get_max_index_name_length');
+			$max_length_method->setAccessible(true);
+			$max_index_length = $max_length_method->invoke($this->tools);
+		}
+
+		$table_suffix = str_repeat('a', 25 - strlen($table_prefix));
+		$table_name = $table_prefix . $table_suffix;
+
+		$this->tools->sql_create_table($table_name, $this->table_data);
+
+		// Index name and table suffix and table prefix have > maximum index length chars in total.
+		// Index name and table suffix have <= maximum index length chars in total.
+		$long_index_name = str_repeat('i', $max_index_length - strlen($table_suffix));
+		$this->assertFalse($this->tools->sql_index_exists($table_name, $long_index_name));
+		$this->assertTrue($this->tools->sql_create_index($table_name, $long_index_name, array('c_timestamp')));
+		$this->assertTrue($this->tools->sql_index_exists($table_name, $long_index_name));
+
+		// Index name and table suffix have > maximum index length chars in total.
+		$very_long_index_name = str_repeat('i', $max_index_length);
+		$this->assertFalse($this->tools->sql_index_exists($table_name, $very_long_index_name));
+		$this->assertTrue($this->tools->sql_create_index($table_name, $very_long_index_name, array('c_timestamp')));
+		$this->assertTrue($this->tools->sql_index_exists($table_name, $very_long_index_name));
+
+		$this->tools->sql_table_drop($table_name);
+
+		// Index name has > maximum index length chars - that should not be possible.
+		$too_long_index_name = str_repeat('i', $max_index_length + 1);
+		$this->assertFalse($this->tools->sql_index_exists('prefix_table_name', $too_long_index_name));
+		$this->setExpectedTriggerError(E_USER_ERROR);
+		$this->tools->sql_create_index('prefix_table_name', $too_long_index_name, array('c_timestamp'));
 	}
 }

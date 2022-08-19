@@ -11,7 +11,9 @@ phpbb.alertTime = 100;
 var keymap = {
 	TAB: 9,
 	ENTER: 13,
-	ESC: 27
+	ESC: 27,
+	ARROW_UP: 38,
+	ARROW_DOWN: 40
 };
 
 var $dark = $('#darkenwrapper');
@@ -20,6 +22,13 @@ var phpbbAlertTimer = null;
 
 phpbb.isTouch = (window && typeof window.ontouchstart !== 'undefined');
 
+// Add ajax pre-filter to prevent cross-domain script execution
+$.ajaxPrefilter(function(s) {
+	if (s.crossDomain) {
+		s.contents.script = false;
+	}
+});
+
 /**
  * Display a loading screen
  *
@@ -27,27 +36,30 @@ phpbb.isTouch = (window && typeof window.ontouchstart !== 'undefined');
  */
 phpbb.loadingIndicator = function() {
 	if (!$loadingIndicator) {
-		$loadingIndicator = $('<div />', { 
-			id: 'loading_indicator', 
-			class: 'loading_indicator', 
-		});
-		$loadingIndicator.appendTo('#page-footer');
+		$loadingIndicator = $('#loading_indicator');
 	}
 
 	if (!$loadingIndicator.is(':visible')) {
 		$loadingIndicator.fadeIn(phpbb.alertTime);
-		// Wait fifteen seconds and display an error if nothing has been returned by then.
+		// Wait 60 seconds and display an error if nothing has been returned by then.
 		phpbb.clearLoadingTimeout();
 		phpbbAlertTimer = setTimeout(function() {
-			var $alert = $('#phpbb_alert');
-
-			if ($loadingIndicator.is(':visible')) {
-				phpbb.alert($alert.attr('data-l-err'), $alert.attr('data-l-timeout-processing-req'));
-			}
-		}, 15000);
+			phpbb.showTimeoutMessage();
+		}, 60000);
 	}
 
 	return $loadingIndicator;
+};
+
+/**
+ * Show timeout message
+ */
+phpbb.showTimeoutMessage = function () {
+	var $alert = $('#phpbb_alert');
+
+	if ($loadingIndicator.is(':visible')) {
+		phpbb.alert($alert.attr('data-l-err'), $alert.attr('data-l-timeout-processing-req'));
+	}
 };
 
 /**
@@ -172,7 +184,7 @@ phpbb.alert.close = function($alert, fadedark) {
 phpbb.confirm = function(msg, callback, fadedark) {
 	var $confirmDiv = $('#phpbb_confirm');
 	$confirmDiv.find('.alert_text').html(msg);
-	fadedark = fadedark || true;
+	fadedark = typeof fadedark !== 'undefined' ? fadedark : true;
 
 	$(document).on('keydown.phpbb.alert', function(e) {
 		if (e.keyCode === keymap.ENTER || e.keyCode === keymap.ESC) {
@@ -187,9 +199,7 @@ phpbb.confirm = function(msg, callback, fadedark) {
 	$confirmDiv.find('input[type="button"]').one('click.phpbb.confirmbox', function(e) {
 		var confirmed = this.name === 'confirm';
 
-		if (confirmed) {
-			callback(true);
-		}
+		callback(confirmed);
 		$confirmDiv.find('input[type="button"]').off('click.phpbb.confirmbox');
 		phpbb.alert.close($confirmDiv, fadedark || !confirmed);
 
@@ -549,7 +559,7 @@ phpbb.search.setValue = function($input, value, multiline) {
 phpbb.search.setValueOnClick = function($input, value, $row, $container) {
 	$row.click(function() {
 		phpbb.search.setValue($input, value.result, $input.attr('data-multiline'));
-		$container.hide();
+		phpbb.search.closeResults($input, $container);
 	});
 };
 
@@ -563,7 +573,7 @@ phpbb.search.setValueOnClick = function($input, value, $row, $container) {
  * @param {object} event			Onkeyup event object.
  * @param {function} sendRequest	Function to execute AJAX request.
  *
- * @returns {bool} Returns false.
+ * @returns {boolean} Returns false.
  */
 phpbb.search.filter = function(data, event, sendRequest) {
 	var $this = $(this),
@@ -572,8 +582,15 @@ phpbb.search.filter = function(data, event, sendRequest) {
 		searchID = $this.attr('data-results'),
 		keyword = phpbb.search.getKeyword($this, data[dataName], $this.attr('data-multiline')),
 		cache = phpbb.search.cache.get(searchID),
+		key = event.keyCode || event.which,
 		proceed = true;
 	data[dataName] = keyword;
+
+	// No need to search if enter was pressed
+	// for selecting a value from the results.
+	if (key === keymap.ENTER) {
+		return false;
+	}
 
 	if (cache.timeout) {
 		clearTimeout(cache.timeout);
@@ -685,22 +702,108 @@ phpbb.search.showResults = function(results, $input, $container, callback) {
 		row.appendTo($resultContainer).show();
 	});
 	$container.show();
+
+	phpbb.search.navigateResults($input, $container, $resultContainer);
 };
 
 /**
  * Clear search results.
  *
- * @param {jQuery} $container Search results container.
+ * @param {jQuery} $container		Search results container.
  */
 phpbb.search.clearResults = function($container) {
 	$container.children(':not(.search-result-tpl)').remove();
+};
+
+/**
+ * Close search results.
+ *
+ * @param {jQuery} $input			Search input|textarea.
+ * @param {jQuery} $container		Search results container.
+ */
+phpbb.search.closeResults = function($input, $container) {
+	$input.off('.phpbb.search');
+	$container.hide();
+};
+
+/**
+ * Navigate search results.
+ *
+ * @param {jQuery} $input			Search input|textarea.
+ * @param {jQuery} $container		Search results container.
+ * @param {jQuery} $resultContainer	Search results list container.
+ */
+phpbb.search.navigateResults = function($input, $container, $resultContainer) {
+	// Add a namespace to the event (.phpbb.search),
+	// so it can be unbound specifically later on.
+	// Rebind it, to ensure the event is 'dynamic'.
+	$input.off('.phpbb.search');
+	$input.on('keydown.phpbb.search', function(event) {
+		var key = event.keyCode || event.which,
+			$active = $resultContainer.children('.active');
+
+		switch (key) {
+			// Close the results
+			case keymap.ESC:
+				phpbb.search.closeResults($input, $container);
+			break;
+
+			// Set the value for the selected result
+			case keymap.ENTER:
+				if ($active.length) {
+					var value = $active.find('.search-result > span').text();
+
+					phpbb.search.setValue($input, value, $input.attr('data-multiline'));
+				}
+
+				phpbb.search.closeResults($input, $container);
+
+				// Do not submit the form
+				event.preventDefault();
+			break;
+
+			// Navigate the results
+			case keymap.ARROW_DOWN:
+			case keymap.ARROW_UP:
+				var up = key === keymap.ARROW_UP,
+					$children = $resultContainer.children();
+
+				if (!$active.length) {
+					if (up) {
+						$children.last().addClass('active');
+					} else {
+						$children.first().addClass('active');
+					}
+				} else if ($children.length > 1) {
+					if (up) {
+						if ($active.is(':first-child')) {
+							$children.last().addClass('active');
+						} else {
+							$active.prev().addClass('active');
+						}
+					} else {
+						if ($active.is(':last-child')) {
+							$children.first().addClass('active');
+						} else {
+							$active.next().addClass('active');
+						}
+					}
+
+					$active.removeClass('active');
+				}
+
+				// Do not change cursor position in the input element
+				event.preventDefault();
+			break;
+		}
+	});
 };
 
 $('#phpbb').click(function() {
 	var $this = $(this);
 
 	if (!$this.is('.live-search') && !$this.parents().is('.live-search')) {
-		$('.live-search').hide();
+		phpbb.search.closeResults($('input, textarea'), $('.live-search'));
 	}
 });
 
@@ -841,7 +944,10 @@ phpbb.timezonePreselectSelect = function(forceSelector) {
 	var minutes = offset % 60;
 	var hours = (offset - minutes) / 60;
 
-	if (hours < 10) {
+	if (hours === 0) {
+		hours = '00';
+		sign = '+';
+	} else if (hours < 10) {
 		hours = '0' + hours.toString();
 	} else {
 		hours = hours.toString();
@@ -930,9 +1036,9 @@ phpbb.addAjaxCallback('alt_text', function() {
 	$anchor.each(function() {
 		var $this = $(this);
 		altText = $this.attr('data-alt-text');
-		$this.attr('data-alt-text', $this.text());
-		$this.attr('title', $.trim(altText));
-		$this.text(altText);
+		$this.attr('data-alt-text', $.trim($this.text()));
+		$this.attr('title', altText);
+		$this.children('span').text(altText);
 	});
 });
 
@@ -946,11 +1052,11 @@ phpbb.addAjaxCallback('alt_text', function() {
  * and changes the link itself.
  */
 phpbb.addAjaxCallback('toggle_link', function() {
-	var $anchor,
-		updateAll = $(this).data('update-all') ,
-		toggleText,
-		toggleUrl,
-		toggleClass;
+	var $anchor;
+	var updateAll = $(this).data('update-all');
+	var toggleText;
+	var toggleUrl;
+	var toggleIcon;
 
 	if (updateAll !== undefined && updateAll.length) {
 		$anchor = $(updateAll);
@@ -961,21 +1067,19 @@ phpbb.addAjaxCallback('toggle_link', function() {
 	$anchor.each(function() {
 		var $this = $(this);
 
+		// Toggle link text
+		toggleText = $.trim($this.attr('data-toggle-text'));
+		$this.attr('data-toggle-text', $.trim($this.children('span').text()));
+		$this.attr('title', toggleText);
+		$this.children('span').last().text(toggleText);
+
 		// Toggle link url
 		toggleUrl = $this.attr('data-toggle-url');
 		$this.attr('data-toggle-url', $this.attr('href'));
 		$this.attr('href', toggleUrl);
 
-		// Toggle class of link parent
-		toggleClass = $this.attr('data-toggle-class');
-		$this.attr('data-toggle-class', $this.children().attr('class'));
-		$this.children('.icon').attr('class', toggleClass);
-
-		// Toggle link text
-		toggleText = $this.attr('data-toggle-text');
-		$this.attr('data-toggle-text', $this.children('span').text());
-		$this.attr('title', $.trim(toggleText));
-		$this.children('span').text(toggleText);
+		// Toggle Icon
+		$this.children().first().toggleClass('is-active').next().toggleClass('is-active')
 	});
 });
 
@@ -1275,7 +1379,7 @@ phpbb.dropdownVisibleContainers = '.dropdown-container.dropdown-visible';
 * Dropdown toggle event handler
 * This handler is used by phpBB.registerDropdown() and other functions
 */
-phpbb.toggleDropdown = function() {
+phpbb.toggleDropdown = function(event_) {
 	var $this = $(this),
 		options = $this.data('dropdown-options'),
 		parent = options.parent,
@@ -1283,6 +1387,9 @@ phpbb.toggleDropdown = function() {
 		direction;
 
 	if (!visible) {
+		// Prevent link default action
+		event_.preventDefault();
+		event_.stopPropagation();
 		// Hide other dropdown menus
 		$(phpbb.dropdownHandles).each(phpbb.toggleDropdown);
 
@@ -1326,6 +1433,7 @@ phpbb.toggleDropdown = function() {
 			$this.css({
 				marginLeft: 0,
 				left: 0,
+				marginRight: 0,
 				maxWidth: (windowWidth - 4) + 'px'
 			});
 
@@ -1479,7 +1587,7 @@ phpbb.colorPalette = function(dir, width, height) {
 * @param {jQuery} el jQuery object for the palette container.
 */
 phpbb.registerPalette = function(el) {
-	var	orientation	= el.attr('data-orientation'),
+	var	orientation	= el.attr('data-color-palette') || el.attr('data-orientation'), // data-orientation kept for backwards compat.
 		height		= el.attr('data-height'),
 		width		= el.attr('data-width'),
 		target		= el.attr('data-target'),
@@ -1637,19 +1745,100 @@ phpbb.lazyLoadAvatars = function loadAvatars() {
 	});
 };
 
-$(window).load(phpbb.lazyLoadAvatars);
+phpbb.recaptcha = {
+	button: null,
+	ready: false,
+
+	token: $('input[name="recaptcha_token"]'),
+	form: $('.g-recaptcha').parents('form'),
+	v3: $('[data-recaptcha-v3]'),
+
+	load: function() {
+		phpbb.recaptcha.bindButton();
+		phpbb.recaptcha.bindForm();
+	},
+	bindButton: function() {
+		phpbb.recaptcha.form.find('input[type="submit"]').on('click', function() {
+			// Listen to all the submit buttons for the form that has reCAPTCHA protection,
+			// and store it so we can click the exact same button later on when we are ready.
+			phpbb.recaptcha.button = this;
+		});
+	},
+	bindForm: function() {
+		phpbb.recaptcha.form.on('submit', function(e) {
+			 // If ready is false, it means the user pressed a submit button.
+			 // And the form was not submitted by us, after the token was loaded.
+			if (!phpbb.recaptcha.ready) {
+				 // If version 3 is used, we need to make a different execution,
+				 // including the action and the site key.
+				if (phpbb.recaptcha.v3.length) {
+					grecaptcha.execute(
+						phpbb.recaptcha.v3.data('recaptcha-v3'),
+						{action: phpbb.recaptcha.v3.val()}
+					).then(function(token) {
+						// Place the token inside the form
+						phpbb.recaptcha.token.val(token);
+
+						// And now we submit the form.
+						phpbb.recaptcha.submitForm();
+					});
+				} else {
+					// Regular version 2 execution
+					grecaptcha.execute();
+				}
+
+				// Do not submit the form
+				e.preventDefault();
+			}
+		});
+	},
+	submitForm: function() {
+		// Now we are ready, so set it to true.
+		// so the 'submit' event doesn't run multiple times.
+		phpbb.recaptcha.ready = true;
+
+		if (phpbb.recaptcha.button) {
+			// If there was a specific button pressed initially, trigger the same button
+			phpbb.recaptcha.button.click();
+		} else {
+			if (typeof phpbb.recaptcha.form.submit !== 'function') {
+				// Rename input[name="submit"] so that we can submit the form
+				phpbb.recaptcha.form.submit.name = 'submit_btn';
+			}
+
+			phpbb.recaptcha.form.submit();
+		}
+	}
+};
+
+// reCAPTCHA v2 doesn't accept callback functions nested inside objects
+// so we need to make this helper functions here
+window.phpbbRecaptchaOnLoad = function() {
+	phpbb.recaptcha.load();
+};
+
+window.phpbbRecaptchaOnSubmit = function() {
+	phpbb.recaptcha.submitForm();
+};
+
+$(window).on('load', phpbb.lazyLoadAvatars);
 
 /**
 * Apply code editor to all textarea elements with data-bbcode attribute
 */
 $(function() {
+	// reCAPTCHA v3 needs to be initialized
+	if (phpbb.recaptcha.v3.length) {
+		phpbb.recaptcha.load();
+	}
+
 	$('textarea[data-bbcode]').each(function() {
 		phpbb.applyCodeEditor(this);
 	});
 
 	phpbb.registerPageDropdowns();
 
-	$('#color_palette_placeholder').each(function() {
+	$('[data-color-palette], [data-orientation]').each(function() {
 		phpbb.registerPalette($(this));
 	});
 

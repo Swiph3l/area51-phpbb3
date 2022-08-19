@@ -18,69 +18,6 @@ namespace phpbb\request;
 */
 class type_cast_helper implements \phpbb\request\type_cast_helper_interface
 {
-
-	/**
-	* @var	string	Whether slashes need to be stripped from input
-	*/
-	protected $strip;
-
-	/**
-	* Initialises the type cast helper class.
-	* All it does is find out whether magic quotes are turned on.
-	*/
-	public function __construct()
-	{
-		if (version_compare(PHP_VERSION, '5.4.0-dev', '>='))
-		{
-			$this->strip = false;
-		}
-		else
-		{
-			$this->strip = (@get_magic_quotes_gpc()) ? true : false;
-		}
-	}
-
-	/**
-	* Recursively applies addslashes to a variable.
-	*
-	* @param	mixed	&$var	Variable passed by reference to which slashes will be added.
-	*/
-	public function addslashes_recursively(&$var)
-	{
-		if (is_string($var))
-		{
-			$var = addslashes($var);
-		}
-		else if (is_array($var))
-		{
-			$var_copy = $var;
-			$var = array();
-			foreach ($var_copy as $key => $value)
-			{
-				if (is_string($key))
-				{
-					$key = addslashes($key);
-				}
-				$var[$key] = $value;
-
-				$this->addslashes_recursively($var[$key]);
-			}
-		}
-	}
-
-	/**
-	* Recursively applies addslashes to a variable if magic quotes are turned on.
-	*
-	* @param	mixed	&$var	Variable passed by reference to which slashes will be added.
-	*/
-	public function add_magic_quotes(&$var)
-	{
-		if ($this->strip)
-		{
-			$this->addslashes_recursively($var);
-		}
-	}
-
 	/**
 	* Set variable $result to a particular type.
 	*
@@ -99,7 +36,7 @@ class type_cast_helper implements \phpbb\request\type_cast_helper_interface
 
 		if ($type == 'string')
 		{
-			$result = str_replace(array("\r\n", "\r", "\0"), array("\n", "\n", ''), $result);
+			$result = strtr($result, ["\r\n" => "\n", "\r" => "\n", "\0" => '', "\u{FEFF}" => '']);
 
 			if ($trim)
 			{
@@ -129,8 +66,6 @@ class type_cast_helper implements \phpbb\request\type_cast_helper_interface
 					$result = preg_replace('/[\x80-\xFF]/', '?', $result);
 				}
 			}
-
-			$result = ($this->strip) ? stripslashes($result) : $result;
 		}
 	}
 
@@ -171,7 +106,8 @@ class type_cast_helper implements \phpbb\request\type_cast_helper_interface
 				return;
 			}
 
-			list($default_key, $default_value) = each($default);
+			$default_key = key($default);
+			$default_value = current($default);
 			$key_type = gettype($default_key);
 
 			$_var = $var;

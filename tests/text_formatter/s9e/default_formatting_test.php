@@ -50,27 +50,27 @@ class phpbb_textformatter_s9e_default_formatting_test extends phpbb_test_case
 		return array(
 			array(
 				'[b]bold[/b]',
-				'<span style="font-weight: bold">bold</span>'
+				'<strong class="text-strong">bold</strong>'
 			),
 			array(
 				'[u]underlined[/u]',
-				'<span style="text-decoration: underline">underlined</span>'
+				'<span style="text-decoration:underline">underlined</span>'
 			),
 			array(
 				'[i]italic[/i]',
-				'<span style="font-style: italic">italic</span>'
+				'<em class="text-italics">italic</em>'
 			),
 			array(
 				'[color=#FF0000]colored[/color]',
-				'<span style="color: #FF0000">colored</span>'
+				'<span style="color:#FF0000">colored</span>'
 			),
 			array(
 				'[color=red]colored[/color]',
-				'<span style="color: red">colored</span>'
+				'<span style="color:red">colored</span>'
 			),
 			array(
 				'[size=75]smaller[/size]',
-				'<span style="font-size: 75%; line-height: normal">smaller</span>'
+				'<span style="font-size:75%;line-height:116%">smaller</span>'
 			),
 			array(
 				'[quote]quoted[/quote]',
@@ -82,7 +82,7 @@ class phpbb_textformatter_s9e_default_formatting_test extends phpbb_test_case
 			),
 			array(
 				'[code]unparsed code[/code]',
-				'<div class="codebox"><p>CODE: <a href="#" onclick="selectCode(this); return false;">Select all</a></p><pre><code>unparsed code</code></pre></div>'
+				'<div class="codebox"><p>Code: <a href="#" onclick="selectCode(this); return false;">Select all</a></p><pre><code>unparsed code</code></pre></div>'
 			),
 			array(
 				'[list]no item[/list]',
@@ -102,35 +102,39 @@ class phpbb_textformatter_s9e_default_formatting_test extends phpbb_test_case
 			),
 			array(
 				'[list=1][*]item[/list]',
-				'<ol style="list-style-type: decimal"><li>item</li></ol>'
+				'<ol style="list-style-type:decimal"><li>item</li></ol>'
 			),
 			array(
 				'[list=a][*]item[/list]',
-				'<ol style="list-style-type: lower-alpha"><li>item</li></ol>'
+				'<ol style="list-style-type:lower-alpha"><li>item</li></ol>'
 			),
 			array(
 				'[list=i][*]item[/list]',
-				'<ol style="list-style-type: lower-roman"><li>item</li></ol>'
+				'<ol style="list-style-type:lower-roman"><li>item</li></ol>'
 			),
 			array(
 				'[list=I][*]item[/list]',
-				'<ol style="list-style-type: upper-roman"><li>item</li></ol>'
+				'<ol style="list-style-type:upper-roman"><li>item</li></ol>'
 			),
 			array(
 				'[list=disc][*]item[/list]',
-				'<ul style="list-style-type: disc"><li>item</li></ul>'
+				'<ul style="list-style-type:disc"><li>item</li></ul>'
 			),
 			array(
 				'[list=circle][*]item[/list]',
-				'<ul style="list-style-type: circle"><li>item</li></ul>'
+				'<ul style="list-style-type:circle"><li>item</li></ul>'
 			),
 			array(
 				'[list=square][*]item[/list]',
-				'<ul style="list-style-type: square"><li>item</li></ul>'
+				'<ul style="list-style-type:square"><li>item</li></ul>'
 			),
 			array(
 				'[img]https://area51.phpbb.com/images/area51.png[/img]',
 				'<img src="https://area51.phpbb.com/images/area51.png" class="postimage" alt="Image">'
+			),
+			array(
+				'[img]foo://area51.phpbb.com/images/area51.png[/img]',
+				'[img]foo://area51.phpbb.com/images/area51.png[/img]'
 			),
 			array(
 				'[url]https://area51.phpbb.com/[/url]',
@@ -180,40 +184,40 @@ class phpbb_textformatter_s9e_default_formatting_test extends phpbb_test_case
 			array(
 				// Allow textual bbcodes in textual bbcodes
 				'[b]bold [i]bold + italic[/i][/b]',
-				'<span style="font-weight: bold">bold <span style="font-style: italic">bold + italic</span></span>'
+				'<strong class="text-strong">bold <em class="text-italics">bold + italic</em></strong>'
 			),
 			array(
 				// Allow textual bbcodes in url with description
 				'[url=https://area51.phpbb.com/]Area51 [i]italic[/i][/url]',
-				'<a href="https://area51.phpbb.com/" class="postlink">Area51 <span style="font-style: italic">italic</span></a>'
+				'<a href="https://area51.phpbb.com/" class="postlink">Area51 <em class="text-italics">italic</em></a>'
 			),
 			array(
 				// Allow url with description in textual bbcodes
 				'[i]italic [url=https://area51.phpbb.com/]Area51[/url][/i]',
-				'<span style="font-style: italic">italic <a href="https://area51.phpbb.com/" class="postlink">Area51</a></span>'
+				'<em class="text-italics">italic <a href="https://area51.phpbb.com/" class="postlink">Area51</a></em>'
 			),
 			array(
 				// Do not parse textual bbcodes in code
 				'[code]unparsed code [b]bold [i]bold + italic[/i][/b][/code]',
-				'<div class="codebox"><p>CODE: <a href="#" onclick="selectCode(this); return false;">Select all</a></p><pre><code>unparsed code [b]bold [i]bold + italic[/i][/b]</code></pre></div>'
+				'<div class="codebox"><p>Code: <a href="#" onclick="selectCode(this); return false;">Select all</a></p><pre><code>unparsed code [b]bold [i]bold + italic[/i][/b]</code></pre></div>'
 			),
 			array(
 				// Do not parse quote bbcodes in code
 				'[code]unparsed code [quote="username"]quoted[/quote][/code]',
-				'<div class="codebox"><p>CODE: <a href="#" onclick="selectCode(this); return false;">Select all</a></p><pre><code>unparsed code [quote="username"]quoted[/quote]</code></pre></div>'
+				'<div class="codebox"><p>Code: <a href="#" onclick="selectCode(this); return false;">Select all</a></p><pre><code>unparsed code [quote="username"]quoted[/quote]</code></pre></div>'
 			),
 			array(
 				// Textual bbcode nesting into textual bbcode
 				'[b]bold [i]bold + italic[/b] italic[/i]',
-				'<span style="font-weight: bold">bold <span style="font-style: italic">bold + italic</span></span><span style="font-style: italic"> italic</span>'
+				'<strong class="text-strong">bold <em class="text-italics">bold + italic</em></strong><em class="text-italics"> italic</em>'
 			),
 			array(
 				"[code]\tline1\n  line2[/code]",
-				'<div class="codebox"><p>CODE: <a href="#" onclick="selectCode(this); return false;">Select all</a></p><pre><code>' . "\tline1\n  line2</code></pre></div>"
+				'<div class="codebox"><p>Code: <a href="#" onclick="selectCode(this); return false;">Select all</a></p><pre><code>' . "\tline1\n  line2</code></pre></div>"
 			),
 			array(
 				"[code]\n\tline1\n  line2[/code]",
-				'<div class="codebox"><p>CODE: <a href="#" onclick="selectCode(this); return false;">Select all</a></p><pre><code>' . "\tline1\n  line2</code></pre></div>"
+				'<div class="codebox"><p>Code: <a href="#" onclick="selectCode(this); return false;">Select all</a></p><pre><code>' . "\tline1\n  line2</code></pre></div>"
 			),
 			array(
 				'... http://example.org ...',
@@ -254,6 +258,14 @@ class phpbb_textformatter_s9e_default_formatting_test extends phpbb_test_case
 				'<a href="http://example.org/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" class="postlink">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</a>'
 			),
 			array(
+				'[url=http://example.org/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]http://example.org/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx[/url]',
+				'<a href="http://example.org/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" class="postlink">http://example.org/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</a>'
+			),
+			array(
+				'[url]//localhost/phpbb/viewforum.php?f=1[/url]',
+				'<a href="//localhost/phpbb/viewforum.php?f=1" class="postlink">viewforum.php?f=1</a>'
+			),
+			array(
 				'[quote="[url=http://example.org]xxx[/url]"]...[/quote]',
 				'<blockquote><div><cite><a href="http://example.org" class="postlink">xxx</a> wrote:</cite>...</div></blockquote>'
 			),
@@ -271,7 +283,7 @@ class phpbb_textformatter_s9e_default_formatting_test extends phpbb_test_case
 			),
 			array(
 				'[quote=Username post_id=123]...[/quote]',
-				'<blockquote><div><cite>Username wrote: <a href="phpBB/viewtopic.php?p=123#p123" data-post-id="123" onclick="if(document.getElementById(hash.substr(1)))href=hash">↑</a></cite>...</div></blockquote>'
+				'<blockquote cite="phpBB/viewtopic.php?p=123#p123"><div><cite>Username wrote: <a href="phpBB/viewtopic.php?p=123#p123" data-post-id="123" onclick="if(document.getElementById(hash.substr(1)))href=hash">↑</a></cite>...</div></blockquote>'
 			),
 			array(
 				// Users are not allowed to submit their own URL for the post
@@ -280,7 +292,7 @@ class phpbb_textformatter_s9e_default_formatting_test extends phpbb_test_case
 			),
 			array(
 				'[quote=Username time=58705871]...[/quote]',
-				'<blockquote><div><cite>Username wrote:<div class="responsive-hide">1971-11-11 11:11:11</div></cite>...</div></blockquote>'
+				'<blockquote><div><cite>Username wrote:<span class="responsive-hide">1971-11-11 11:11:11</span></cite>...</div></blockquote>'
 			),
 			array(
 				'[quote=Username user_id=123]...[/quote]',
@@ -298,7 +310,7 @@ class phpbb_textformatter_s9e_default_formatting_test extends phpbb_test_case
 			),
 			array(
 				"Emoji: \xF0\x9F\x98\x80",
-				'Emoji: <img alt="' . "\xF0\x9F\x98\x80" . '" class="smilies" draggable="false" width="18" height="18" src="//twemoji.maxcdn.com/svg/1f600.svg">'
+				'Emoji: <img alt="' . "\xF0\x9F\x98\x80" . '" class="emoji smilies" draggable="false" src="//twemoji.maxcdn.com/2/svg/1f600.svg">'
 			),
 			array(
 				"Emoji: \xF0\x9F\x98\x80",

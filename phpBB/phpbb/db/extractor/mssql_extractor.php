@@ -21,7 +21,7 @@ class mssql_extractor extends base_extractor
 	* Writes closing line(s) to database backup
 	*
 	* @return null
-	* @throws \phpbb\db\extractor\exception\extractor_not_initialized_exception when calling this function before init_extractor()
+	* @throws extractor_not_initialized_exception when calling this function before init_extractor()
 	*/
 	public function write_end()
 	{
@@ -132,14 +132,14 @@ class mssql_extractor extends base_extractor
 		$result = $this->db->sql_query($sql);
 		while ($row = $this->db->sql_fetchrow($result))
 		{
-			if (!sizeof($rows))
+			if (!count($rows))
 			{
 				$sql_data .= "ALTER TABLE [$table_name] WITH NOCHECK ADD\n";
 				$sql_data .= "\tCONSTRAINT [{$row['CONSTRAINT_NAME']}] PRIMARY KEY  CLUSTERED \n\t(\n";
 			}
 			$rows[] = "\t\t[{$row['COLUMN_NAME']}]";
 		}
-		if (sizeof($rows))
+		if (count($rows))
 		{
 			$sql_data .= implode(",\n", $rows);
 			$sql_data .= "\n\t)  ON [PRIMARY] \nGO\n";
@@ -195,7 +195,7 @@ class mssql_extractor extends base_extractor
 	*
 	* @param	string	$table_name	name of the database table
 	* @return null
-	* @throws \phpbb\db\extractor\exception\extractor_not_initialized_exception when calling this function before init_extractor()
+	* @throws extractor_not_initialized_exception when calling this function before init_extractor()
 	*/
 	protected function write_data_mssqlnative($table_name)
 	{
@@ -311,7 +311,7 @@ class mssql_extractor extends base_extractor
 	*
 	* @param	string	$table_name	name of the database table
 	* @return null
-	* @throws \phpbb\db\extractor\exception\extractor_not_initialized_exception when calling this function before init_extractor()
+	* @throws extractor_not_initialized_exception when calling this function before init_extractor()
 	*/
 	protected function write_data_odbc($table_name)
 	{

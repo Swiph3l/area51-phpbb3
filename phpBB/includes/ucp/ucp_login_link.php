@@ -39,7 +39,7 @@ class ucp_login_link
 	*/
 	function main($id, $mode)
 	{
-		global $phpbb_container, $request, $template, $user;
+		global $phpbb_container, $request, $template, $user, $phpbb_dispatcher;
 		global $phpbb_root_path, $phpEx;
 
 		// Initialize necessary variables
@@ -108,7 +108,7 @@ class ucp_login_link
 			}
 		}
 
-		$template->assign_vars(array(
+		$tpl_ary = array(
 			// Common template elements
 			'LOGIN_LINK_ERROR'		=> $login_link_error,
 			'PASSWORD_CREDENTIAL'	=> 'login_password',
@@ -121,7 +121,24 @@ class ucp_login_link
 			// Login elements
 			'LOGIN_ERROR'		=> $login_error,
 			'LOGIN_USERNAME'	=> $login_username,
-		));
+		);
+
+		/**
+		* Event to perform additional actions before ucp_login_link is displayed
+		*
+		* @event core.ucp_login_link_template_after
+		* @var	array							data				Login link data
+		* @var	\phpbb\auth\provider_interface	auth_provider		Auth provider
+		* @var	string							login_link_error	Login link error
+		* @var	string							login_error			Login error
+		* @var	string							login_username		Login username
+		* @var	array							tpl_ary				Template variables
+		* @since 3.2.4-RC1
+		*/
+		$vars = array('data', 'auth_provider', 'login_link_error', 'login_error', 'login_username', 'tpl_ary');
+		extract($phpbb_dispatcher->trigger_event('core.ucp_login_link_template_after', compact($vars)));
+
+		$template->assign_vars($tpl_ary);
 
 		$this->tpl_name = 'ucp_login_link';
 		$this->page_title = 'UCP_LOGIN_LINK';
@@ -213,7 +230,7 @@ class ucp_login_link
 						$user->lang[$result['error_msg']],
 						($config['email_enable']) ? '<a href="' . append_sid("{$phpbb_root_path}ucp.$phpEx", 'mode=sendpassword') . '">' : '',
 						($config['email_enable']) ? '</a>' : '',
-						($config['board_contact']) ? '<a href="mailto:' . htmlspecialchars($config['board_contact']) . '">' : '',
+						($config['board_contact']) ? '<a href="mailto:' . htmlspecialchars($config['board_contact'], ENT_COMPAT) . '">' : '',
 						($config['board_contact']) ? '</a>' : ''
 					);
 				break;
@@ -225,7 +242,7 @@ class ucp_login_link
 					// Assign admin contact to some error messages
 					if ($result['error_msg'] == 'LOGIN_ERROR_USERNAME' || $result['error_msg'] == 'LOGIN_ERROR_PASSWORD')
 					{
-						$login_error = (!$config['board_contact']) ? sprintf($user->lang[$result['error_msg']], '', '') : sprintf($user->lang[$result['error_msg']], '<a href="mailto:' . htmlspecialchars($config['board_contact']) . '">', '</a>');
+						$login_error = (!$config['board_contact']) ? sprintf($user->lang[$result['error_msg']], '', '') : sprintf($user->lang[$result['error_msg']], '<a href="mailto:' . htmlspecialchars($config['board_contact'], ENT_COMPAT) . '">', '</a>');
 					}
 
 				break;

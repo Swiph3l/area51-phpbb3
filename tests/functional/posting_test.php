@@ -24,32 +24,27 @@ class phpbb_functional_posting_test extends phpbb_functional_test_case
 		$post = $this->create_topic(2, 'Test Topic 1', 'This is a test topic posted by the testing framework.');
 
 		$crawler = self::request('GET', "viewtopic.php?t={$post['topic_id']}&sid={$this->sid}");
-		$this->assertContains('This is a test topic posted by the testing framework.', $crawler->filter('html')->text());
+		$this->assertStringContainsString('This is a test topic posted by the testing framework.', $crawler->filter('html')->text());
 
 		// Test creating a reply with bbcode
 		$post2 = $this->create_post(2, $post['topic_id'], 'Re: Test Topic 1', 'This is a test [b]post[/b] posted by the testing framework.');
 
-		$crawler = self::request('GET', "viewtopic.php?t={$post2['topic_id']}&sid={$this->sid}");
-		$this->assertContains('This is a test post posted by the testing framework.', $crawler->filter('html')->text());
+		$crawler = self::request('GET', "viewtopic.php?p={$post2['post_id']}&sid={$this->sid}");
+		$this->assertStringContainsString('This is a test post posted by the testing framework.', $crawler->filter('html')->text());
 
 		// Test quoting a message
 		$crawler = self::request('GET', "posting.php?mode=quote&f=2&t={$post2['topic_id']}&p={$post2['post_id']}&sid={$this->sid}");
-		$this->assertContains('This is a test post posted by the testing framework.', $crawler->filter('html')->text());
+		$this->assertStringContainsString('This is a test post posted by the testing framework.', $crawler->filter('html')->text());
 	}
 
 	public function test_unsupported_characters()
 	{
 		$this->login();
 
-		$this->add_lang('posting');
-
-		self::create_post(2,
-			1,
-			"Unsupported: \xF0\x9F\x88\xB3 \xF0\x9F\x9A\xB6",
-			'This is a test with emoji characters in the topic title.',
-			array(),
-			'Your subject contains the following unsupported characters'
-		);
+		$post = $this->create_topic(2, "Test Topic \xF0\x9F\xA4\x94 3\xF0\x9D\x94\xBB\xF0\x9D\x95\x9A", 'This is a test with emoji character in the topic title.');
+		$this->create_post(2, $post['topic_id'], "Re: Test Topic 1 \xF0\x9F\xA4\x94 3\xF0\x9D\x94\xBB\xF0\x9D\x95\x9A", 'This is a test with emoji characters in the topic title.');
+		$crawler = self::request('GET', "viewtopic.php?t={$post['topic_id']}&sid={$this->sid}");
+		$this->assertStringContainsString("\xF0\x9F\xA4\x94 3\xF0\x9D\x94\xBB\xF0\x9D\x95\x9A", $crawler->text());
 	}
 
 	public function test_supported_unicode_characters()
@@ -59,7 +54,7 @@ class phpbb_functional_posting_test extends phpbb_functional_test_case
 		$post = $this->create_topic(2, 'Test Topic 1', 'This is a test topic posted by the testing framework.');
 		$this->create_post(2, $post['topic_id'], 'Re: Test Topic 1', "This is a test with these weird characters: \xF0\x9F\x84\x90 \xF0\x9F\x84\x91");
 		$crawler = self::request('GET', "viewtopic.php?t={$post['topic_id']}&sid={$this->sid}");
-		$this->assertContains("\xF0\x9F\x84\x90 \xF0\x9F\x84\x91", $crawler->text());
+		$this->assertStringContainsString("\xF0\x9F\x84\x90 \xF0\x9F\x84\x91", $crawler->text());
 	}
 
 	public function test_html_entities()
@@ -69,13 +64,13 @@ class phpbb_functional_posting_test extends phpbb_functional_test_case
 		$post = $this->create_topic(2, 'Test Topic 1', 'This is a test topic posted by the testing framework.');
 		$this->create_post(2, $post['topic_id'], 'Re: Test Topic 1', '&#128512;');
 		$crawler = self::request('GET', "viewtopic.php?t={$post['topic_id']}&sid={$this->sid}");
-		$this->assertContains('&#128512;', $crawler->text());
+		$this->assertStringContainsString('&#128512;', $crawler->text());
 	}
 
 	public function test_quote()
 	{
 		$text     = 'Test post </textarea>"\' &&amp;amp;';
-		$expected = "(\\[quote=admin[^\\]]*\\]\n" . preg_quote($text) . "\n\\[/quote\\])";
+		$expected = "(\[quote=admin[^\]]*\]\s?" . preg_quote($text) . "\s?\[\/quote\])";
 
 		$this->login();
 		$topic = $this->create_topic(2, 'Test Topic 1', 'Test topic');
@@ -84,6 +79,24 @@ class phpbb_functional_posting_test extends phpbb_functional_test_case
 		$crawler = self::request('GET', "posting.php?mode=quote&f=2&t={$post['topic_id']}&p={$post['post_id']}&sid={$this->sid}");
 
 		$this->assertRegexp($expected, $crawler->filter('textarea#message')->text());
+	}
+
+	/**
+	 * @see https://tracker.phpbb.com/browse/PHPBB3-14962
+	 */
+	public function test_edit()
+	{
+		$this->login();
+		$this->create_topic(2, 'Test Topic post', 'Test topic post');
+
+		$url =  self::$client->getCrawler()->selectLink('Edit')->link()->getUri();
+		$post_id = $this->get_parameter_from_link($url, 'p');
+		$crawler = self::request('GET', "posting.php?mode=edit&f=2&p={$post_id}&sid={$this->sid}");
+		$form = $crawler->selectButton('Submit')->form();
+		$form->setValues(array('message' => 'Edited post'));
+		$crawler = self::submit($form);
+
+		$this->assertStringContainsString('Edited post', $crawler->filter("#post_content{$post_id} .content")->text());
 	}
 
 	/**
@@ -110,7 +123,7 @@ class phpbb_functional_posting_test extends phpbb_functional_test_case
 			$this->set_quote_depth($quote_depth);
 			$crawler = self::request('GET', $quote_url);
 			$this->assertRegexp(
-				"(\\[quote=admin[^\\]]*\\]\n?" . preg_quote($expected_text) . "\n?\\[/quote\\])",
+				"(\[quote=admin[^\]]*\]\s?" . preg_quote($expected_text) . "\s?\[\/quote\])",
 				$crawler->filter('textarea#message')->text()
 			);
 		}
@@ -143,20 +156,36 @@ class phpbb_functional_posting_test extends phpbb_functional_test_case
 		{
 			$this->set_quote_depth($quote_depth);
 
-			$post = $this->create_post(2, $topic['topic_id'], 'Re: Test Topic 1', $text);
+			$post = $this->create_post(2, $topic['topic_id'], "Re: Test Topic 1#$quote_depth", $text);
 			$url  = "viewtopic.php?p={$post['post_id']}&sid={$this->sid}";
 
 			$crawler = self::request('GET', $url);
 			$text_content = $crawler->filter('#p' . $post['post_id'])->text();
 			foreach ($contains[$quote_depth] as $contains_text)
 			{
-				$this->assertContains($contains_text, $text_content);
+				$this->assertStringContainsString($contains_text, $text_content);
 			}
 			foreach ($not_contains[$quote_depth] as $not_contains_text)
 			{
-				$this->assertNotContains($not_contains_text, $text_content);
+				$this->assertStringNotContainsString($not_contains_text, $text_content);
 			}
 		}
+	}
+
+	public function test_post_poll()
+	{
+		$this->login();
+
+		$post = $this->create_topic(
+			2,
+			'[ticket/14802] Test Poll Option Spacing',
+			'Empty/blank lines should not be additional poll options.',
+			array('poll_title' => 'Poll Title', 'poll_option_text' => "\n A \nB\n\nC \n D\nE\n\n \n")
+		);
+
+		$crawler = self::request('GET', "viewtopic.php?t={$post['topic_id']}&sid={$this->sid}");
+		$this->assertEquals('Poll Title', $crawler->filter('.poll-title')->text());
+		$this->assertEquals(5, $crawler->filter('*[data-poll-option-id]')->count());
 	}
 
 	protected function set_quote_depth($depth)
@@ -200,8 +229,8 @@ class phpbb_functional_posting_test extends phpbb_functional_test_case
 			'message' => 'My post',
 		));
 		$crawler = self::submit($form);
-		$this->assertContains(
-			'<span style="font-weight: bold">My signature</span>',
+		$this->assertStringContainsString(
+			'<strong class="text-strong">My signature</strong>',
 			$crawler->filter('#preview .signature')->html()
 		);
 	}
@@ -229,5 +258,46 @@ class phpbb_functional_posting_test extends phpbb_functional_test_case
 
 		// Test that the preview contains the correct link
 		$this->assertEquals($url, $crawler->filter('#preview a')->attr('href'));
+	}
+
+	public function test_allowed_schemes_links()
+	{
+		$text = 'http://example.org/ tcp://localhost:22/ServiceName';
+
+		$this->login();
+		$this->admin_login();
+
+		// Post with default settings
+		$crawler = self::request('GET', 'posting.php?mode=post&f=2');
+		$form = $crawler->selectButton('Preview')->form(array(
+			'subject' => 'Test subject',
+			'message' => $text,
+		));
+		$crawler = self::submit($form);
+		$this->assertStringContainsString(
+			'<a href="http://example.org/" class="postlink">http://example.org/</a> tcp://localhost:22/ServiceName',
+			$crawler->filter('#preview .content')->html()
+		);
+
+		// Update allowed schemes
+		$crawler = self::request('GET', 'adm/index.php?sid=' . $this->sid . '&i=acp_board&mode=post');
+		$form = $crawler->selectButton('Submit')->form();
+		$values = $form->getValues();
+		$values['config[allowed_schemes_links]'] = 'https,tcp';
+		$form->setValues($values);
+		$crawler = self::submit($form);
+		$this->assertEquals(1, $crawler->filter('.successbox')->count());
+
+		// Post with new settings
+		$crawler = self::request('GET', 'posting.php?mode=post&f=2');
+		$form = $crawler->selectButton('Preview')->form(array(
+			'subject' => 'Test subject',
+			'message' => $text,
+		));
+		$crawler = self::submit($form);
+		$this->assertStringContainsString(
+			'http://example.org/ <a href="tcp://localhost:22/ServiceName" class="postlink">tcp://localhost:22/ServiceName</a>',
+			$crawler->filter('#preview .content')->html()
+		);
 	}
 }

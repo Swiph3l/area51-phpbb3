@@ -11,7 +11,7 @@
 *
 */
 
-require_once(dirname(__FILE__) . '/../../phpBB/includes/functions_posting.php');
+require_once(__DIR__ . '/../../phpBB/includes/functions_posting.php');
 
 class phpbb_attachment_upload_test extends \phpbb_database_test_case
 {
@@ -39,11 +39,11 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 	/** @var \phpbb\plupload\plupload */
 	protected $plupload;
 
+	/** @var \phpbb\storage\storage */
+	protected $storage;
+
 	/** @var \phpbb\user */
 	protected $user;
-
-	/** @var string phpBB root path */
-	protected $phpbb_root_path;
 
 	/** @var \phpbb\db\driver\driver_interface */
 	protected $db;
@@ -51,7 +51,11 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 	/** @var \phpbb\attachment\upload */
 	protected $upload;
 
+	/** @var \phpbb\filesystem\filesystem */
 	private $filesystem;
+
+	/** @var \phpbb\filesystem\temp */
+	protected $temp;
 
 	/** @var \Symfony\Component\DependencyInjection\ContainerInterface */
 	protected $container;
@@ -62,12 +66,15 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 	/** @var \bantu\IniGetWrapper\IniGetWrapper */
 	protected $php_ini;
 
+	/** @var \phpbb\request\request */
+	protected $request;
+
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/resync.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/resync.xml');
 	}
 
-	public function setUp()
+	protected function setUp(): void
 	{
 		global $config, $phpbb_root_path, $phpEx;
 
@@ -75,20 +82,20 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 
 		$this->auth = new \phpbb\auth\auth();
 		$this->config = new \phpbb\config\config(array(
-			'upload_path'	=> '',
 			'img_create_thumbnail'	=> true,
 		));
 		$config = $this->config;
+		$this->phpbb_root_path = $phpbb_root_path;
 		$this->db = $this->new_dbal();
 		$this->cache = new \phpbb\cache\service(new \phpbb\cache\driver\dummy(), $this->config, $this->db, $phpbb_root_path, $phpEx);
-		$this->request = $this->getMock('\phpbb\request\request');
+		$this->request = $this->createMock('\phpbb\request\request');
 
 		$this->filesystem = new \phpbb\filesystem\filesystem();
 		$this->language = new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx));
 		$this->php_ini = new \bantu\IniGetWrapper\IniGetWrapper;
 		$guessers = array(
-			new \Symfony\Component\HttpFoundation\File\MimeType\FileinfoMimeTypeGuesser(),
-			new \Symfony\Component\HttpFoundation\File\MimeType\FileBinaryMimeTypeGuesser(),
+			new \Symfony\Component\Mime\FileinfoMimeTypeGuesser(),
+			new \Symfony\Component\Mime\FileBinaryMimeTypeGuesser(),
 			new \phpbb\mimetype\content_guesser(),
 			new \phpbb\mimetype\extension_guesser(),
 		);
@@ -96,27 +103,27 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 		$guessers[3]->set_priority(-2);
 		$this->mimetype_guesser = new \phpbb\mimetype\guesser($guessers);
 		$this->plupload = new \phpbb\plupload\plupload($phpbb_root_path, $this->config, $this->request, new \phpbb\user($this->language, '\phpbb\datetime'), $this->php_ini, $this->mimetype_guesser);
+
+		$this->storage = $this->createMock('\phpbb\storage\storage');
+		$this->storage->expects($this->any())
+			->method('free_space')
+			->willReturn(1024*1024); // 1gb
+
 		$factory_mock = $this->getMockBuilder('\phpbb\files\factory')
 			->disableOriginalConstructor()
 			->getMock();
 		$factory_mock->expects($this->any())
 			->method('get')
-			->willReturn(new \phpbb\files\filespec(
-				$this->filesystem,
+			->willReturn(new \phpbb\files\filespec_storage(
 				$this->language,
-				$this->php_ini,
 				new \FastImageSize\FastImageSize(),
-				$this->phpbb_root_path,
 				$this->mimetype_guesser
 			));
 
-		$this->container = new phpbb_mock_container_builder($phpbb_root_path, $phpEx);
-		$this->container->set('files.filespec', new \phpbb\files\filespec(
-			$this->filesystem,
+		$this->container = new phpbb_mock_container_builder();
+		$this->container->set('files.filespec_storage', new \phpbb\files\filespec_storage(
 			$this->language,
-			$this->php_ini,
 			new \FastImageSize\FastImageSize(),
-			$phpbb_root_path,
 			new \phpbb\mimetype\guesser(array(
 				'mimetype.extension_guesser' => new \phpbb\mimetype\extension_guesser(),
 			))));
@@ -127,17 +134,18 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 			$this->plupload,
 			$this->request
 		));
-		$this->container->set('files.types.local', new \phpbb\files\types\local(
+		$this->container->set('files.types.local_storage', new \phpbb\files\types\local_storage(
 			$factory_mock,
 			$this->language,
 			$this->php_ini,
 			$this->request
 		));
 		$this->factory = new \phpbb\files\factory($this->container);
-		$this->files_upload = new \phpbb\files\upload($this->filesystem, $this->factory, $this->language, $this->php_ini, $this->request, $this->phpbb_root_path);
+		$this->files_upload = new \phpbb\files\upload($this->factory, $this->language, $this->php_ini, $this->request);
 		$this->phpbb_dispatcher = new phpbb_mock_event_dispatcher();
+		$this->temp = new \phpbb\filesystem\temp($this->filesystem, '');
 		$this->user = new \phpbb\user($this->language, '\phpbb\datetime');
-
+		$this->user->data['user_id'] = ANONYMOUS;
 
 		$this->upload = new \phpbb\attachment\upload(
 			$this->auth,
@@ -145,11 +153,11 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 			$this->config,
 			$this->files_upload,
 			$this->language,
-			$this->mimetype_guesser,
 			$this->phpbb_dispatcher,
 			$this->plupload,
-			$this->user,
-			$this->phpbb_root_path
+			$this->storage,
+			$this->temp,
+			$this->user
 		);
 	}
 
@@ -181,7 +189,14 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 				)
 			),
 			array('foobar', 1, true,
-				array(),
+				// Instead of setting to false or empty array, set default filedata array
+				// as otherwise it throws PHP undefined array key warnings
+				// in different file upload related services
+				array(
+					'realname'		=> null,
+					'type'			=> null,
+					'size'			=> null,
+				),
 				array(
 					'error' => array(
 						'NOT_UPLOADED',
@@ -205,7 +220,7 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 
 	public function test_init_error()
 	{
-		$filespec = $this->getMockBuilder('\phpbb\files\filespec')
+		$filespec = $this->getMockBuilder('\phpbb\files\filespec_storage')
 			->disableOriginalConstructor()
 			->getMock();
 		$filespec->expects($this->any())
@@ -217,14 +232,14 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 		$filespec->expects($this->any())
 			->method('set_upload_ary')
 			->willReturnSelf();
-		$this->container->set('files.filespec', $filespec);
+		$this->container->set('files.filespec_storage', $filespec);
 		$factory_mock = $this->getMockBuilder('\phpbb\files\factory')
 			->disableOriginalConstructor()
 			->getMock();
 		$factory_mock->expects($this->any())
 			->method('get')
 			->willReturn($filespec);
-		$this->container->set('files.types.local', new \phpbb\files\types\local(
+		$this->container->set('files.types.local_storage', new \phpbb\files\types\local_storage(
 			$factory_mock,
 			$this->language,
 			$this->php_ini,
@@ -237,14 +252,23 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 			$this->config,
 			$this->files_upload,
 			$this->language,
-			$this->mimetype_guesser,
 			$this->phpbb_dispatcher,
 			$this->plupload,
-			$this->user,
-			$this->phpbb_root_path
+			$this->storage,
+			$this->temp,
+			$this->user
 		);
 
-		$filedata = $this->upload->upload('foobar', 1, true);
+		// Instead of setting to false or empty array, set default filedata array
+		// as otherwise it throws PHP undefined array key warnings
+		// in different file upload related services
+		$filedata = $this->upload->upload('foobar', 1, true, '', false,
+			[
+				'realname'		=> null,
+				'type'			=> null,
+				'size'			=> null,
+			]
+		);
 
 		$this->assertSame(array(
 			'error'		=> array(),
@@ -336,22 +360,20 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 	 */
 	public function test_image_upload($is_image, $plupload_active, $config_data, $expected)
 	{
-		$filespec = $this->getMock('\phpbb\files\filespec',
-			array(
+		$filespec = $this->getMockBuilder('\phpbb\files\filespec_storage')
+			->setMethods(array(
 				'init_error',
 				'is_image',
 				'move_file',
 				'is_uploaded',
-			),
-			array(
-				$this->filesystem,
+			))
+			->setConstructorArgs(array(
 				$this->language,
-				$this->php_ini,
 				new \FastImageSize\FastImageSize(),
-				$this->phpbb_root_path,
 				$this->mimetype_guesser,
 				$this->plupload
-			));
+			))
+			->getMock();
 		foreach ($config_data as $key => $value)
 		{
 			$this->config[$key] = $value;
@@ -369,14 +391,14 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 		$filespec->expects($this->any())
 			->method('move_file')
 			->willReturn(false);
-		$this->container->set('files.filespec', $filespec);
+		$this->container->set('files.filespec_storage', $filespec);
 		$factory_mock = $this->getMockBuilder('\phpbb\files\factory')
 			->disableOriginalConstructor()
 			->getMock();
 		$factory_mock->expects($this->any())
 			->method('get')
 			->willReturn($filespec);
-		$this->container->set('files.types.local', new \phpbb\files\types\local(
+		$this->container->set('files.types.local_storage', new \phpbb\files\types\local_storage(
 			$factory_mock,
 			$this->language,
 			$this->php_ini,
@@ -402,11 +424,11 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 			$this->config,
 			$this->files_upload,
 			$this->language,
-			$this->mimetype_guesser,
 			$this->phpbb_dispatcher,
 			$plupload,
-			$this->user,
-			$this->phpbb_root_path
+			$this->storage,
+			$this->temp,
+			$this->user
 		);
 
 		$filedata = $this->upload->upload('foobar', 1, true, '', false, array(

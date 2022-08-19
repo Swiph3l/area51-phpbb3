@@ -14,12 +14,15 @@
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
 use phpbb\console\command\user\add;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Question\Question;
 
-require_once dirname(__FILE__) . '/base.php';
+require_once __DIR__ . '/base.php';
 
 class phpbb_console_user_add_test extends phpbb_console_user_base
 {
-	public function get_command_tester()
+	public function get_command_tester($question_answers = [])
 	{
 		$application = new Application();
 		$application->add(new add(
@@ -34,7 +37,45 @@ class phpbb_console_user_add_test extends phpbb_console_user_base
 
 		$command = $application->find('user:add');
 		$this->command_name = $command->getName();
-		$this->question = $command->getHelper('question');
+
+		if (!empty($question_answers))
+		{
+			$ask = function(InputInterface $input, OutputInterface $output, Question $question) use ($question_answers)
+			{
+				$text = $question->getQuestion();
+
+				// handle a question
+				foreach ($question_answers as $expected_question => $answer)
+				{
+					if (strpos($text, $expected_question) !== false)
+					{
+						$response = $answer;
+					}
+				}
+
+				if (!isset($response))
+				{
+					throw new \RuntimeException('Was asked for input on an unhandled question: ' . $text);
+				}
+
+				$output->writeln(print_r($response, true));
+				return $response;
+			};
+			$helper = $this->getMockBuilder('\Symfony\Component\Console\Helper\QuestionHelper')
+				->setMethods(['ask'])
+				->disableOriginalConstructor()
+				->getMock();
+			$helper->expects($this->any())
+				->method('ask')
+				->will($this->returnCallback($ask));
+			$this->question = $helper;
+			$command->getHelperSet()->set($helper, 'question');
+		}
+		else
+		{
+			$this->question = $command->getHelper('question');
+		}
+
 		return new CommandTester($command);
 	}
 
@@ -52,23 +93,27 @@ class phpbb_console_user_add_test extends phpbb_console_user_base
 		));
 
 		$this->assertNotEquals(null, $this->get_user_id('foo'));
-		$this->assertContains('CLI_USER_ADD_SUCCESS', $command_tester->getDisplay());
+		$this->assertStringContainsString('CLI_USER_ADD_SUCCESS', $command_tester->getDisplay());
 	}
 
 	public function test_add_dialog()
 	{
-		$command_tester = $this->get_command_tester();
+		$command_tester = $this->get_command_tester([
+			'USERNAME'		=> 'bar',
+			'PASSWORD'		=> 'password',
+			'EMAIL_ADDRESS'	=> 'bar@test.com',
+		]);
 
 		$this->assertEquals(2, $this->get_user_id('Admin'));
 
-		$this->question->setInputStream($this->getInputStream("bar\npassword\npassword\nbar@test.com\n"));
+		$command_tester->setInputs(['bar', 'password', 'password', 'bar@test.com']);
 
 		$command_tester->execute(array(
 			'command'		=> $this->command_name,
 		));
 
 		$this->assertNotEquals(null, $this->get_user_id('bar'));
-		$this->assertContains('CLI_USER_ADD_SUCCESS', $command_tester->getDisplay());
+		$this->assertStringContainsString('CLI_USER_ADD_SUCCESS', $command_tester->getDisplay());
 
 	}
 
@@ -85,8 +130,8 @@ class phpbb_console_user_add_test extends phpbb_console_user_base
 			'--email'		=> 'foo'
 		));
 
-		$this->assertContains('USERNAME_TAKEN', $command_tester->getDisplay());
-		$this->assertContains('TOO_SHORT', $command_tester->getDisplay());
-		$this->assertContains('EMAIL_INVALID', $command_tester->getDisplay());
+		$this->assertStringContainsString('USERNAME_TAKEN', $command_tester->getDisplay());
+		$this->assertStringContainsString('TOO_SHORT', $command_tester->getDisplay());
+		$this->assertStringContainsString('EMAIL_INVALID', $command_tester->getDisplay());
 	}
 }

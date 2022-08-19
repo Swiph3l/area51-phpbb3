@@ -71,6 +71,11 @@ abstract class iohandler_base implements iohandler_interface
 	protected $current_task_name;
 
 	/**
+	 * @var bool
+	 */
+	protected $restart_progress_bar;
+
+	/**
 	 * Constructor
 	 */
 	public function __construct()
@@ -103,7 +108,7 @@ abstract class iohandler_base implements iohandler_interface
 	{
 		if (!is_array($error_title) && strpos($error_title, '<br />') !== false)
 		{
-			$error_title = strip_tags(htmlspecialchars_decode($error_title));
+			$error_title = strip_tags(htmlspecialchars_decode($error_title, ENT_COMPAT));
 		}
 		$this->errors[] = $this->translate_message($error_title, $error_description);
 	}

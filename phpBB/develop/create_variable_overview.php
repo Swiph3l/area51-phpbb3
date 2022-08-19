@@ -220,7 +220,7 @@ foreach ($files_to_parse as $file_num => $data)
 			{
 				$_var = str_replace(array('{', '}'), array('', ''), $var);
 				$lang_references[$_var][] = $data['single_filename'];
-				$lang_data .= '<li>' . $var . '<br>' . "\n" . ((isset($lang[$_var])) ? htmlspecialchars(str_replace("\\'", "'", $lang[$_var])) : '<span style="color:red">No Language Variable available</span>') . '<br></li><br>' . "\n";
+				$lang_data .= '<li>' . $var . '<br>' . "\n" . ((isset($lang[$_var])) ? htmlspecialchars(str_replace("\\'", "'", $lang[$_var]), ENT_COMPAT) : '<span style="color:red">No Language Variable available</span>') . '<br></li><br>' . "\n";
 			}
 		}
 		$lang_data .= '</ul>';
@@ -464,7 +464,7 @@ $old_char = '';
 foreach ($lang_references as $lang_var => $filenames)
 {
 	$var = preg_replace('#^L_(.*?)#', '\1', $lang_var);
-	$char = $var{0};
+	$char = $var[0];
 	if ($old_char != $char)
 	{
 		$old_char = $char;
@@ -480,7 +480,7 @@ foreach ($lang_references as $lang_var => $filenames)
 	echo '.';
 	flush();
 	$var = preg_replace('#^L_(.*?)#', '\1', $lang_var);
-	$char = $var{0};
+	$char = $var[0];
 	if ($old_char != $char)
 	{
 		$old_char = $char;
@@ -489,12 +489,12 @@ foreach ($lang_references as $lang_var => $filenames)
 
 	$html_data .= '<b>' . $lang_var . '</b><ul>';
 
-	if (sizeof($filenames) != 1)
+	if (count($filenames) != 1)
 	{
 		fwrite($common_fp, (($entry['common']) ? ",\n" : '') . "\t'$var' => '" . $lang[$var] . "'");
 		$entry['common'] = true;
 	}
-	else if (sizeof($filenames) == 1)
+	else if (count($filenames) == 1)
 	{
 		// Merge logical - hardcoded
 		$fname = (preg_match('#^(' . implode('|', $merge) . ')#', $filenames[0], $match)) ? $match[0] . '.php' : str_replace($ext, 'php', $filenames[0]);

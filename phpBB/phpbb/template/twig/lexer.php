@@ -13,15 +13,13 @@
 
 namespace phpbb\template\twig;
 
-class lexer extends \Twig_Lexer
+class lexer extends \Twig\Lexer
 {
-	public function set_environment(\Twig_Environment $env)
+	public function tokenize(\Twig\Source $source) : \Twig\TokenStream
 	{
-		$this->env = $env;
-	}
+		$code = $source->getCode();
+		$filename = $source->getName();
 
-	public function tokenize($code, $filename = null)
-	{
 		// Our phpBB tags
 		// Commented out tokens are handled separately from the main replace
 		$phpbb_tags = array(
@@ -74,6 +72,8 @@ class lexer extends \Twig_Lexer
 			'endspaceless',
 			'verbatim',
 			'endverbatim',
+			'apply',
+			'endapply',
 		);
 
 		// Fix tokens that may have inline variables (e.g. <!-- DEFINE $TEST = '{FOO}')
@@ -125,7 +125,8 @@ class lexer extends \Twig_Lexer
 		// Appends any filters
 		$code = preg_replace('#{([a-zA-Z0-9_\.]+)(\|[^}]+?)?}#', '{{ $1$2 }}', $code);
 
-		return parent::tokenize($code, $filename);
+		// Tokenize \Twig\Source instance
+		return parent::tokenize(new \Twig\Source($code, $filename));
 	}
 
 	/**

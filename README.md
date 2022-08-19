@@ -1,40 +1,47 @@
-[![phpBB](https://www.phpbb.com/theme/images/logos/blue/160x52.png)](http://www.phpbb.com)
-
-## ABOUT
+[![phpBB](phpBB/styles/all/imgs/svg/phpbb_logo_large_cosmic.svg)](https://www.phpbb.com)
 
 phpBB is a free open-source bulletin board written in PHP.
 
-## COMMUNITY
+## 🧑🏻‍🤝🏻🧑🏽 Community
 
-Get your copy of phpBB, find support and lots more on [phpBB.com](http://www.phpbb.com)! Discuss the development on [area51](http://area51.phpbb.com/phpBB/index.php).
+Get your copy of phpBB, find support and lots more on [phpBB.com](https://www.phpbb.com). Discuss the development on [area51](https://area51.phpbb.com/phpBB/index.php).
 
-## INSTALLING DEPENDENCIES
+## 👨‍💻 Contribute
 
-To be able to run an installation from the repo (and not from a pre-built package) you need to run the following commands to install phpBB's dependencies.
-
-	cd phpBB
-	php ../composer.phar install
-
-
-## CONTRIBUTE
-
-1. [Create an account on phpBB.com](http://www.phpbb.com/community/ucp.php?mode=register)
-2. [Create a ticket (unless there already is one)](http://tracker.phpbb.com/secure/CreateIssue!default.jspa)
-3. Read our [Coding guidelines](https://wiki.phpbb.com/Coding_guidelines) and [Git Contribution Guidelines](http://wiki.phpbb.com/Git)
+1. [Create an account on phpBB.com](https://www.phpbb.com/community/ucp.php?mode=register)
+2. [Create a ticket (unless there already is one)](https://tracker.phpbb.com/secure/CreateIssue!default.jspa)
+3. Read our [Coding guidelines](https://area51.phpbb.com/docs/dev/development/coding_guidelines.html) and [Git Contribution Guidelines](https://area51.phpbb.com/docs/dev/development/git.html)
 4. Send us a pull request
 
-## VAGRANT
+### 🏗️ Setting up a development build of phpBB
 
-Read our [Vagrant documentation](phpBB/docs/vagrant.md) to find out how to use Vagrant to develop and contribute to phpBB.
+To run an installation from the repo (and not from a pre-built package) on a local server, run the following commands:
 
-## AUTOMATED TESTING
+- Fork phpbb/phpbb to your GitHub account, then create a local clone of it:
+  ```
+  git clone https://github.com/your_github_name/phpbb.git
+  ```
+- Install phpBB's dependencies (from the root of your phpbb repo):
+  ```
+  cd phpBB
+  php ../composer.phar install
+  ```
 
-We have unit and functional tests in order to prevent regressions. You can view the bamboo continuous integration [here](http://bamboo.phpbb.com) or check our travis builds below:
+Alternatively, you can read our [Vagrant documentation](phpBB/docs/vagrant.md) to find out how to use Vagrant to develop and contribute to phpBB.
 
-* [![Build Status](https://secure.travis-ci.org/phpbb/phpbb.png?branch=master)](http://travis-ci.org/phpbb/phpbb) **master** - Latest development version
-* [![Build Status](https://secure.travis-ci.org/phpbb/phpbb.png?branch=3.2.x)](http://travis-ci.org/phpbb/phpbb) **3.2.x** - Development of version 3.2.x
-* [![Build Status](https://secure.travis-ci.org/phpbb/phpbb.png?branch=3.1.x)](http://travis-ci.org/phpbb/phpbb) **3.1.x** - Development of version 3.1.x
+## 📓 Documentation
 
-## LICENSE
+phpBB's [Development Documentation](https://area51.phpbb.com/docs/dev/index.html) contains all the information you'll need to learn about developing for phpBB's core, extensions and automated testing.
+
+## 🔬 Automated Testing
+
+We have unit and functional tests in order to prevent regressions. You can view the bamboo continuous integration [here](https://bamboo.phpbb.com) or check our travis builds below:
+
+Branch  | Description | Github Actions |
+------- | ----------- | -------------- |
+**master** | Latest development version | ![Tests](https://github.com/phpbb/phpbb/workflows/Tests/badge.svg?branch=master) |
+**3.3.x** | Development of version 3.3.x | ![Tests](https://github.com/phpbb/phpbb/workflows/Tests/badge.svg?branch=3.3.x) |
+
+## 📜 License
 
 [GNU General Public License v2](http://opensource.org/licenses/gpl-2.0.php)

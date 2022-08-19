@@ -29,35 +29,36 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/extensions.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/extensions.xml');
 	}
 
-	protected function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 
-		$this->cache = new phpbb_mock_cache();
 		$this->config = new \phpbb\config\config(array(
 			'version'		=> '3.1.0',
 		));
 		$this->db = $this->new_dbal();
 		$factory = new \phpbb\db\tools\factory();
 		$this->db_tools = $factory->get($this->db);
-		$this->phpbb_root_path = dirname(__FILE__) . '/';
+		$this->phpbb_root_path = __DIR__ . '/';
 		$this->phpEx = 'php';
+
+		$this->cache =  new \phpbb\cache\service(new phpbb_mock_cache(), $this->config, $this->db, $this->phpbb_root_path, $this->phpEx);
+
 		$this->table_prefix = 'phpbb_';
 
 		$container = new phpbb_mock_container_builder();
 		$cache_path = $this->phpbb_root_path . 'cache/twig';
 		$context = new \phpbb\template\context();
-		$loader = new \phpbb\template\twig\loader(new \phpbb\filesystem\filesystem(), '');
+		$loader = new \phpbb\template\twig\loader('');
 		$filesystem = new \phpbb\filesystem\filesystem();
 		$phpbb_path_helper = new \phpbb\path_helper(
 			new \phpbb\symfony_request(
 				new phpbb_mock_request()
 			),
-			$filesystem,
-			$this->getMock('\phpbb\request\request'),
+			$this->createMock('\phpbb\request\request'),
 			$this->phpbb_root_path,
 			$this->phpEx
 		);
@@ -68,6 +69,7 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 			$cache_path,
 			null,
 			$loader,
+			new \phpbb\event\dispatcher(),
 			array(
 				'cache'			=> false,
 				'debug'			=> false,
@@ -75,8 +77,6 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 				'autoescape'	=> false,
 			)
 		);
-
-		$container = new phpbb_mock_container_builder();
 
 		$this->migrator = new \phpbb\db\migrator(
 			$container,
@@ -87,6 +87,7 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 			$this->phpbb_root_path,
 			'php',
 			$this->table_prefix,
+			self::get_core_tables(),
 			array(),
 			new \phpbb\db\migration\helper()
 		);
@@ -96,7 +97,6 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 			$container,
 			$this->db,
 			$this->config,
-			new \phpbb\filesystem\filesystem(),
 			'phpbb_ext',
 			$this->phpbb_root_path,
 			$this->phpEx,
@@ -110,7 +110,7 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 		$lang = new \phpbb\language\language($lang_loader);
 		$this->user = new \phpbb\user($lang, '\phpbb\datetime');
 
-		$this->template = new phpbb\template\twig\twig($phpbb_path_helper, $this->config, $context, $twig, $cache_path, $this->user, array(new \phpbb\template\twig\extension($context, $this->user)));
+		$this->template = new phpbb\template\twig\twig($phpbb_path_helper, $this->config, $context, $twig, $cache_path, $this->user, array(new \phpbb\template\twig\extension($context, $twig, $this->user)));
 		$twig->setLexer(new \phpbb\template\twig\lexer($twig));
 	}
 
@@ -362,10 +362,7 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 	{
 		return new phpbb_mock_metadata_manager(
 			$ext_name,
-			$this->config,
-			$this->extension_manager,
-			$this->template,
-			$this->phpbb_root_path
+			$this->extension_manager->get_extension_path($ext_name, true)
 		);
 	}
 }

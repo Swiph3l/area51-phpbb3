@@ -28,9 +28,9 @@ class mcp_logs
 	var $u_action;
 	var $p_master;
 
-	function mcp_logs(&$p_master)
+	function __construct($p_master)
 	{
-		$this->p_master = &$p_master;
+		$this->p_master = $p_master;
 	}
 
 	function main($id, $mode)
@@ -39,12 +39,13 @@ class mcp_logs
 		global $config, $phpbb_container, $phpbb_log;
 
 		$user->add_lang('acp/common');
+		$this->p_master->add_mod_info('acp');
 
 		$action = $request->variable('action', array('' => ''));
 
 		if (is_array($action))
 		{
-			list($action, ) = each($action);
+			$action = key($action);
 		}
 		else
 		{
@@ -115,7 +116,7 @@ class mcp_logs
 		{
 			if (confirm_box(true))
 			{
-				if ($deletemark && sizeof($marked))
+				if ($deletemark && count($marked))
 				{
 					$conditions = array(
 						'forum_id'	=> array('IN' => $forum_list),
@@ -180,7 +181,7 @@ class mcp_logs
 		$sql_sort = $sort_by_sql[$sort_key] . ' ' . (($sort_dir == 'd') ? 'DESC' : 'ASC');
 
 		$keywords = $request->variable('keywords', '', true);
-		$keywords_param = !empty($keywords) ? '&amp;keywords=' . urlencode(htmlspecialchars_decode($keywords)) : '';
+		$keywords_param = !empty($keywords) ? '&amp;keywords=' . urlencode(htmlspecialchars_decode($keywords, ENT_COMPAT)) : '';
 
 		// Grab log data
 		$log_data = array();
@@ -223,7 +224,7 @@ class mcp_logs
 				'IP'			=> $row['ip'],
 				'DATE'			=> $user->format_date($row['time']),
 				'ACTION'		=> $row['action'],
-				'DATA'			=> (sizeof($data)) ? implode(' | ', $data) : '',
+				'DATA'			=> (count($data)) ? implode(' | ', $data) : '',
 				'ID'			=> $row['id'],
 				)
 			);

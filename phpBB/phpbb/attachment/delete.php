@@ -13,10 +13,10 @@
 
 namespace phpbb\attachment;
 
-use \phpbb\config\config;
-use \phpbb\db\driver\driver_interface;
-use \phpbb\event\dispatcher;
-use \phpbb\filesystem\filesystem;
+use phpbb\config\config;
+use phpbb\db\driver\driver_interface;
+use phpbb\event\dispatcher;
+use phpbb\storage\storage;
 
 /**
  * Attachment delete class
@@ -32,14 +32,11 @@ class delete
 	/** @var dispatcher */
 	protected $dispatcher;
 
-	/** @var filesystem  */
-	protected $filesystem;
-
 	/** @var resync */
 	protected $resync;
 
-	/** @var string phpBB root path */
-	protected $phpbb_root_path;
+	/** @var storage */
+	protected $storage;
 
 	/** @var array Attachement IDs */
 	protected $ids;
@@ -71,18 +68,16 @@ class delete
 	 * @param config $config
 	 * @param driver_interface $db
 	 * @param dispatcher $dispatcher
-	 * @param filesystem $filesystem
 	 * @param resync $resync
-	 * @param string $phpbb_root_path
+	 * @param storage $storage
 	 */
-	public function __construct(config $config, driver_interface $db, dispatcher $dispatcher, filesystem $filesystem, resync $resync, $phpbb_root_path)
+	public function __construct(config $config, driver_interface $db, dispatcher $dispatcher, resync $resync, storage $storage)
 	{
 		$this->config = $config;
 		$this->db = $db;
 		$this->dispatcher = $dispatcher;
-		$this->filesystem = $filesystem;
 		$this->resync = $resync;
-		$this->phpbb_root_path = $phpbb_root_path;
+		$this->storage = $storage;
 	}
 
 	/**
@@ -104,6 +99,8 @@ class delete
 
 		$this->set_sql_constraints($mode);
 
+		$sql_id = $this->sql_id;
+
 		/**
 		 * Perform additional actions before collecting data for attachment(s) deletion
 		 *
@@ -122,11 +119,21 @@ class delete
 		);
 		extract($this->dispatcher->trigger_event('core.delete_attachments_collect_data_before', compact($vars)));
 
+		$this->sql_id = $sql_id;
+		unset($sql_id);
+
 		// Collect post and topic ids for later use if we need to touch remaining entries (if resync is enabled)
 		$this->collect_attachment_info($resync);
 
 		// Delete attachments from database
-		$this->delete_attachments_from_db();
+		$this->delete_attachments_from_db($mode, $ids, $resync);
+
+		$sql_id = $this->sql_id;
+		$post_ids = $this->post_ids;
+		$topic_ids = $this->topic_ids;
+		$message_ids = $this->message_ids;
+		$physical = $this->physical;
+		$num_deleted = $this->num_deleted;
 
 		/**
 		 * Perform additional actions after attachment(s) deletion from the database
@@ -156,13 +163,21 @@ class delete
 		);
 		extract($this->dispatcher->trigger_event('core.delete_attachments_from_database_after', compact($vars)));
 
+		$this->sql_id = $sql_id;
+		$this->post_ids = $post_ids;
+		$this->topic_ids = $topic_ids;
+		$this->message_ids = $message_ids;
+		$this->physical = $physical;
+		$this->num_deleted = $num_deleted;
+		unset($sql_id, $post_ids, $topic_ids, $message_ids, $physical, $num_deleted);
+
 		if (!$this->num_deleted)
 		{
 			return 0;
 		}
 
-		// Delete attachments from filesystem
-		$this->remove_from_filesystem();
+		// Delete attachments from storage
+		$this->remove_from_storage($mode, $ids, $resync);
 
 		// If we do not resync, we do not need to adjust any message, post, topic or user entries
 		if (!$resync)
@@ -288,8 +303,14 @@ class delete
 	/**
 	 * Delete attachments from database table
 	 */
-	protected function delete_attachments_from_db()
+	protected function delete_attachments_from_db($mode, $ids, $resync)
 	{
+		$sql_id = $this->sql_id;
+		$post_ids = $this->post_ids;
+		$topic_ids = $this->topic_ids;
+		$message_ids = $this->message_ids;
+		$physical = $this->physical;
+
 		/**
 		 * Perform additional actions before attachment(s) deletion
 		 *
@@ -316,6 +337,13 @@ class delete
 		);
 		extract($this->dispatcher->trigger_event('core.delete_attachments_before', compact($vars)));
 
+		$this->sql_id = $sql_id;
+		$this->post_ids = $post_ids;
+		$this->topic_ids = $topic_ids;
+		$this->message_ids = $message_ids;
+		$this->physical = $physical;
+		unset($sql_id, $post_ids, $topic_ids, $message_ids, $physical);
+
 		// Delete attachments
 		$sql = 'DELETE FROM ' . ATTACHMENTS_TABLE . '
 			WHERE ' . $this->db->sql_in_set($this->sql_id, $this->ids);
@@ -327,9 +355,9 @@ class delete
 	}
 
 	/**
-	 * Delete attachments from filesystem
+	 * Delete attachments from storage
 	 */
-	protected function remove_from_filesystem()
+	protected function remove_from_storage($mode, $ids, $resync)
 	{
 		$space_removed = $files_removed = 0;
 
@@ -347,6 +375,13 @@ class delete
 				$this->unlink_attachment($file_ary['filename'], 'thumbnail', true);
 			}
 		}
+
+		$sql_id = $this->sql_id;
+		$post_ids = $this->post_ids;
+		$topic_ids = $this->topic_ids;
+		$message_ids = $this->message_ids;
+		$physical = $this->physical;
+		$num_deleted = $this->num_deleted;
 
 		/**
 		 * Perform additional actions after attachment(s) deletion from the filesystem
@@ -380,6 +415,14 @@ class delete
 		);
 		extract($this->dispatcher->trigger_event('core.delete_attachments_from_filesystem_after', compact($vars)));
 
+		$this->sql_id = $sql_id;
+		$this->post_ids = $post_ids;
+		$this->topic_ids = $topic_ids;
+		$this->message_ids = $message_ids;
+		$this->physical = $physical;
+		$this->num_deleted = $num_deleted;
+		unset($sql_id, $post_ids, $topic_ids, $message_ids, $physical, $num_deleted);
+
 		if ($space_removed || $files_removed)
 		{
 			$this->config->increment('upload_dir_size', $space_removed * (-1), false);
@@ -388,7 +431,7 @@ class delete
 	}
 
 	/**
-	 * Delete attachment from filesystem
+	 * Delete attachment from storage
 	 *
 	 * @param string $filename Filename of attachment
 	 * @param string $mode Delete mode
@@ -412,17 +455,16 @@ class delete
 		}
 
 		$filename = ($mode == 'thumbnail') ? 'thumb_' . utf8_basename($filename) : utf8_basename($filename);
-		$filepath = $this->phpbb_root_path . $this->config['upload_path'] . '/' . $filename;
 
 		try
 		{
-			if ($this->filesystem->exists($filepath))
+			if ($this->storage->exists($filename))
 			{
-				$this->filesystem->remove($this->phpbb_root_path . $this->config['upload_path'] . '/' . $filename);
+				$this->storage->delete($filename);
 				return true;
 			}
 		}
-		catch (\phpbb\filesystem\exception\filesystem_exception $exception)
+		catch (\phpbb\storage\exception\exception $exception)
 		{
 			// Fail is covered by return statement below
 		}

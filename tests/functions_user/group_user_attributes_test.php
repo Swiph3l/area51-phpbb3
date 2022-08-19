@@ -11,13 +11,13 @@
 *
 */
 
-require_once dirname(__FILE__) . '/../../phpBB/includes/functions_user.php';
+require_once __DIR__ . '/../../phpBB/includes/functions_user.php';
 
 class phpbb_functions_user_group_user_attributes_test extends phpbb_database_test_case
 {
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__).'/fixtures/group_user_attributes.xml');
+		return $this->createXMLDataSet(__DIR__.'/fixtures/group_user_attributes.xml');
 	}
 
 	public function group_user_attributes_data()
@@ -131,14 +131,15 @@ class phpbb_functions_user_group_user_attributes_test extends phpbb_database_tes
 
 		$user = new phpbb_mock_user;
 		$user->ip = '';
+		$user->data['user_id'] = $user_id;
 		$cache = new phpbb_mock_cache;
 		$db = $this->new_dbal();
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
-		$auth = $this->getMock('\phpbb\auth\auth');
+		$auth = $this->createMock('\phpbb\auth\auth');
 		$auth->expects($this->any())
 			->method('acl_clear_prefetch');
 		$cache_driver = new \phpbb\cache\driver\dummy();
-		$phpbb_container = $this->getMock('Symfony\Component\DependencyInjection\ContainerInterface');
+		$phpbb_container = $this->createMock('Symfony\Component\DependencyInjection\ContainerInterface');
 		$phpbb_container
 			->expects($this->any())
 			->method('get')

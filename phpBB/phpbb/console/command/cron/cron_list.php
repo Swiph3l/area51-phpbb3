@@ -12,8 +12,10 @@
 */
 namespace phpbb\console\command\cron;
 
+use Symfony\Component\Console\Command\Command as symfony_command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 class cron_list extends \phpbb\console\command\command
 {
@@ -51,61 +53,45 @@ class cron_list extends \phpbb\console\command\command
 	* @param InputInterface  $input  An InputInterface instance
 	* @param OutputInterface $output An OutputInterface instance
 	*
-	* @return null
+	* @return int
 	*/
 	protected function execute(InputInterface $input, OutputInterface $output)
 	{
+		$io = new SymfonyStyle($input, $output);
+
 		$tasks = $this->cron_manager->get_tasks();
 
 		if (empty($tasks))
 		{
-			$output->writeln($this->user->lang('CRON_NO_TASKS'));
-			return;
+			$io->error($this->user->lang('CRON_NO_TASKS'));
+			return symfony_command::FAILURE;
 		}
 
-		$ready_tasks = array();
-		$not_ready_tasks = array();
+		$ready_tasks = $not_ready_tasks = array();
 		foreach ($tasks as $task)
 		{
 			if ($task->is_ready())
 			{
-				$ready_tasks[] = $task;
+				$ready_tasks[] = $task->get_name();
 			}
 			else
 			{
-				$not_ready_tasks[] = $task;
+				$not_ready_tasks[] = $task->get_name();
 			}
 		}
 
 		if (!empty($ready_tasks))
 		{
-			$output->writeln('<info>' . $this->user->lang('TASKS_READY') . '</info>');
-			$this->print_tasks_names($ready_tasks, $output);
-		}
-
-		if (!empty($ready_tasks) && !empty($not_ready_tasks))
-		{
-			$output->writeln('');
+			$io->title($this->user->lang('TASKS_READY'));
+			$io->listing($ready_tasks);
 		}
 
 		if (!empty($not_ready_tasks))
 		{
-			$output->writeln('<info>' . $this->user->lang('TASKS_NOT_READY') . '</info>');
-			$this->print_tasks_names($not_ready_tasks, $output);
+			$io->title($this->user->lang('TASKS_NOT_READY'));
+			$io->listing($not_ready_tasks);
 		}
-	}
 
-	/**
-	* Print a list of cron jobs
-	*
-	* @param array				$tasks A list of task to display
-	* @param OutputInterface	$output An OutputInterface instance
-	*/
-	protected function print_tasks_names(array $tasks, OutputInterface $output)
-	{
-		foreach ($tasks as $task)
-		{
-			$output->writeln($task->get_name());
-		}
+		return symfony_command::SUCCESS;
 	}
 }

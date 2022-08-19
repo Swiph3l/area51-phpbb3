@@ -22,12 +22,12 @@ if (!defined('IN_PHPBB'))
 /**
 * Functions used to generate additional URL paramters
 */
-function phpbb_module__url($mode, &$module_row)
+function phpbb_module__url($mode, $module_row)
 {
 	return phpbb_extra_url();
 }
 
-function phpbb_module_notes_url($mode, &$module_row)
+function phpbb_module_notes_url($mode, $module_row)
 {
 	if ($mode == 'front')
 	{
@@ -38,7 +38,7 @@ function phpbb_module_notes_url($mode, &$module_row)
 	return ($user_id) ? "&amp;u=$user_id" : '';
 }
 
-function phpbb_module_warn_url($mode, &$module_row)
+function phpbb_module_warn_url($mode, $module_row)
 {
 	if ($mode == 'front' || $mode == 'list')
 	{
@@ -64,27 +64,27 @@ function phpbb_module_warn_url($mode, &$module_row)
 	}
 }
 
-function phpbb_module_main_url($mode, &$module_row)
+function phpbb_module_main_url($mode, $module_row)
 {
 	return phpbb_extra_url();
 }
 
-function phpbb_module_logs_url($mode, &$module_row)
+function phpbb_module_logs_url($mode, $module_row)
 {
 	return phpbb_extra_url();
 }
 
-function phpbb_module_ban_url($mode, &$module_row)
+function phpbb_module_ban_url($mode, $module_row)
 {
 	return phpbb_extra_url();
 }
 
-function phpbb_module_queue_url($mode, &$module_row)
+function phpbb_module_queue_url($mode, $module_row)
 {
 	return phpbb_extra_url();
 }
 
-function phpbb_module_reports_url($mode, &$module_row)
+function phpbb_module_reports_url($mode, $module_row)
 {
 	return phpbb_extra_url();
 }
@@ -113,7 +113,7 @@ function phpbb_get_topic_data($topic_ids, $acl_list = false, $read_tracking = fa
 
 	$topics = array();
 
-	if (!sizeof($topic_ids))
+	if (!count($topic_ids))
 	{
 		return array();
 	}
@@ -130,7 +130,7 @@ function phpbb_get_topic_data($topic_ids, $acl_list = false, $read_tracking = fa
 		$cache_topic_ids = array();
 	}
 
-	if (sizeof($topic_ids))
+	if (count($topic_ids))
 	{
 		$sql_array = array(
 			'SELECT'	=> 't.*, f.*',
@@ -197,11 +197,11 @@ function phpbb_get_topic_data($topic_ids, $acl_list = false, $read_tracking = fa
 */
 function phpbb_get_post_data($post_ids, $acl_list = false, $read_tracking = false)
 {
-	global $db, $auth, $config, $user;
+	global $db, $auth, $config, $user, $phpbb_dispatcher, $phpbb_container;
 
 	$rowset = array();
 
-	if (!sizeof($post_ids))
+	if (!count($post_ids))
 	{
 		return array();
 	}
@@ -246,6 +246,8 @@ function phpbb_get_post_data($post_ids, $acl_list = false, $read_tracking = fals
 	$result = $db->sql_query($sql);
 	unset($sql_array);
 
+	$phpbb_content_visibility = $phpbb_container->get('content.visibility');
+
 	while ($row = $db->sql_fetchrow($result))
 	{
 		if ($acl_list && !$auth->acl_gets($acl_list, $row['forum_id']))
@@ -253,7 +255,7 @@ function phpbb_get_post_data($post_ids, $acl_list = false, $read_tracking = fals
 			continue;
 		}
 
-		if ($row['post_visibility'] != ITEM_APPROVED && !$auth->acl_get('m_approve', $row['forum_id']))
+		if (!$phpbb_content_visibility->is_visible('post', $row['forum_id'], $row))
 		{
 			// Moderators without the permission to approve post should at least not see them. ;)
 			continue;
@@ -262,6 +264,25 @@ function phpbb_get_post_data($post_ids, $acl_list = false, $read_tracking = fals
 		$rowset[$row['post_id']] = $row;
 	}
 	$db->sql_freeresult($result);
+
+	/**
+	* This event allows you to modify post data displayed in the MCP
+	*
+	* @event core.mcp_get_post_data_after
+	* @var array	post_ids		Array with post ids that have been fetched
+	* @var mixed	acl_list		Either false or an array with permission strings to check
+	* @var bool		read_tracking	Whether or not to take last mark read time into account
+	* @var array	rowset			The array of posts to be returned
+	* @since 3.2.10-RC1
+	* @since 3.3.1-RC1
+	*/
+	$vars = [
+		'post_ids',
+		'acl_list',
+		'read_tracking',
+		'rowset',
+	];
+	extract($phpbb_dispatcher->trigger_event('core.mcp_get_post_data_after', compact($vars)));
 
 	return $rowset;
 }
@@ -280,7 +301,7 @@ function phpbb_get_forum_data($forum_id, $acl_list = 'f_list', $read_tracking = 
 		$forum_id = array($forum_id);
 	}
 
-	if (!sizeof($forum_id))
+	if (!count($forum_id))
 	{
 		return array();
 	}
@@ -329,7 +350,7 @@ function phpbb_get_pm_data($pm_ids)
 
 	$rowset = array();
 
-	if (!sizeof($pm_ids))
+	if (!count($pm_ids))
 	{
 		return array();
 	}
@@ -362,7 +383,7 @@ function phpbb_get_pm_data($pm_ids)
 /**
 * sorting in mcp
 *
-* @param string $where_sql should either be WHERE (default if ommited) or end with AND or OR
+* $where_sql should either be WHERE (default if ommited) or end with AND or OR
 *
 * $mode reports and reports_closed: the $where parameters uses aliases p for posts table and r for report table
 * $mode unapproved_posts: the $where parameters uses aliases p for posts table and t for topic table
@@ -514,7 +535,6 @@ function phpbb_mcp_sorting($mode, &$sort_days_val, &$sort_key_val, &$sort_dir_va
 
 	$sort_key_val = $request->variable('sk', $default_key);
 	$sort_dir_val = $request->variable('sd', $default_dir);
-	$sort_dir_text = array('a' => $user->lang['ASCENDING'], 'd' => $user->lang['DESCENDING']);
 
 	switch ($type)
 	{
@@ -659,11 +679,11 @@ function phpbb_mcp_sorting($mode, &$sort_days_val, &$sort_key_val, &$sort_dir_va
 /**
 * Validate ids
 *
-* @param	array	&$ids			The relevant ids to check
-* @param	string	$table			The table to find the ids in
-* @param	string	$sql_id			The ids relevant column name
-* @param	array	$acl_list		A list of permissions the user need to have
-* @param	mixed	$singe_forum	Limit to one forum id (int) or the first forum found (true)
+* @param	array		&$ids			The relevant ids to check
+* @param	string		$table			The table to find the ids in
+* @param	string		$sql_id			The ids relevant column name
+* @param	array|false	$acl_list		A list of permissions the user need to have
+* @param	mixed		$single_forum	Limit to one forum id (int) or the first forum found (true)
 *
 * @return	mixed	False if no ids were able to be retrieved, true if at least one id left.
 *					Additionally, this value can be the forum_id assigned if $single_forum was set.
@@ -730,7 +750,7 @@ function phpbb_check_ids(&$ids, $table, $sql_id, $acl_list = false, $single_foru
 	}
 	$db->sql_freeresult($result);
 
-	if (!sizeof($ids))
+	if (!count($ids))
 	{
 		return false;
 	}

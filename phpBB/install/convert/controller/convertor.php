@@ -253,11 +253,11 @@ class convertor
 	/**
 	 * Obtain convertor settings
 	 *
-	 * @param string	$convertor	Name of the convertor
+	 * @param string	$converter	Name of the convertor
 	 *
 	 * @return \Symfony\Component\HttpFoundation\Response|StreamedResponse
 	 */
-	public function settings($convertor)
+	public function settings($converter)
 	{
 		$this->setup_navigation('settings');
 
@@ -265,7 +265,7 @@ class convertor
 		require_once ($this->phpbb_root_path . 'includes/functions_convert.' . $this->php_ext);
 
 		// Include convertor if available
-		$convertor_file_path = $this->phpbb_root_path . 'install/convertors/convert_' . $convertor . '.' . $this->php_ext;
+		$convertor_file_path = $this->phpbb_root_path . 'install/convertors/convert_' . $converter . '.' . $this->php_ext;
 		if (!file_exists($convertor_file_path))
 		{
 			if ($this->request->is_ajax())
@@ -313,8 +313,8 @@ class convertor
 			// It must be an AJAX request at this point
 			$response = new StreamedResponse();
 			$ref = $this;
-			$response->setCallback(function() use ($ref, $convertor) {
-				$ref->proccess_settings_form($convertor);
+			$response->setCallback(function() use ($ref, $converter) {
+				$ref->proccess_settings_form($converter);
 			});
 			$response->headers->set('X-Accel-Buffering', 'no');
 
@@ -324,7 +324,7 @@ class convertor
 		{
 			$this->template->assign_vars(array(
 				'U_ACTION'	=> $this->controller_helper->route('phpbb_convert_settings', array(
-					'convertor'	=> $convertor,
+					'converter'	=> $converter,
 				))
 			));
 
@@ -410,7 +410,6 @@ class convertor
 
 		switch ($this->db->get_sql_layer())
 		{
-			case 'sqlite':
 			case 'sqlite3':
 				$this->db->sql_query('DELETE FROM ' . $this->session_keys_table);
 				$this->db->sql_query('DELETE FROM ' . $this->session_table);
@@ -494,7 +493,7 @@ class convertor
 			$error[] = $this->language->lang('INST_ERR_DB_CONNECT');
 		}
 
-		$src_dbms = $this->config_php_file->convert_30_dbms_to_31($src_dbms);
+		$src_dbms = \phpbb\config_php_file::convert_30_dbms_to_31($src_dbms);
 
 		// Check table prefix
 		if (empty($error))
@@ -507,7 +506,7 @@ class convertor
 			{
 				/** @var \phpbb\db\driver\driver_interface $src_db */
 				$src_db = new $src_dbms();
-				$src_db->sql_connect($src_dbhost, $src_dbuser, htmlspecialchars_decode($src_dbpasswd), $src_dbname, $src_dbport, false, true);
+				$src_db->sql_connect($src_dbhost, $src_dbuser, htmlspecialchars_decode($src_dbpasswd, ENT_COMPAT), $src_dbname, $src_dbport, false, true);
 				$same_db = false;
 			}
 			else
@@ -538,7 +537,7 @@ class convertor
 
 				foreach ($prefixes as $prefix => $count)
 				{
-					if ($count >= sizeof($tables))
+					if ($count >= count($tables))
 					{
 						$possible_prefix = $prefix;
 						break;
@@ -731,7 +730,7 @@ class convertor
 				include_once($this->phpbb_root_path . 'install/convertors/' . $entry);
 				if (isset($convertor_data))
 				{
-					$sort[strtolower($convertor_data['forum_name'])] = sizeof($convertors);
+					$sort[strtolower($convertor_data['forum_name'])] = count($convertors);
 
 					$convertors[] = array(
 						'tag'			=>	$m[1],
@@ -761,7 +760,7 @@ class convertor
 				'SOFTWARE'	=> $convertors[$index]['forum_name'],
 				'VERSION'	=> $convertors[$index]['version'],
 
-				'U_CONVERT'	=> $this->controller_helper->route('phpbb_convert_settings', array('convertor' => $convertors[$index]['tag'])),
+				'U_CONVERT'	=> $this->controller_helper->route('phpbb_convert_settings', array('converter' => $convertors[$index]['tag'])),
 			));
 		}
 

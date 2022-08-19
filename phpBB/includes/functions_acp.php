@@ -66,6 +66,9 @@ function adm_page_header($page_title)
 		}
 	}
 
+	$phpbb_version_parts = explode('.', PHPBB_VERSION, 3);
+	$phpbb_major = $phpbb_version_parts[0] . '.' . $phpbb_version_parts[1];
+
 	$template->assign_vars(array(
 		'PAGE_TITLE'			=> $page_title,
 		'USERNAME'				=> $user->data['username'],
@@ -75,6 +78,8 @@ function adm_page_header($page_title)
 		'SESSION_ID'			=> $user->session_id,
 		'ROOT_PATH'				=> $phpbb_root_path,
 		'ADMIN_ROOT_PATH'		=> $phpbb_admin_path,
+		'PHPBB_VERSION'			=> PHPBB_VERSION,
+		'PHPBB_MAJOR'			=> $phpbb_major,
 
 		'U_LOGOUT'				=> append_sid("{$phpbb_root_path}ucp.$phpEx", 'mode=logout'),
 		'U_ADM_LOGOUT'			=> append_sid("{$phpbb_admin_path}index.$phpEx", 'action=admlogout'),
@@ -83,24 +88,25 @@ function adm_page_header($page_title)
 
 		'T_IMAGES_PATH'			=> "{$phpbb_root_path}images/",
 		'T_SMILIES_PATH'		=> "{$phpbb_root_path}{$config['smilies_path']}/",
-		'T_AVATAR_PATH'			=> "{$phpbb_root_path}{$config['avatar_path']}/",
 		'T_AVATAR_GALLERY_PATH'	=> "{$phpbb_root_path}{$config['avatar_gallery_path']}/",
 		'T_ICONS_PATH'			=> "{$phpbb_root_path}{$config['icons_path']}/",
 		'T_RANKS_PATH'			=> "{$phpbb_root_path}{$config['ranks_path']}/",
 		'T_UPLOAD_PATH'			=> "{$phpbb_root_path}{$config['upload_path']}/",
 
+		'T_FONT_AWESOME_LINK'	=> !empty($config['allow_cdn']) && !empty($config['load_font_awesome_url']) ? $config['load_font_awesome_url'] : "{$phpbb_root_path}assets/css/font-awesome.min.css?assets_version=" . $config['assets_version'],
+
 		'T_ASSETS_VERSION'		=> $config['assets_version'],
 
-		'ICON_MOVE_UP'				=> '<img src="' . htmlspecialchars($phpbb_admin_path) . 'images/icon_up.gif" alt="' . $user->lang['MOVE_UP'] . '" title="' . $user->lang['MOVE_UP'] . '" />',
-		'ICON_MOVE_UP_DISABLED'		=> '<img src="' . htmlspecialchars($phpbb_admin_path) . 'images/icon_up_disabled.gif" alt="' . $user->lang['MOVE_UP'] . '" title="' . $user->lang['MOVE_UP'] . '" />',
-		'ICON_MOVE_DOWN'			=> '<img src="' . htmlspecialchars($phpbb_admin_path) . 'images/icon_down.gif" alt="' . $user->lang['MOVE_DOWN'] . '" title="' . $user->lang['MOVE_DOWN'] . '" />',
-		'ICON_MOVE_DOWN_DISABLED'	=> '<img src="' . htmlspecialchars($phpbb_admin_path) . 'images/icon_down_disabled.gif" alt="' . $user->lang['MOVE_DOWN'] . '" title="' . $user->lang['MOVE_DOWN'] . '" />',
-		'ICON_EDIT'					=> '<img src="' . htmlspecialchars($phpbb_admin_path) . 'images/icon_edit.gif" alt="' . $user->lang['EDIT'] . '" title="' . $user->lang['EDIT'] . '" />',
-		'ICON_EDIT_DISABLED'		=> '<img src="' . htmlspecialchars($phpbb_admin_path) . 'images/icon_edit_disabled.gif" alt="' . $user->lang['EDIT'] . '" title="' . $user->lang['EDIT'] . '" />',
-		'ICON_DELETE'				=> '<img src="' . htmlspecialchars($phpbb_admin_path) . 'images/icon_delete.gif" alt="' . $user->lang['DELETE'] . '" title="' . $user->lang['DELETE'] . '" />',
-		'ICON_DELETE_DISABLED'		=> '<img src="' . htmlspecialchars($phpbb_admin_path) . 'images/icon_delete_disabled.gif" alt="' . $user->lang['DELETE'] . '" title="' . $user->lang['DELETE'] . '" />',
-		'ICON_SYNC'					=> '<img src="' . htmlspecialchars($phpbb_admin_path) . 'images/icon_sync.gif" alt="' . $user->lang['RESYNC'] . '" title="' . $user->lang['RESYNC'] . '" />',
-		'ICON_SYNC_DISABLED'		=> '<img src="' . htmlspecialchars($phpbb_admin_path) . 'images/icon_sync_disabled.gif" alt="' . $user->lang['RESYNC'] . '" title="' . $user->lang['RESYNC'] . '" />',
+		'ICON_MOVE_UP'				=> '<i class="icon acp-icon acp-icon-move-up fa-arrow-circle-up fa-fw" title="' . $user->lang('MOVE_UP') . '"></i>',
+		'ICON_MOVE_UP_DISABLED'		=> '<i class="icon acp-icon acp-icon-disabled fa-arrow-circle-up fa-fw" title="' . $user->lang('MOVE_UP') . '"></i>',
+		'ICON_MOVE_DOWN'			=> '<i class="icon acp-icon acp-icon-move-down fa-arrow-circle-down fa-fw" title="' . $user->lang('MOVE_DOWN') . '"></i>',
+		'ICON_MOVE_DOWN_DISABLED'	=> '<i class="icon acp-icon acp-icon-disabled fa-arrow-circle-down fa-fw" title="' . $user->lang('MOVE_DOWN') . '"></i>',
+		'ICON_EDIT'					=> '<i class="icon acp-icon acp-icon-settings fa-cog fa-fw" title="' . $user->lang('EDIT') . '"></i>',
+		'ICON_EDIT_DISABLED'		=> '<i class="icon acp-icon acp-icon-disabled fa-cog fa-fw" title="' . $user->lang('EDIT') . '"></i>',
+		'ICON_DELETE'				=> '<i class="icon acp-icon acp-icon-delete fa-times-circle fa-fw" title="' . $user->lang('DELETE') . '"></i>',
+		'ICON_DELETE_DISABLED'		=> '<i class="icon acp-icon acp-icon-disabled fa-times-circle fa-fw" title="' . $user->lang('DELETE') . '"></i>',
+		'ICON_SYNC'					=> '<i class="icon acp-icon acp-icon-resync fa-refresh fa-fw" title="' . $user->lang('RESYNC') . '"></i>',
+		'ICON_SYNC_DISABLED'		=> '<i class="icon acp-icon acp-icon-disabled fa-refresh fa-fw" title="' . $user->lang('RESYNC') . '"></i>',
 
 		'S_USER_LANG'			=> $user->lang['USER_LANG'],
 		'S_CONTENT_DIRECTION'	=> $user->lang['DIRECTION'],
@@ -111,12 +117,13 @@ function adm_page_header($page_title)
 		'CONTAINER_EXCEPTION'	=> $phpbb_container->hasParameter('container_exception') ? $phpbb_container->getParameter('container_exception') : false,
 	));
 
-	// An array of http headers that phpbb will set. The following event may override these.
+	// An array of http headers that phpBB will set. The following event may override these.
 	$http_headers = array(
 		// application/xhtml+xml not used because of IE
 		'Content-type' => 'text/html; charset=UTF-8',
 		'Cache-Control' => 'private, no-cache="set-cookie"',
 		'Expires' => gmdate('D, d M Y H:i:s', time()) . ' GMT',
+		'Referrer-Policy' => 'strict-origin-when-cross-origin',
 	);
 
 	/**
@@ -145,8 +152,11 @@ function adm_page_header($page_title)
 function adm_page_footer($copyright_html = true)
 {
 	global $db, $config, $template, $user, $auth;
-	global $phpbb_root_path;
-	global $request, $phpbb_dispatcher;
+	global $phpbb_root_path, $phpbb_container;
+	global $phpbb_dispatcher;
+
+	/** @var \phpbb\controller\helper $controller_helper */
+	$controller_helper = $phpbb_container->get('controller.helper');
 
 	// A listener can set this variable to `true` when it overrides this function
 	$adm_page_footer_override = false;
@@ -168,14 +178,14 @@ function adm_page_footer($copyright_html = true)
 		return;
 	}
 
-	phpbb_check_and_display_sql_report($request, $auth, $db);
+	$controller_helper->display_sql_report();
 
 	$template->assign_vars(array(
 		'DEBUG_OUTPUT'		=> phpbb_generate_debug_output($db, $config, $auth, $user, $phpbb_dispatcher),
 		'TRANSLATION_INFO'	=> (!empty($user->lang['TRANSLATION_INFO'])) ? $user->lang['TRANSLATION_INFO'] : '',
 		'S_COPYRIGHT_HTML'	=> $copyright_html,
 		'CREDIT_LINE'		=> $user->lang('POWERED_BY', '<a href="https://www.phpbb.com/">phpBB</a>&reg; Forum Software &copy; phpBB Limited'),
-		'T_JQUERY_LINK'		=> !empty($config['allow_cdn']) && !empty($config['load_jquery_url']) ? $config['load_jquery_url'] : "{$phpbb_root_path}assets/javascript/jquery.min.js",
+		'T_JQUERY_LINK'		=> !empty($config['allow_cdn']) && !empty($config['load_jquery_url']) ? $config['load_jquery_url'] : "{$phpbb_root_path}assets/javascript/jquery-3.5.1.min.js",
 		'S_ALLOW_CDN'		=> !empty($config['allow_cdn']),
 		'VERSION'			=> $config['version'])
 	);
@@ -280,27 +290,17 @@ function build_cfg_template($tpl_type, $key, &$new_ary, $config_key, $vars)
 		case 'time':
 		case 'number':
 		case 'range':
-			$max = '';
-			$min = ( isset($tpl_type[1]) ) ? (int) $tpl_type[1] : false;
-			if ( isset($tpl_type[2]) )
-			{
-				$max = (int) $tpl_type[2];
-			}
+			$min = isset($tpl_type[1]) ? (int) $tpl_type[1] : false;
+			$max = isset($tpl_type[2]) ? (int) $tpl_type[2] : false;
 
-			$tpl = '<input id="' . $key . '" type="' . $tpl_type[0] . '"' . (( $min != '' ) ? ' min="' . $min . '"' : '') . (( $max != '' ) ? ' max="' . $max . '"' : '') . ' name="' . $name . '" value="' . $new_ary[$config_key] . '" />';
+			$tpl = '<input id="' . $key . '" type="' . $tpl_type[0] . '"' . (( $min !== false ) ? ' min="' . $min . '"' : '') . (( $max !== false ) ? ' max="' . $max . '"' : '') . ' name="' . $name . '" value="' . $new_ary[$config_key] . '" />';
 		break;
 
 		case 'dimension':
-			$max = '';
+			$min = isset($tpl_type[1]) ? (int) $tpl_type[1] : false;
+			$max = isset($tpl_type[2]) ? (int) $tpl_type[2] : false;
 
-			$min = (int) $tpl_type[1];
-
-			if ( isset($tpl_type[2]) )
-			{
-				$max = (int) $tpl_type[2];
-			}
-
-			$tpl = '<input id="' . $key . '" type="number"' . (( $min !== '' ) ? ' min="' . $min . '"' : '') . (( $max != '' ) ? ' max="' . $max . '"' : '') . ' name="config[' . $config_key . '_width]" value="' . $new_ary[$config_key . '_width'] . '" /> x <input type="number"' . (( $min !== '' ) ? ' min="' . $min . '"' : '') . (( $max != '' ) ? ' max="' . $max . '"' : '') . ' name="config[' . $config_key . '_height]" value="' . $new_ary[$config_key . '_height'] . '" />';
+			$tpl = '<input id="' . $key . '" type="number"' . (( $min !== false ) ? ' min="' . $min . '"' : '') . (( $max !== false ) ? ' max="' . $max . '"' : '') . ' name="config[' . $config_key . '_width]" value="' . $new_ary[$config_key . '_width'] . '" /> x <input type="number"' . (( $min !== '' ) ? ' min="' . $min . '"' : '') . (( $max != '' ) ? ' max="' . $max . '"' : '') . ' name="config[' . $config_key . '_height]" value="' . $new_ary[$config_key . '_height'] . '" />';
 		break;
 
 		case 'textarea':
@@ -418,7 +418,7 @@ function build_cfg_template($tpl_type, $key, &$new_ary, $config_key, $vars)
 */
 function validate_config_vars($config_vars, &$cfg_array, &$error)
 {
-	global $phpbb_root_path, $user, $phpbb_dispatcher, $phpbb_filesystem;
+	global $phpbb_root_path, $user, $phpbb_dispatcher, $phpbb_filesystem, $language;
 
 	$type	= 0;
 	$min	= 1;
@@ -441,6 +441,30 @@ function validate_config_vars($config_vars, &$cfg_array, &$error)
 		// Validate a bit. ;) (0 = type, 1 = min, 2= max)
 		switch ($validator[$type])
 		{
+			case 'url':
+			case 'csv':
+				if ($validator[$type] == 'url')
+				{
+					$cfg_array[$config_name] = trim($cfg_array[$config_name]);
+
+					if (!empty($cfg_array[$config_name]) && !preg_match('#^' . get_preg_expression('url') . '$#iu', $cfg_array[$config_name]))
+					{
+						$error[] = $language->lang('URL_INVALID', $language->lang($config_definition['lang']));
+					}
+				}
+				else if ($validator[$type] == 'csv')
+				{
+					// Validate comma separated values
+					$unfiltered_array = explode(',', $cfg_array[$config_name]);
+					$filtered_array = array_filter($unfiltered_array);
+					if (!empty($filtered_array) && count($unfiltered_array) !== count($filtered_array))
+					{
+						$error[] = $language->lang('CSV_INVALID', $language->lang($config_definition['lang']));
+					}
+
+				}
+			// no break here
+
 			case 'string':
 				$length = utf8_strlen($cfg_array[$config_name]);
 
@@ -563,9 +587,6 @@ function validate_config_vars($config_vars, &$cfg_array, &$error)
 
 				$cfg_array[$config_name] = trim($destination);
 
-			// Absolute file path
-			case 'absolute_path':
-			case 'absolute_path_writable':
 			// Path being relative (still prefixed by phpbb_root_path), but with the ability to escape the root dir...
 			case 'path':
 			case 'wpath':
@@ -584,7 +605,7 @@ function validate_config_vars($config_vars, &$cfg_array, &$error)
 					break;
 				}
 
-				$path = in_array($config_definition['validate'], array('wpath', 'path', 'rpath', 'rwpath')) ? $phpbb_root_path . $cfg_array[$config_name] : $cfg_array[$config_name];
+				$path = $phpbb_root_path . $cfg_array[$config_name];
 
 				if (!file_exists($path))
 				{
@@ -597,7 +618,7 @@ function validate_config_vars($config_vars, &$cfg_array, &$error)
 				}
 
 				// Check if the path is writable
-				if ($config_definition['validate'] == 'wpath' || $config_definition['validate'] == 'rwpath' || $config_definition['validate'] === 'absolute_path_writable')
+				if ($config_definition['validate'] == 'wpath' || $config_definition['validate'] == 'rwpath')
 				{
 					if (file_exists($path) && !$phpbb_filesystem->is_writable($path))
 					{
@@ -693,6 +714,7 @@ function validate_range($value_ary, &$error)
 /**
 * Inserts new config display_vars into an exisiting display_vars array
 * at the given position.
+* Used by extensions.
 *
 * @param array $display_vars An array of existing config display vars
 * @param array $add_config_vars An array of new config display vars

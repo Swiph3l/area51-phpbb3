@@ -87,6 +87,8 @@ class ucp_activate
 				WHERE user_id = ' . $user_row['user_id'];
 			$db->sql_query($sql);
 
+			$user->reset_login_keys($user_row['user_id']);
+
 			$phpbb_log->add('user', $user->data['user_id'], $user->ip, 'LOG_USER_NEW_PASSWORD', false, array(
 				'reportee_id' => $user_row['user_id'],
 				$user_row['username']
@@ -132,7 +134,7 @@ class ucp_activate
 			$messenger->anti_abuse_headers($config, $user);
 
 			$messenger->assign_vars(array(
-				'USERNAME'	=> htmlspecialchars_decode($user_row['username']))
+				'USERNAME'	=> htmlspecialchars_decode($user_row['username'], ENT_COMPAT))
 			);
 
 			$messenger->send($user_row['user_notify_type']);

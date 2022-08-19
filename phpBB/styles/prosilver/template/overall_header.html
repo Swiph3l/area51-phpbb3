@@ -33,7 +33,7 @@
 <script>
 	WebFontConfig = {
 		google: {
-			families: ['Open+Sans:600:cyrillic-ext,latin,greek-ext,greek,vietnamese,latin-ext,cyrillic']
+			families: ['Open+Sans:300,300i,400,400i,600,600i,700,700i,800,800i&subset=cyrillic,cyrillic-ext,greek,greek-ext,latin-ext,vietnamese']
 		}
 	};
 
@@ -45,23 +45,19 @@
 	})(document);
 </script>
 <!-- ENDIF -->
-<link href="{T_FONT_AWESOME_LINK}" rel="stylesheet">
 <link href="{T_STYLESHEET_LINK}" rel="stylesheet">
 <link href="{T_STYLESHEET_LANG_LINK}" rel="stylesheet">
 
-<!-- IF S_CONTENT_DIRECTION eq 'rtl' -->
-	<link href="{T_THEME_PATH}/bidi.css?assets_version={T_ASSETS_VERSION}" rel="stylesheet">
-<!-- ENDIF -->
-
 <link href="/header.css" media="all" rel="stylesheet" type="text/css" />
 <script type="text/javascript" src="/analytics.js"></script>
+
 <!-- IF S_PLUPLOAD -->
 	<link href="{T_THEME_PATH}/plupload.css?assets_version={T_ASSETS_VERSION}" rel="stylesheet">
 <!-- ENDIF -->
 
-<!--[if lte IE 9]>
-	<link href="{T_THEME_PATH}/tweaks.css?assets_version={T_ASSETS_VERSION}" rel="stylesheet">
-<![endif]-->
+<!-- IF S_COOKIE_NOTICE -->
+	<link href="{T_ASSETS_PATH}/cookieconsent/cookieconsent.min.css?assets_version={T_ASSETS_VERSION}" rel="stylesheet">
+<!-- ENDIF -->
 
 <!-- EVENT overall_header_head_append -->
 
@@ -79,6 +75,7 @@
 		<li class="phpbb-logo"><a href="//area51.phpbb.com/"><img src="/images/area51.png" alt="area51 @ phpBB" title="area51.phpbb.com" /></a></li>
 		<li><a href="//area51.phpbb.com">Home</a></li>
 		<li><a href="http://tracker.phpbb.com/secure/Dashboard.jspa">Tracker</a></li>
+		<li><a href="//area51.phpbb.com/docs/dev/">Dev Docs</a></li>
 		<li><a href="//wiki.phpbb.com/">Wiki</a></li>
 		<li><a href="//bamboo.phpbb.com/">Builds</a></li>
 		<li><a href="//area51.phpbb.com/projects/">Projects</a></li>
@@ -97,10 +94,10 @@
 				        <fieldset>
 					        <input name="keywords" id="keywords" type="search" maxlength="128" title="{L_SEARCH_KEYWORDS}" class="inputbox search tiny" size="20" value="{SEARCH_WORDS}" placeholder="{L_SEARCH_MINI}" />
 							<button class="button button-search" type="submit" title="{L_SEARCH}">
-								<i class="icon fa-search fa-fw" aria-hidden="true"></i><span class="sr-only">{L_SEARCH}</span>
+								{{ Icon('iconify', 'fa:search', lang('SEARCH'), true, 'c-button-icon') }}
 					        </button>
 							<a href="{U_SEARCH}" class="button button-search-end" title="{L_SEARCH_ADV}">
-								<i class="icon fa-cog fa-fw" aria-hidden="true"></i><span class="sr-only">{L_SEARCH_ADV}</span>
+								{{ Icon('iconify', 'fa:cog', lang('SEARCH_ADV'), true, 'c-button-icon') }}
 					        </a>
 					        {S_SEARCH_HIDDEN_FIELDS}
 				        </fieldset>
@@ -117,13 +114,17 @@
 		<!-- EVENT overall_header_headerbar_before -->
 			<div class="inner">
 
-			<div id="site-description" class="site-description" style="margin-left:20px;">
-				<!- - <a id="logo" class="logo" href="{U_INDEX}" title="{L_INDEX}">{SITE_LOGO_IMG}</a> - ->
-				<h1><a href="{U_INDEX}" style="color:#fff;text-decoration:none;" title="{L_INDEX}">{SITENAME}</a></h1>
+			<hgroup id="site-description" class="site-description c-hero">
+				<a id="logo" class="c-hero-logo" href="{% if U_SITE_HOME %}{{ U_SITE_HOME }}{% else %}{{ U_INDEX }}{% endif %}" title="{% if U_SITE_HOME %}{{ L_SITE_HOME }}{% else %}{{ L_INDEX }}{% endif %}">
+					{{ Icon('svg', 'logo', SITENAME, true, 'c-hero-logo-img') }}
+				</a>
 
-				<p>{SITE_DESCRIPTION}</p>
+				<h1 class="c-hero-heading">
+					{{ SITENAME }}
+					<p class="c-hero-lead">{{ SITE_DESCRIPTION }}</p>
+				</h1>
 				<p class="skiplink"><a href="#start_here">{L_SKIP}</a></p>
-			</div>
+			</hgroup>
 
 			<!-- EVENT overall_header_searchbox_before -->
 			<!-- IF S_DISPLAY_SEARCH and not S_IN_SEARCH -->
@@ -132,16 +133,17 @@
 				<fieldset>
 					<input name="keywords" id="keywords" type="search" maxlength="128" title="{L_SEARCH_KEYWORDS}" class="inputbox search tiny" size="20" value="{SEARCH_WORDS}" placeholder="{L_SEARCH_MINI}" />
 					<button class="button button-search" type="submit" title="{L_SEARCH}">
-						<i class="icon fa-search fa-fw" aria-hidden="true"></i><span class="sr-only">{L_SEARCH}</span>
+						{{ Icon('iconify', 'fa:search', lang('SEARCH'), true, 'c-button-icon') }}
 					</button>
 					<a href="{U_SEARCH}" class="button button-search-end" title="{L_SEARCH_ADV}">
-						<i class="icon fa-cog fa-fw" aria-hidden="true"></i><span class="sr-only">{L_SEARCH_ADV}</span>
+						{{ Icon('iconify', 'fa:cog', lang('SEARCH_ADV'), true, 'c-button-icon') }}
 					</a>
 					{S_SEARCH_HIDDEN_FIELDS}
 				</fieldset>
 				</form>
 			</div>
 			<!-- ENDIF -->
+			<!-- EVENT overall_header_searchbox_after -->
 
 			</div>
 			<!-- EVENT overall_header_headerbar_after -->

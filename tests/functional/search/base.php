@@ -16,6 +16,8 @@
 */
 abstract class phpbb_functional_search_base extends phpbb_functional_test_case
 {
+	protected $search_backend;
+
 	protected function assert_search_found($keywords, $posts_found, $words_highlighted)
 	{
 		$crawler = self::request('GET', 'search.php?keywords=' . $keywords);
@@ -36,7 +38,7 @@ abstract class phpbb_functional_search_base extends phpbb_functional_test_case
 		$this->login();
 		$this->admin_login();
 
-		$this->create_search_index('\phpbb\search\fulltext_native');
+		$this->create_search_index('phpbb\\search\\backend\\fulltext_native');
 
 		$post = $this->create_topic(2, 'Test Topic 1 foosubject', 'This is a test topic posted by the barsearch testing framework.');
 
@@ -47,18 +49,28 @@ abstract class phpbb_functional_search_base extends phpbb_functional_test_case
 		if ($values["config[search_type]"] != $this->search_backend)
 		{
 			$values["config[search_type]"] = $this->search_backend;
-			$form->setValues($values);
+
+			try
+			{
+				$form->setValues($values);
+			}
+			catch(\InvalidArgumentException $e)
+			{
+				// Search backed is not supported because don't appear in the select
+				$this->delete_topic($post['topic_id']);
+				$this->markTestSkipped("Search backend is not supported/running");
+			}
+
 			$crawler = self::submit($form);
 
 			$form = $crawler->selectButton('Yes')->form();
 			$values = $form->getValues();
 			$crawler = self::submit($form);
 
-			// check if search backend is not supported
+			// Unknown error selecting search backend
 			if ($crawler->filter('.errorbox')->count() > 0)
 			{
-				$this->delete_topic($post['topic_id']);
-				$this->markTestSkipped("Search backend is not supported/running");
+				$this->fail('Error when trying to select available search backend');
 			}
 
 			$this->create_search_index();
@@ -79,18 +91,16 @@ abstract class phpbb_functional_search_base extends phpbb_functional_test_case
 	{
 		$this->add_lang('acp/search');
 		$crawler = self::request('GET', 'adm/index.php?i=acp_search&mode=index&sid=' . $this->sid);
-		$form_values = $crawler->selectButton('Create index')->form()->getValues();
-		$crawler = self::request(
-			'POST',
-			'adm/index.php?i=acp_search&mode=index&sid=' . $this->sid,
+		$form = $crawler->selectButton('Create index')->form();
+		$form_values = $form->getValues();
+		$form_values = array_merge($form_values,
 			array(
 				'search_type'	=> ( ($backend === null) ? $this->search_backend : $backend ),
 				'action'		=> 'create',
-				'submit'		=> true,
-				'form_token'	=> $form_values['form_token'],
-				'creation_time'	=> $form_values['creation_time'],
 			)
 		);
+		$form->setValues($form_values);
+		$crawler = self::submit($form);
 		$this->assertContainsLang('SEARCH_INDEX_CREATED', $crawler->text());
 	}
 
@@ -98,18 +108,16 @@ abstract class phpbb_functional_search_base extends phpbb_functional_test_case
 	{
 		$this->add_lang('acp/search');
 		$crawler = self::request('GET', 'adm/index.php?i=acp_search&mode=index&sid=' . $this->sid);
-		$form_values = $crawler->selectButton('Delete index')->form()->getValues();
-		$crawler = self::request(
-			'POST',
-			'adm/index.php?i=acp_search&mode=index&sid=' . $this->sid,
+		$form = $crawler->selectButton('Delete index')->form();
+		$form_values = $form->getValues();
+		$form_values = array_merge($form_values,
 			array(
 				'search_type'	=> $this->search_backend,
 				'action'		=> 'delete',
-				'submit'		=> true,
-				'form_token'	=> $form_values['form_token'],
-				'creation_time'	=> $form_values['creation_time'],
 			)
 		);
+		$form->setValues($form_values);
+		$crawler = self::submit($form);
 		$this->assertContainsLang('SEARCH_INDEX_REMOVED', $crawler->text());
 	}
 }

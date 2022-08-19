@@ -70,6 +70,7 @@ class populate_migrations extends \phpbb\install\task_base
 
 		$migrations = $finder
 			->core_path('phpbb/db/migration/data/')
+			->set_extensions(array())
 			->get_classes();
 		$this->migrator->populate_migrations($migrations);
 	}
@@ -77,7 +78,7 @@ class populate_migrations extends \phpbb\install\task_base
 	/**
 	 * {@inheritdoc}
 	 */
-	static public function get_step_count()
+	public static function get_step_count()
 	{
 		return 1;
 	}

@@ -90,7 +90,7 @@ class acp_forums
 
 					$errors = $this->delete_forum($forum_id, $action_posts, $action_subforums, $posts_to_id, $subforums_to_id);
 
-					if (sizeof($errors))
+					if (count($errors))
 					{
 						break;
 					}
@@ -131,11 +131,12 @@ class acp_forums
 						'forum_rules_link'		=> $request->variable('forum_rules_link', ''),
 						'forum_image'			=> $request->variable('forum_image', ''),
 						'forum_style'			=> $request->variable('forum_style', 0),
-						'display_subforum_list'	=> $request->variable('display_subforum_list', false),
-						'display_on_index'		=> $request->variable('display_on_index', false),
+						'display_subforum_list'	=> $request->variable('display_subforum_list', true),
+						'display_subforum_limit'=> $request->variable('display_subforum_limit', false),
+						'display_on_index'		=> $request->variable('display_on_index', true),
 						'forum_topics_per_page'	=> $request->variable('topics_per_page', 0),
 						'enable_indexing'		=> $request->variable('enable_indexing', true),
-						'enable_icons'			=> $request->variable('enable_icons', false),
+						'enable_icons'			=> $request->variable('enable_icons', true),
 						'enable_prune'			=> $request->variable('enable_prune', false),
 						'enable_post_review'	=> $request->variable('enable_post_review', true),
 						'enable_quick_reply'	=> $request->variable('enable_quick_reply', false),
@@ -198,7 +199,7 @@ class acp_forums
 
 					$errors = $this->update_forum_data($forum_data);
 
-					if (!sizeof($errors))
+					if (!count($errors))
 					{
 						$forum_perm_from = $request->variable('forum_perm_from', 0);
 						$cache->destroy('sql', FORUMS_TABLE);
@@ -454,10 +455,11 @@ class acp_forums
 							'forum_image'			=> '',
 							'forum_style'			=> 0,
 							'display_subforum_list'	=> true,
-							'display_on_index'		=> false,
+							'display_subforum_limit'	=> false,
+							'display_on_index'		=> true,
 							'forum_topics_per_page'	=> 0,
 							'enable_indexing'		=> true,
-							'enable_icons'			=> false,
+							'enable_icons'			=> true,
 							'enable_prune'			=> false,
 							'prune_days'			=> 7,
 							'prune_viewed'			=> 7,
@@ -622,7 +624,7 @@ class acp_forums
 
 				$template_data = array(
 					'S_EDIT_FORUM'		=> true,
-					'S_ERROR'			=> (sizeof($errors)) ? true : false,
+					'S_ERROR'			=> (count($errors)) ? true : false,
 					'S_PARENT_ID'		=> $this->parent_id,
 					'S_FORUM_PARENT_ID'	=> $forum_data['parent_id'],
 					'S_ADD_ACTION'		=> ($action == 'add') ? true : false,
@@ -632,7 +634,7 @@ class acp_forums
 
 					'L_COPY_PERMISSIONS_EXPLAIN'	=> $user->lang['COPY_PERMISSIONS_' . strtoupper($action) . '_EXPLAIN'],
 					'L_TITLE'						=> $user->lang[$this->page_title],
-					'ERROR_MSG'						=> (sizeof($errors)) ? implode('<br />', $errors) : '',
+					'ERROR_MSG'						=> (count($errors)) ? implode('<br />', $errors) : '',
 
 					'FORUM_NAME'				=> $forum_data['forum_name'],
 					'FORUM_DATA_LINK'			=> $forum_data['forum_link'],
@@ -676,6 +678,7 @@ class acp_forums
 					'S_ENABLE_INDEXING'			=> ($forum_data['enable_indexing']) ? true : false,
 					'S_TOPIC_ICONS'				=> ($forum_data['enable_icons']) ? true : false,
 					'S_DISPLAY_SUBFORUM_LIST'	=> ($forum_data['display_subforum_list']) ? true : false,
+					'S_DISPLAY_SUBFORUM_LIMIT'	=> ($forum_data['display_subforum_limit']) ? true : false,
 					'S_DISPLAY_ON_INDEX'		=> ($forum_data['display_on_index']) ? true : false,
 					'S_PRUNE_ENABLE'			=> ($forum_data['enable_prune']) ? true : false,
 					'S_PRUNE_SHADOW_ENABLE'			=> ($forum_data['enable_shadow_prune']) ? true : false,
@@ -772,8 +775,8 @@ class acp_forums
 					'S_FORUM_LINK'			=> ($forum_data['forum_type'] == FORUM_LINK) ? true : false,
 					'S_HAS_SUBFORUMS'		=> ($forum_data['right_id'] - $forum_data['left_id'] > 1) ? true : false,
 					'S_FORUMS_LIST'			=> $forums_list,
-					'S_ERROR'				=> (sizeof($errors)) ? true : false,
-					'ERROR_MSG'				=> (sizeof($errors)) ? implode('<br />', $errors) : '')
+					'S_ERROR'				=> (count($errors)) ? true : false,
+					'ERROR_MSG'				=> (count($errors)) ? implode('<br />', $errors) : '')
 				);
 
 				return;
@@ -924,7 +927,7 @@ class acp_forums
 		unset($rowset);
 
 		$template->assign_vars(array(
-			'ERROR_MSG'		=> (sizeof($errors)) ? implode('<br />', $errors) : '',
+			'ERROR_MSG'		=> (count($errors)) ? implode('<br />', $errors) : '',
 			'NAVIGATION'	=> $navigation,
 			'FORUM_BOX'		=> $forum_box,
 			'U_SEL_ACTION'	=> $this->u_action,
@@ -986,6 +989,23 @@ class acp_forums
 			$errors[] = $user->lang['FORUM_NAME_EMPTY'];
 		}
 
+		/**
+		 * Replace Emojis and other 4bit UTF-8 chars not allowed by MySql to UCR / NCR.
+		 * Using their Numeric Character Reference's Hexadecimal notation.
+		 */
+		$forum_data_ary['forum_name'] = utf8_encode_ucr($forum_data_ary['forum_name']);
+
+		/**
+		 * This should never happen again.
+		 * Leaving the fallback here just in case there will be the need of it.
+		 */
+		if (preg_match_all('/[\x{10000}-\x{10FFFF}]/u', $forum_data_ary['forum_name'], $matches))
+		{
+			$character_list = implode('<br>', $matches[0]);
+
+			$errors[] = $user->lang('FORUM_NAME_EMOJI', $character_list);
+		}
+
 		if (utf8_strlen($forum_data_ary['forum_desc']) > 4000)
 		{
 			$errors[] = $user->lang['FORUM_DESC_TOO_LONG'];
@@ -1012,7 +1032,7 @@ class acp_forums
 		}
 
 		$range_test_ary = array(
-			array('lang' => 'FORUM_TOPICS_PAGE', 'value' => $forum_data_ary['forum_topics_per_page'], 'column_type' => 'TINT:0'),
+			array('lang' => 'FORUM_TOPICS_PAGE', 'value' => $forum_data_ary['forum_topics_per_page'], 'column_type' => 'USINT:0'),
 		);
 
 		if (!empty($forum_data_ary['forum_image']) && !file_exists($phpbb_root_path . $forum_data_ary['forum_image']))
@@ -1053,7 +1073,7 @@ class acp_forums
 		// What are we going to do tonight Brain? The same thing we do everynight,
 		// try to take over the world ... or decide whether to continue update
 		// and if so, whether it's a new forum/cat/link or an existing one
-		if (sizeof($errors))
+		if (count($errors))
 		{
 			return $errors;
 		}
@@ -1217,12 +1237,12 @@ class acp_forums
 							$errors = array_merge($errors, $this->delete_forum_content($_row['forum_id']));
 						}
 
-						if (sizeof($errors))
+						if (count($errors))
 						{
 							return $errors;
 						}
 
-						if (sizeof($forum_ids))
+						if (count($forum_ids))
 						{
 							$sql = 'DELETE FROM ' . FORUMS_TABLE . '
 								WHERE ' . $db->sql_in_set('forum_id', $forum_ids);
@@ -1252,7 +1272,7 @@ class acp_forums
 								$allowed_forums = array_diff($allowed_forums, $forum_ids);
 
 								$sql = 'UPDATE ' . EXTENSION_GROUPS_TABLE . "
-									SET allowed_forums = '" . ((sizeof($allowed_forums)) ? serialize($allowed_forums) : '') . "'
+									SET allowed_forums = '" . ((count($allowed_forums)) ? serialize($allowed_forums) : '') . "'
 									WHERE group_id = {$_row['group_id']}";
 								$db->sql_query($sql);
 							}
@@ -1321,7 +1341,7 @@ class acp_forums
 				$forum_data_sql['forum_last_poster_colour'] = '';
 			}
 
-			if (sizeof($errors))
+			if (count($errors))
 			{
 				return $errors;
 			}
@@ -1338,7 +1358,7 @@ class acp_forums
 				}
 			}
 
-			if (sizeof($errors))
+			if (count($errors))
 			{
 				return $errors;
 			}
@@ -1416,8 +1436,8 @@ class acp_forums
 		* This event may be triggered, when a forum is deleted
 		*
 		* @event core.acp_manage_forums_move_children
-		* @var	int		from_id		If of the current parent forum
-		* @var	int		to_id		If of the new parent forum
+		* @var	int		from_id		Id of the current parent forum
+		* @var	int		to_id		Id of the new parent forum
 		* @var	array	errors		Array of errors, should be strings and not
 		*							language key.
 		* @since 3.1.0-a1
@@ -1431,12 +1451,14 @@ class acp_forums
 			return $errors;
 		}
 
+		$db->sql_transaction('begin');
+
 		$moved_forums = get_forum_branch($from_id, 'children', 'descending');
 		$from_data = $moved_forums[0];
-		$diff = sizeof($moved_forums) * 2;
+		$diff = count($moved_forums) * 2;
 
 		$moved_ids = array();
-		for ($i = 0, $size = sizeof($moved_forums); $i < $size; ++$i)
+		for ($i = 0, $size = count($moved_forums); $i < $size; ++$i)
 		{
 			$moved_ids[] = $moved_forums[$i]['forum_id'];
 		}
@@ -1502,6 +1524,8 @@ class acp_forums
 			WHERE " . $db->sql_in_set('forum_id', $moved_ids);
 		$db->sql_query($sql);
 
+		$db->sql_transaction('commit');
+
 		return $errors;
 	}
 
@@ -1518,8 +1542,8 @@ class acp_forums
 		* Event when we move content from one forum to another
 		*
 		* @event core.acp_manage_forums_move_content
-		* @var	int		from_id		If of the current parent forum
-		* @var	int		to_id		If of the new parent forum
+		* @var	int		from_id		Id of the current parent forum
+		* @var	int		to_id		Id of the new parent forum
 		* @var	bool	sync		Shall we sync the "to"-forum's data
 		* @var	array	errors		Array of errors, should be strings and not
 		*							language key. If this array is not empty,
@@ -1536,6 +1560,16 @@ class acp_forums
 		}
 
 		$table_ary = array(LOG_TABLE, POSTS_TABLE, TOPICS_TABLE, DRAFTS_TABLE, TOPICS_TRACK_TABLE);
+
+		/**
+		 * Perform additional actions before move forum content
+		 *
+		 * @event core.acp_manage_forums_move_content_sql_before
+		 * @var	array	table_ary	Array of tables from which forum_id will be updated
+		 * @since 3.2.4-RC1
+		 */
+		$vars = array('table_ary');
+		extract($phpbb_dispatcher->trigger_event('core.acp_manage_forums_move_content_sql_before', compact($vars)));
 
 		foreach ($table_ary as $table)
 		{
@@ -1554,6 +1588,19 @@ class acp_forums
 				WHERE forum_id = $from_id";
 			$db->sql_query($sql);
 		}
+
+		/**
+		 * Event when content has been moved from one forum to another
+		 *
+		 * @event core.acp_manage_forums_move_content_after
+		 * @var	int		from_id		Id of the current parent forum
+		 * @var	int		to_id		Id of the new parent forum
+		 * @var	bool	sync		Shall we sync the "to"-forum's data
+		 *
+		 * @since 3.2.9-RC1
+		 */
+		$vars = array('from_id', 'to_id', 'sync');
+		extract($phpbb_dispatcher->trigger_event('core.acp_manage_forums_move_content_after', compact($vars)));
 
 		if ($sync)
 		{
@@ -1612,7 +1659,7 @@ class acp_forums
 			}
 		}
 
-		if (sizeof($errors))
+		if (count($errors))
 		{
 			return $errors;
 		}
@@ -1628,12 +1675,12 @@ class acp_forums
 				$errors = array_merge($errors, $this->delete_forum_content($row['forum_id']));
 			}
 
-			if (sizeof($errors))
+			if (count($errors))
 			{
 				return $errors;
 			}
 
-			$diff = sizeof($forum_ids) * 2;
+			$diff = count($forum_ids) * 2;
 
 			$sql = 'DELETE FROM ' . FORUMS_TABLE . '
 				WHERE ' . $db->sql_in_set('forum_id', $forum_ids);
@@ -1706,7 +1753,7 @@ class acp_forums
 				}
 			}
 
-			if (sizeof($errors))
+			if (count($errors))
 			{
 				return $errors;
 			}
@@ -1754,7 +1801,7 @@ class acp_forums
 			$allowed_forums = array_diff($allowed_forums, $forum_ids);
 
 			$sql = 'UPDATE ' . EXTENSION_GROUPS_TABLE . "
-				SET allowed_forums = '" . ((sizeof($allowed_forums)) ? serialize($allowed_forums) : '') . "'
+				SET allowed_forums = '" . ((count($allowed_forums)) ? serialize($allowed_forums) : '') . "'
 				WHERE group_id = {$row['group_id']}";
 			$db->sql_query($sql);
 		}
@@ -1857,7 +1904,6 @@ class acp_forums
 
 		switch ($db->get_sql_layer())
 		{
-			case 'mysql4':
 			case 'mysqli':
 
 				// Delete everything else and thank MySQL for offering multi-table deletion
@@ -1927,9 +1973,9 @@ class acp_forums
 						}
 						$db->sql_freeresult($result);
 
-						if (sizeof($ids))
+						if (count($ids))
 						{
-							$start += sizeof($ids);
+							$start += count($ids);
 
 							foreach ($tables as $table)
 							{
@@ -1937,7 +1983,7 @@ class acp_forums
 							}
 						}
 					}
-					while (sizeof($ids) == $batch_size);
+					while (count($ids) == $batch_size);
 				}
 				unset($ids);
 
@@ -1978,7 +2024,7 @@ class acp_forums
 		}
 
 		// Adjust users post counts
-		if (sizeof($post_counts))
+		if (count($post_counts))
 		{
 			foreach ($post_counts as $poster_id => $substract)
 			{
@@ -2062,7 +2108,7 @@ class acp_forums
 		}
 		$db->sql_freeresult($result);
 
-		if (!sizeof($target))
+		if (!count($target))
 		{
 			// The forum is already on top or bottom
 			return false;

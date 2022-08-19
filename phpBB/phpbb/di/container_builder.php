@@ -13,8 +13,6 @@
 
 namespace phpbb\di;
 
-use phpbb\filesystem\filesystem;
-use Symfony\Bridge\ProxyManager\LazyProxy\Instantiator\RuntimeInstantiator;
 use Symfony\Bridge\ProxyManager\LazyProxy\PhpDumper\ProxyDumper;
 use Symfony\Component\Config\ConfigCache;
 use Symfony\Component\Config\FileLocator;
@@ -26,6 +24,7 @@ use Symfony\Component\EventDispatcher\DependencyInjection\RegisterListenersPass;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\HttpKernel\DependencyInjection\MergeExtensionConfigurationPass;
+use phpbb\filesystem\helper as filesystem_helper;
 
 class container_builder
 {
@@ -50,6 +49,11 @@ class container_builder
 	 * @var ContainerBuilder
 	 */
 	protected $container;
+
+	/**
+	 * @var \phpbb\db\driver\driver_interface
+	 */
+	protected $dbal_connection = null;
 
 	/**
 	 * Indicates whether extensions should be used (default to true).
@@ -113,6 +117,11 @@ class container_builder
 	private $build_exception;
 
 	/**
+	 * @var array
+	 */
+	private $env_parameters = [];
+
+	/**
 	 * Constructor
 	 *
 	 * @param string $phpbb_root_path Path to the phpbb includes directory.
@@ -120,8 +129,14 @@ class container_builder
 	 */
 	public function __construct($phpbb_root_path, $php_ext)
 	{
-		$this->phpbb_root_path = $phpbb_root_path;
-		$this->php_ext = $php_ext;
+		$this->phpbb_root_path	= $phpbb_root_path;
+		$this->php_ext			= $php_ext;
+		$this->env_parameters	= $this->get_env_parameters();
+
+		if (isset($this->env_parameters['core.cache_dir']))
+		{
+			$this->with_cache_dir($this->env_parameters['core.cache_dir']);
+		}
 	}
 
 	/**
@@ -133,26 +148,47 @@ class container_builder
 	{
 		try
 		{
-			$container_filename = $this->get_container_filename();
-			$config_cache = new ConfigCache($container_filename, defined('DEBUG'));
-			if ($this->use_cache && $config_cache->isFresh())
+			$build_container = true;
+
+			if ($this->use_cache)
 			{
 				if ($this->use_extensions)
 				{
+					$autoload_cache = new ConfigCache($this->get_autoload_filename(), defined('DEBUG'));
+
+					if (!$autoload_cache->isFresh())
+					{
+						// autoload cache should be refreshed
+						$this->load_extensions();
+					}
+
 					require($this->get_autoload_filename());
 				}
 
-				require($config_cache->getPath());
-				$this->container = new \phpbb_cache_container();
+				$container_filename = $this->get_container_filename();
+				$config_cache = new ConfigCache($container_filename, defined('DEBUG'));
+
+				if ($config_cache->isFresh())
+				{
+					require($config_cache->getPath());
+					$this->container = new \phpbb_cache_container();
+					$build_container = false;
+				}
 			}
-			else
+
+			if ($build_container)
 			{
-				$this->container_extensions = array(new extension\core($this->get_config_path()));
+				$this->container_extensions = [
+					new extension\core($this->get_config_path()),
+				];
 
 				if ($this->use_extensions)
 				{
 					$this->load_extensions();
 				}
+
+				// Add tables extension after all extensions
+				$this->container_extensions[] = new extension\tables();
 
 				// Inject the config
 				if ($this->config_php_file)
@@ -165,6 +201,9 @@ class container_builder
 				// Easy collections through tags
 				$this->container->addCompilerPass(new pass\collection_pass());
 
+				// Mark all services public
+				$this->container->addCompilerPass(new pass\markpublic_pass());
+
 				// Event listeners "phpBB style"
 				$this->container->addCompilerPass(new RegisterListenersPass('dispatcher', 'event.listener_listener', 'event.listener'));
 
@@ -176,8 +215,7 @@ class container_builder
 					$this->register_ext_compiler_pass();
 				}
 
-				$filesystem = new filesystem();
-				$loader     = new YamlFileLoader($this->container, new FileLocator($filesystem->realpath($this->get_config_path())));
+				$loader     = new YamlFileLoader($this->container, new FileLocator(filesystem_helper::realpath($this->get_config_path())));
 				$loader->load($this->container->getParameter('core.environment') . '/config.yml');
 
 				$this->inject_custom_parameters();
@@ -197,6 +235,8 @@ class container_builder
 			{
 				$this->container->set('config.php', $this->config_php_file);
 			}
+
+			$this->inject_dbal_driver();
 
 			return $this->container;
 		}
@@ -409,6 +449,12 @@ class container_builder
 			$ext_container->register('cache.driver', '\\phpbb\\cache\\driver\\dummy');
 			$ext_container->compile();
 
+			$config = $ext_container->get('config');
+			if (@is_file($this->phpbb_root_path . $config['exts_composer_vendor_dir'] . '/autoload.php'))
+			{
+				require_once($this->phpbb_root_path . $config['exts_composer_vendor_dir'] . '/autoload.php');
+			}
+
 			$extensions = $ext_container->get('ext.manager')->all_enabled();
 
 			// Load each extension found
@@ -468,7 +514,7 @@ class container_builder
 
 			$cached_container_dump = $dumper->dump(array(
 				'class'      => 'phpbb_cache_container',
-				'base_class' => 'Symfony\\Component\\DependencyInjection\\ContainerBuilder',
+				'base_class' => 'Symfony\\Component\\DependencyInjection\\Container',
 			));
 
 			$cache->write($cached_container_dump, $this->container->getResources());
@@ -488,7 +534,7 @@ class container_builder
 	protected function create_container(array $extensions)
 	{
 		$container = new ContainerBuilder(new ParameterBag($this->get_core_parameters()));
-		$container->setProxyInstantiator(new RuntimeInstantiator());
+		$container->setProxyInstantiator(new proxy_instantiator($this->get_cache_dir()));
 
 		$extensions_alias = array();
 
@@ -512,7 +558,38 @@ class container_builder
 		{
 			$this->container->setParameter($key, $value);
 		}
+	}
 
+	/**
+	 * Inject the dbal connection driver into container
+	 */
+	protected function inject_dbal_driver()
+	{
+		if (empty($this->config_php_file))
+		{
+			return;
+		}
+
+		$config_data = $this->config_php_file->get_all();
+		if (!empty($config_data))
+		{
+			if ($this->dbal_connection === null)
+			{
+				$dbal_driver_class = \phpbb\config_php_file::convert_30_dbms_to_31($this->config_php_file->get('dbms'));
+				/** @var \phpbb\db\driver\driver_interface $dbal_connection */
+				$this->dbal_connection = new $dbal_driver_class();
+				$this->dbal_connection->sql_connect(
+					$this->config_php_file->get('dbhost'),
+					$this->config_php_file->get('dbuser'),
+					$this->config_php_file->get('dbpasswd'),
+					$this->config_php_file->get('dbname'),
+					$this->config_php_file->get('dbport'),
+					false,
+					defined('PHPBB_DB_NEW_LINK') && PHPBB_DB_NEW_LINK
+				);
+			}
+			$this->container->set('dbal.conn.driver', $this->dbal_connection);
+		}
 	}
 
 	/**
@@ -523,14 +600,14 @@ class container_builder
 	protected function get_core_parameters()
 	{
 		return array_merge(
-			array(
+			[
 				'core.root_path'     => $this->phpbb_root_path,
 				'core.php_ext'       => $this->php_ext,
 				'core.environment'   => $this->get_environment(),
 				'core.debug'         => defined('DEBUG') ? DEBUG : false,
 				'core.cache_dir'     => $this->get_cache_dir(),
-			),
-			$this->get_env_parameters()
+			],
+			$this->env_parameters
 		);
 	}
 

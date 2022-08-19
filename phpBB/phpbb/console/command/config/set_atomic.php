@@ -12,10 +12,12 @@
 */
 namespace phpbb\console\command\config;
 
+use Symfony\Component\Console\Command\Command as symfony_command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 class set_atomic extends command
 {
@@ -60,11 +62,13 @@ class set_atomic extends command
 	* @param InputInterface  $input  An InputInterface instance
 	* @param OutputInterface $output An OutputInterface instance
 	*
-	* @return bool True if the value was changed, false otherwise.
+	* @return int 0 if the value was changed, 1 otherwise.
 	* @see \phpbb\config\config::set_atomic()
 	*/
 	protected function execute(InputInterface $input, OutputInterface $output)
 	{
+		$io = new SymfonyStyle($input, $output);
+
 		$key = $input->getArgument('key');
 		$old_value = $input->getArgument('old');
 		$new_value = $input->getArgument('new');
@@ -72,13 +76,13 @@ class set_atomic extends command
 
 		if ($this->config->set_atomic($key, $old_value, $new_value, $use_cache))
 		{
-			$output->writeln('<info>' . $this->user->lang('CLI_CONFIG_SET_SUCCESS', $key) . '</info>');
-			return 0;
+			$io->success($this->user->lang('CLI_CONFIG_SET_SUCCESS', $key));
+			return symfony_command::SUCCESS;
 		}
 		else
 		{
-			$output->writeln('<error>' . $this->user->lang('CLI_CONFIG_SET_FAILURE', $key) . '</error>');
-			return 1;
+			$io->error($this->user->lang('CLI_CONFIG_SET_FAILURE', $key));
+			return symfony_command::FAILURE;
 		}
 	}
 }

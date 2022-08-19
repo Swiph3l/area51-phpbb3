@@ -29,7 +29,7 @@ class softdelete_mcp_modules extends \phpbb\db\migration\migration
 		return $module_id !== false;
 	}
 
-	static public function depends_on()
+	public static function depends_on()
 	{
 		return array(
 			'\phpbb\db\migration\data\v310\dev',
@@ -45,7 +45,9 @@ class softdelete_mcp_modules extends \phpbb\db\migration\migration
 				'MCP_QUEUE',
 				array(
 					'module_basename'	=> 'mcp_queue',
-					'modes'				=> array('deleted_topics'),
+					'module_langname'	=> 'MCP_QUEUE_DELETED_TOPICS',
+					'module_mode'		=> 'deleted_topics',
+					'module_auth'		=> 'aclf_m_approve',
 				),
 			)),
 			array('module.add', array(
@@ -53,7 +55,9 @@ class softdelete_mcp_modules extends \phpbb\db\migration\migration
 				'MCP_QUEUE',
 				array(
 					'module_basename'	=> 'mcp_queue',
-					'modes'				=> array('deleted_posts'),
+					'module_langname'	=> 'MCP_QUEUE_DELETED_POSTS',
+					'module_mode'		=> 'deleted_posts',
+					'module_auth'		=> 'aclf_m_approve',
 				),
 			)),
 		);

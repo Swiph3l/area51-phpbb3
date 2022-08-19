@@ -11,9 +11,11 @@ services:
             - '%core.template.cache_path%'
             - '@ext.manager'
             - '@template.twig.loader'
+            - '@dispatcher'
             - []
         calls:
             - [setLexer, ['@template.twig.lexer']]
+            - [addGlobal, ['config', '@config']]
 
     template.twig.lexer:
         class: phpbb\template\twig\lexer
@@ -23,8 +25,6 @@ services:
 
     template.twig.loader:
         class: phpbb\template\twig\loader
-        arguments:
-            - '@filesystem'
 
     template.twig.extensions.collection:
         class: phpbb\di\service_collection
@@ -37,7 +37,20 @@ services:
         class: phpbb\template\twig\extension
         arguments:
             - '@template_context'
+            - '@template.twig.environment'
             - '@language'
+        tags:
+            - { name: twig.extension }
+
+    template.twig.extensions.avatar:
+        class: phpbb\template\twig\extension\avatar
+        tags:
+            - { name: twig.extension }
+
+    template.twig.extensions.config:
+        class: phpbb\template\twig\extension\config
+        arguments:
+            - '@config'
         tags:
             - { name: twig.extension }
 
@@ -48,8 +61,13 @@ services:
         tags:
             - { name: twig.extension }
 
+    template.twig.extensions.username:
+        class: phpbb\template\twig\extension\username
+        tags:
+            - { name: twig.extension }
+
     template.twig.extensions.debug:
-        class: Twig_Extension_Debug
+        class: Twig\Extension\DebugExtension
 
     template:
         class: phpbb\template\twig\twig

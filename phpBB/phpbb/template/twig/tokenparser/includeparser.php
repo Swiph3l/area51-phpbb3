@@ -14,16 +14,16 @@
 
 namespace phpbb\template\twig\tokenparser;
 
-class includeparser extends \Twig_TokenParser_Include
+class includeparser extends \Twig\TokenParser\IncludeTokenParser
 {
 	/**
 	* Parses a token and returns a node.
 	*
-	* @param \Twig_Token $token A Twig_Token instance
+	* @param \Twig\Token $token A Twig\Token instance
 	*
-	* @return \Twig_NodeInterface A Twig_NodeInterface instance
+	* @return \Twig\Node\Node A Twig\Node instance
 	*/
-	public function parse(\Twig_Token $token)
+	public function parse(\Twig\Token $token) : \Twig\Node\Node
 	{
 		$expr = $this->parser->getExpressionParser()->parseExpression();
 
@@ -37,7 +37,7 @@ class includeparser extends \Twig_TokenParser_Include
 	*
 	* @return string The tag name
 	*/
-	public function getTag()
+	public function getTag() : string
 	{
 		return 'INCLUDE';
 	}

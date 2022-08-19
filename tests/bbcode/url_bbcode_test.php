@@ -11,8 +11,8 @@
 *
 */
 
-require_once dirname(__FILE__) . '/../../phpBB/includes/bbcode.php';
-require_once dirname(__FILE__) . '/../../phpBB/includes/message_parser.php';
+require_once __DIR__ . '/../../phpBB/includes/bbcode.php';
+require_once __DIR__ . '/../../phpBB/includes/message_parser.php';
 
 class phpbb_url_bbcode_test extends phpbb_test_case
 {
@@ -52,9 +52,10 @@ class phpbb_url_bbcode_test extends phpbb_test_case
 	*/
 	public function test_url($description, $message, $expected)
 	{
-		global $user, $request;
+		global $user, $request, $symfony_request;
 		$user = new phpbb_mock_user;
 		$request = new phpbb_mock_request;
+		$symfony_request = new \phpbb\symfony_request($request);
 
 		$bbcode = new bbcode_firstpass();
 		$bbcode->message = $message;

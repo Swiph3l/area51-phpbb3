@@ -1,3 +1,5 @@
+/* global phpbb */
+
 /**
 * bbCode control by subBlue design [ www.subBlue.com ]
 * Includes unixsafe colour palette selector by SHS`
@@ -18,16 +20,9 @@ var is_win = ((clientPC.indexOf('win') !== -1) || (clientPC.indexOf('16bit') !==
 var baseHeight;
 
 /**
-* Shows the help messages in the helpline window
-*/
-function helpline(help) {
-	document.forms[form_name].helpbox.value = help_line[help];
-}
-
-/**
 * Fix a bug involving the TextRange object. From
 * http://www.frostjedi.com/terra/scripts/demo/caretBug.html
-*/ 
+*/
 function initInsertions() {
 	var doc;
 
@@ -104,8 +99,8 @@ function bbfontstyle(bbopen, bbclose) {
 	}
 	// IE
 	else if (document.selection) {
-		var range = textarea.createTextRange(); 
-		range.move("character", new_pos); 
+		var range = textarea.createTextRange();
+		range.move("character", new_pos);
 		range.select();
 		storeCaret(textarea);
 	}
@@ -417,7 +412,7 @@ function getCaretPosition(txtarea) {
 
 		$('textarea').on('keydown', function (e) {
 			if (e.which === 13 && (e.metaKey || e.ctrlKey)) {
-				$(this).closest('form').submit();
+				$(this).closest('form').find(':submit').click();
 			}
 		});
 	});

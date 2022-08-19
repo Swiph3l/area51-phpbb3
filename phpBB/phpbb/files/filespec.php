@@ -18,6 +18,8 @@ use phpbb\language\language;
 /**
  * Responsible for holding all file relevant information, as well as doing file-specific operations.
  * The {@link fileupload fileupload class} can be used to upload several files, each of them being this object to operate further on.
+ *
+ * @deprecated 4.0.0	Use phpbb\files\filespec_storage instead
  */
 class filespec
 {
@@ -84,10 +86,10 @@ class filespec
 	/** @var string phpBB root path */
 	protected $phpbb_root_path;
 
-	/** @var \phpbb\plupload\plupload The plupload object */
+	/** @var \phpbb\plupload\plupload|null The plupload object */
 	protected $plupload;
 
-	/** @var \phpbb\mimetype\guesser phpBB Mimetype guesser */
+	/** @var \phpbb\mimetype\guesser|null phpBB Mimetype guesser */
 	protected $mimetype_guesser;
 
 	/**
@@ -98,8 +100,8 @@ class filespec
 	 * @param \bantu\IniGetWrapper\IniGetWrapper			$php_ini ini_get() wrapper
 	 * @param \FastImageSize\FastImageSize $imagesize Imagesize class
 	 * @param string					$phpbb_root_path phpBB root path
-	 * @param \phpbb\mimetype\guesser	$mimetype_guesser Mime type guesser
-	 * @param \phpbb\plupload\plupload	$plupload Plupload
+	 * @param \phpbb\mimetype\guesser|null	$mimetype_guesser Mime type guesser
+	 * @param \phpbb\plupload\plupload|null	$plupload Plupload
 	 */
 	public function __construct(\phpbb\filesystem\filesystem_interface $phpbb_filesystem, language $language, \bantu\IniGetWrapper\IniGetWrapper $php_ini, \FastImageSize\FastImageSize $imagesize, $phpbb_root_path, \phpbb\mimetype\guesser $mimetype_guesser = null, \phpbb\plupload\plupload $plupload = null)
 	{
@@ -121,7 +123,7 @@ class filespec
 	 */
 	public function set_upload_ary($upload_ary)
 	{
-		if (!isset($upload_ary) || !sizeof($upload_ary))
+		if (!isset($upload_ary) || !count($upload_ary))
 		{
 			return $this;
 		}
@@ -129,7 +131,7 @@ class filespec
 		$this->class_initialized = true;
 		$this->filename = $upload_ary['tmp_name'];
 		$this->filesize = $upload_ary['size'];
-		$name = (STRIP) ? stripslashes($upload_ary['name']) : $upload_ary['name'];
+		$name = $upload_ary['name'];
 		$name = trim(utf8_basename($name));
 		$this->realname = $this->uploadname = $name;
 		$this->mimetype = $upload_ary['type'];
@@ -310,7 +312,7 @@ class filespec
 	 *
 	 * @return string Extension of the supplied filename
 	 */
-	static public function get_extension($filename)
+	public static function get_extension($filename)
 	{
 		$filename = utf8_basename($filename);
 
@@ -403,12 +405,12 @@ class filespec
 	 */
 	public function move_file($destination, $overwrite = false, $skip_image_check = false, $chmod = false)
 	{
-		if (sizeof($this->error))
+		if (count($this->error))
 		{
 			return false;
 		}
 
-		$chmod = ($chmod === false) ? CHMOD_READ | CHMOD_WRITE : $chmod;
+		$chmod = ($chmod === false) ? \phpbb\filesystem\filesystem_interface::CHMOD_READ | \phpbb\filesystem\filesystem_interface::CHMOD_WRITE : $chmod;
 
 		// We need to trust the admin in specifying valid upload directories and an attacker not being able to overwrite it...
 		$this->destination_path = $this->phpbb_root_path . $destination;
@@ -420,7 +422,7 @@ class filespec
 			return false;
 		}
 
-		$upload_mode = ($this->php_ini->getBool('open_basedir') || $this->php_ini->getBool('safe_mode')) ? 'move' : 'copy';
+		$upload_mode = ($this->php_ini->getBool('open_basedir')) ? 'move' : 'copy';
 		$upload_mode = ($this->local) ? 'local' : $upload_mode;
 		$this->destination_file = $this->destination_path . '/' . utf8_basename($this->realname);
 
@@ -478,7 +480,7 @@ class filespec
 			// Remove temporary filename
 			@unlink($this->filename);
 
-			if (sizeof($this->error))
+			if (count($this->error))
 			{
 				return false;
 			}

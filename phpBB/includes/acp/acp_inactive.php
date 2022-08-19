@@ -24,9 +24,9 @@ class acp_inactive
 	var $u_action;
 	var $p_master;
 
-	function acp_inactive(&$p_master)
+	function __construct($p_master)
 	{
-		$this->p_master = &$p_master;
+		$this->p_master = $p_master;
 	}
 
 	function main($id, $mode)
@@ -70,7 +70,7 @@ class acp_inactive
 		$s_limit_days = $s_sort_key = $s_sort_dir = $u_sort_param = '';
 		gen_sort_selects($limit_days, $sort_by_text, $sort_days, $sort_key, $sort_dir, $s_limit_days, $s_sort_key, $s_sort_dir, $u_sort_param);
 
-		if ($submit && sizeof($mark))
+		if ($submit && count($mark))
 		{
 			if ($action !== 'delete' && !check_form_key($form_key))
 			{
@@ -130,7 +130,7 @@ class acp_inactive
 								$messenger->anti_abuse_headers($config, $user);
 
 								$messenger->assign_vars(array(
-									'USERNAME'	=> htmlspecialchars_decode($row['username']))
+									'USERNAME'	=> htmlspecialchars_decode($row['username'], ENT_COMPAT))
 								);
 
 								$messenger->send(NOTIFY_EMAIL);
@@ -224,7 +224,7 @@ class acp_inactive
 							$messenger->anti_abuse_headers($config, $user);
 
 							$messenger->assign_vars(array(
-								'USERNAME'		=> htmlspecialchars_decode($row['username']),
+								'USERNAME'		=> htmlspecialchars_decode($row['username'], ENT_COMPAT),
 								'REGISTER_DATE'	=> $user->format_date($row['user_regdate'], false, true),
 								'U_ACTIVATE'	=> generate_board_url() . "/ucp.$phpEx?mode=activate&u=" . $row['user_id'] . '&k=' . $row['user_actkey'])
 							);

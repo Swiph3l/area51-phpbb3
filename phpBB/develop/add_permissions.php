@@ -156,6 +156,7 @@ $u_permissions = array(
 	'u_download'	=> array(0, 1),
 	'u_attach'		=> array(0, 1),
 	'u_sig'			=> array(0, 1),
+	'u_emoji'		=> array(0, 1),
 	'u_pm_attach'	=> array(0, 1),
 	'u_pm_bbcode'	=> array(0, 1),
 	'u_pm_smilies'	=> array(0, 1),
@@ -185,7 +186,7 @@ while ($row = $db->sql_fetchrow($result))
 }
 $db->sql_freeresult($result);
 
-if (sizeof($remove_auth_options))
+if (count($remove_auth_options))
 {
 	$db->sql_query('DELETE FROM ' . ACL_USERS_TABLE . ' WHERE auth_option_id IN (' . implode(', ', $remove_auth_options) . ')');
 	$db->sql_query('DELETE FROM ' . ACL_GROUPS_TABLE . ' WHERE auth_option_id IN (' . implode(', ', $remove_auth_options) . ')');
@@ -199,7 +200,7 @@ $prefixes = array('f_', 'a_', 'm_', 'u_');
 foreach ($prefixes as $prefix)
 {
 	$var = $prefix . 'permissions';
-	if (sizeof(${$var}))
+	if (count(${$var}))
 	{
 		foreach (${$var} as $auth_option => $l_ary)
 		{
@@ -210,7 +211,7 @@ foreach ($prefixes as $prefix)
 			);
 
 			$db->sql_query('INSERT INTO ' . ACL_OPTIONS_TABLE . ' ' . $db->sql_build_array('INSERT', $sql_ary));
-		
+
 			echo "<p><b>Adding $auth_option...</b></p>\n";
 
 			mass_auth('group', 0, 'guests', $auth_option, ACL_NEVER);
@@ -231,7 +232,7 @@ $db->sql_query($sql);
 $cache->destroy('_acl_options');
 
 echo "<p><b>Done</b></p>\n";
- 
+
 /*
 	$ug_type = user|group
 	$forum_id = forum ids (array|int|0) -> 0 == all forums
@@ -374,12 +375,6 @@ function mass_auth($ug_type, $forum_id, $ug_id, $acl_list, $setting)
 			case 'insert':
 				switch ($db->get_sql_layer())
 				{
-					case 'mysql':
-					case 'mysql4':
-						$sql = 'VALUES ' . implode(', ', preg_replace('#^(.*?)$#', '(\1)', $sql_subary));
-						break;
-
-					case 'sqlite':
 					case 'sqlite3':
 						$sql = implode(' UNION ALL ', preg_replace('#^(.*?)$#', 'SELECT \1', $sql_subary));
 						break;

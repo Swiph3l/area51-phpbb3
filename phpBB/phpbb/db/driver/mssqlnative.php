@@ -50,7 +50,8 @@ class mssqlnative extends \phpbb\db\driver\mssql_base
 		$this->db_connect_id = sqlsrv_connect($this->server, array(
 			'Database' => $this->dbname,
 			'UID' => $this->user,
-			'PWD' => $sqlpassword
+			'PWD' => $sqlpassword,
+			'CharacterSet' => 'UTF-8'
 		));
 
 		return ($this->db_connect_id) ? $this->db_connect_id : $this->sql_error('');
@@ -122,12 +123,11 @@ class mssqlnative extends \phpbb\db\driver\mssql_base
 		{
 			global $cache;
 
-			// EXPLAIN only in extra debug mode
-			if (defined('DEBUG'))
+			if ($this->debug_sql_explain)
 			{
 				$this->sql_report('start', $query);
 			}
-			else if (defined('PHPBB_DISPLAY_LOAD_TIME'))
+			else if ($this->debug_load_time)
 			{
 				$this->curtime = microtime(true);
 			}
@@ -145,11 +145,11 @@ class mssqlnative extends \phpbb\db\driver\mssql_base
 				// reset options for next query
 				$this->query_options = array();
 
-				if (defined('DEBUG'))
+				if ($this->debug_sql_explain)
 				{
 					$this->sql_report('stop', $query);
 				}
-				else if (defined('PHPBB_DISPLAY_LOAD_TIME'))
+				else if ($this->debug_load_time)
 				{
 					$this->sql_time += microtime(true) - $this->curtime;
 				}
@@ -169,7 +169,7 @@ class mssqlnative extends \phpbb\db\driver\mssql_base
 					$this->open_queries[(int) $this->query_result] = $this->query_result;
 				}
 			}
-			else if (defined('DEBUG'))
+			else if ($this->debug_sql_explain)
 			{
 				$this->sql_report('fromcache', $query);
 			}
@@ -267,7 +267,7 @@ class mssqlnative extends \phpbb\db\driver\mssql_base
 				unset($row['line2'], $row['line3']);
 			}
 		}
-		return (sizeof($row)) ? $row : false;
+		return ($row !== null) ? $row : false;
 	}
 
 	/**

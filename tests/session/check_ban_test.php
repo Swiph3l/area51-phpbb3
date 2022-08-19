@@ -11,18 +11,19 @@
 *
 */
 
-require_once dirname(__FILE__) . '/../test_framework/phpbb_session_test_case.php';
+require_once __DIR__ . '/../test_framework/phpbb_session_test_case.php';
 
 class phpbb_session_check_ban_test extends phpbb_session_test_case
 {
 	protected $user_id = 4;
 	protected $key_id = 4;
+	/** @var \phpbb\session */
 	protected $session;
 	protected $backup_cache;
 
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/sessions_banlist.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/sessions_banlist.xml');
 	}
 
 	static function check_banned_data()
@@ -37,11 +38,21 @@ class phpbb_session_check_ban_test extends phpbb_session_test_case
 		);
 	}
 
-	public function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 		// Get session here so that config is mocked correctly
 		$this->session = $this->session_factory->get_session($this->db);
+		$this->session->data['user_id'] = ANONYMOUS; // Don't get into the session_kill() procedure
+		$this->session->lang = [
+			'BOARD_BAN_TIME'	=> 'BOARD_BAN_TIME',
+			'BOARD_BAN_PERM'	=> 'BOARD_BAN_PERM',
+			'BOARD_BAN_REASON'	=> 'BOARD_BAN_REASON',
+			'BAN_TRIGGERED_BY_EMAIL'	=> 'BAN_TRIGGERED_BY_EMAIL',
+			'BAN_TRIGGERED_BY_IP'		=> 'BAN_TRIGGERED_BY_IP',
+			'BAN_TRIGGERED_BY_USER'		=> 'BAN_TRIGGERED_BY_USER',
+		];
+
 		global $cache, $config, $phpbb_root_path, $phpEx, $phpbb_filesystem;
 
 		$phpbb_filesystem = new \phpbb\filesystem\filesystem();
@@ -59,7 +70,7 @@ class phpbb_session_check_ban_test extends phpbb_session_test_case
 		);
 	}
 
-	public function tearDown()
+	protected function tearDown(): void
 	{
 		parent::tearDown();
 		// Set cache back to what it was before the test changed it
@@ -72,9 +83,10 @@ class phpbb_session_check_ban_test extends phpbb_session_test_case
 	{
 		try
 		{
-			$is_banned = $this->session->check_ban($user_id, $user_ips, $user_email, $return);
+			$ban = $this->session->check_ban($user_id, $user_ips, $user_email, $return);
+			$is_banned = !empty($ban);
 		}
-		catch (PHPUnit_Framework_Error_Notice $e)
+		catch (PHPUnit\Framework\Error\Notice $e)
 		{
 			// User error was triggered, user must have been banned
 			$is_banned = true;

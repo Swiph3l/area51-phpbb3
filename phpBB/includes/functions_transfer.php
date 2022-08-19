@@ -38,7 +38,7 @@ class transfer
 	/**
 	* Constructor - init some basic values
 	*/
-	function transfer()
+	function __construct()
 	{
 		global $phpbb_root_path;
 
@@ -112,7 +112,7 @@ class transfer
 		$dir = explode('/', $dir);
 		$dirs = '';
 
-		for ($i = 0, $total = sizeof($dir); $i < $total; $i++)
+		for ($i = 0, $total = count($dir); $i < $total; $i++)
 		{
 			$result = true;
 
@@ -237,7 +237,7 @@ class transfer
 	/**
 	* Determine methods able to be used
 	*/
-	static public function methods()
+	public static function methods()
 	{
 		$methods = array();
 		$disabled_functions = explode(',', @ini_get('disable_functions'));
@@ -264,7 +264,7 @@ class ftp extends transfer
 	/**
 	* Standard parameters for FTP session
 	*/
-	function ftp($host, $username, $password, $root_path, $port = 21, $timeout = 10)
+	function __construct($host, $username, $password, $root_path, $port = 21, $timeout = 10)
 	{
 		$this->host			= $host;
 		$this->port			= $port;
@@ -289,7 +289,7 @@ class ftp extends transfer
 	/**
 	* Requests data
 	*/
-	static public function data()
+	public static function data()
 	{
 		global $user;
 
@@ -512,7 +512,7 @@ class ftp_fsock extends transfer
 	/**
 	* Standard parameters for FTP session
 	*/
-	function ftp_fsock($host, $username, $password, $root_path, $port = 21, $timeout = 10)
+	function __construct($host, $username, $password, $root_path, $port = 21, $timeout = 10)
 	{
 		$this->host			= $host;
 		$this->port			= $port;
@@ -529,7 +529,7 @@ class ftp_fsock extends transfer
 		}
 
 		// Init some needed values
-		$this->transfer();
+		parent::__construct();
 
 		return;
 	}
@@ -537,7 +537,7 @@ class ftp_fsock extends transfer
 	/**
 	* Requests data
 	*/
-	static public function data()
+	public static function data()
 	{
 		global $user;
 
@@ -810,7 +810,7 @@ class ftp_fsock extends transfer
 			$server_ip = substr($socket_name, 0, strrpos($socket_name, ':'));
 		}
 
-		if (!isset($server_ip) || preg_match(get_preg_expression('ipv4'), $server_ip))
+		if (isset($server_ip) && filter_var($server_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) // ipv4
 		{
 			// Passive mode
 			$this->_send_command('PASV', '', false);
@@ -831,7 +831,7 @@ class ftp_fsock extends transfer
 			$server_ip = $temp[0] . '.' . $temp[1] . '.' . $temp[2] . '.' . $temp[3];
 			$server_port = $temp[4] * 256 + $temp[5];
 		}
-		else
+		else // ipv6
 		{
 			// Extended Passive Mode - RFC2428
 			$this->_send_command('EPSV', '', false);

@@ -76,6 +76,16 @@ abstract class driver implements driver_interface
 	const SUBQUERY_BUILD = 5;
 
 	/**
+	* @var bool
+	*/
+	protected $debug_load_time = false;
+
+	/**
+	* @var bool
+	*/
+	protected $debug_sql_explain = false;
+
+	/**
 	* Constructor
 	*/
 	function __construct()
@@ -93,6 +103,22 @@ abstract class driver implements driver_interface
 		// Do not change this please! This variable is used to easy the use of it - and is hardcoded.
 		$this->any_char = chr(0) . '%';
 		$this->one_char = chr(0) . '_';
+	}
+
+	/**
+	* {@inheritdoc}
+	*/
+	public function set_debug_load_time($value)
+	{
+		$this->debug_load_time = $value;
+	}
+
+	/**
+	* {@inheritdoc}
+	*/
+	public function set_debug_sql_explain($value)
+	{
+		$this->debug_sql_explain = $value;
 	}
 
 	/**
@@ -537,7 +563,9 @@ abstract class driver implements driver_interface
 	*/
 	function sql_in_set($field, $array, $negate = false, $allow_empty_set = false)
 	{
-		if (!sizeof($array))
+		$array = (array) $array;
+
+		if (!count($array))
 		{
 			if (!$allow_empty_set)
 			{
@@ -559,12 +587,7 @@ abstract class driver implements driver_interface
 			}
 		}
 
-		if (!is_array($array))
-		{
-			$array = array($array);
-		}
-
-		if (sizeof($array) == 1)
+		if (count($array) == 1)
 		{
 			@reset($array);
 			$var = current($array);
@@ -632,7 +655,7 @@ abstract class driver implements driver_interface
 	*/
 	function sql_multi_insert($table, $sql_ary)
 	{
-		if (!sizeof($sql_ary))
+		if (!count($sql_ary))
 		{
 			return false;
 		}
@@ -738,7 +761,7 @@ abstract class driver implements driver_interface
 				// We run the following code to determine if we need to re-order the table array. ;)
 				// The reason for this is that for multi-aliased tables (two equal tables) in the FROM statement the last table need to match the first comparison.
 				// DBMS who rely on this: Oracle, PostgreSQL and MSSQL. For all other DBMS it makes absolutely no difference in which order the table is.
-				if (!empty($array['LEFT_JOIN']) && sizeof($array['FROM']) > 1 && $used_multi_alias !== false)
+				if (!empty($array['LEFT_JOIN']) && count($array['FROM']) > 1 && $used_multi_alias !== false)
 				{
 					// Take first LEFT JOIN
 					$join = current($array['LEFT_JOIN']);
@@ -848,7 +871,7 @@ abstract class driver implements driver_interface
 
 				default:
 
-					switch (sizeof($condition))
+					switch (count($condition))
 					{
 						case 3:
 
@@ -906,9 +929,10 @@ abstract class driver implements driver_interface
 
 							// Subquery with {left hand} {operator} {compare kind} {SELECT Kind } {Sub Query}
 
-							$condition = $condition[self::LEFT_STMT] . ' ' . $condition[self::COMPARE_OP] . ' ' . $condition[self::SUBQUERY_OP] . ' ( ';
-							$condition .= $this->sql_build_query($condition[self::SUBQUERY_SELECT_TYPE], $condition[self::SUBQUERY_BUILD]);
-							$condition .= ' )';
+							$result = $condition[self::LEFT_STMT] . ' ' . $condition[self::COMPARE_OP] . ' ' . $condition[self::SUBQUERY_OP] . ' ( ';
+							$result .= $this->sql_build_query($condition[self::SUBQUERY_SELECT_TYPE], $condition[self::SUBQUERY_BUILD]);
+							$result .= ' )';
+							$condition = $result;
 
 						break;
 
@@ -957,9 +981,9 @@ abstract class driver implements driver_interface
 			// Show complete SQL error and path to administrators only
 			// Additionally show complete error on installation or if extended debug mode is enabled
 			// The DEBUG constant is for development only!
-			if ((isset($auth) && $auth->acl_get('a_')) || defined('IN_INSTALL') || defined('DEBUG'))
+			if ((isset($auth) && $auth->acl_get('a_')) || defined('IN_INSTALL') || $this->debug_sql_explain)
 			{
-				$message .= ($sql) ? '<br /><br />SQL<br /><br />' . htmlspecialchars($sql) : '';
+				$message .= ($sql) ? '<br /><br />SQL<br /><br />' . htmlspecialchars($sql, ENT_COMPAT) : '';
 			}
 			else
 			{
@@ -973,7 +997,7 @@ abstract class driver implements driver_interface
 				{
 					if (!empty($config['board_contact']))
 					{
-						$message .= '<br /><br />' . sprintf($user->lang['SQL_ERROR_OCCURRED'], '<a href="mailto:' . htmlspecialchars($config['board_contact']) . '">', '</a>');
+						$message .= '<br /><br />' . sprintf($user->lang['SQL_ERROR_OCCURRED'], '<a href="mailto:' . htmlspecialchars($config['board_contact'], ENT_COMPAT) . '">', '</a>');
 					}
 					else
 					{
@@ -1013,12 +1037,6 @@ abstract class driver implements driver_interface
 	function sql_report($mode, $query = '')
 	{
 		global $cache, $starttime, $phpbb_root_path, $phpbb_path_helper;
-		global $request;
-
-		if (is_object($request) && !$request->variable('explain', false))
-		{
-			return false;
-		}
 
 		if (!$query && $this->query_hold != '')
 		{
@@ -1043,7 +1061,7 @@ abstract class driver implements driver_interface
 						<meta charset="utf-8">
 						<meta http-equiv="X-UA-Compatible" content="IE=edge">
 						<title>SQL Report</title>
-						<link href="' . htmlspecialchars($phpbb_path_helper->update_web_root_path($phpbb_root_path) . $phpbb_path_helper->get_adm_relative_path()) . 'style/admin.css" rel="stylesheet" type="text/css" media="screen" />
+						<link href="' . htmlspecialchars($phpbb_path_helper->update_web_root_path($phpbb_root_path) . $phpbb_path_helper->get_adm_relative_path(), ENT_COMPAT) . 'style/admin.css" rel="stylesheet" type="text/css" media="screen" />
 					</head>
 					<body id="errorpage">
 					<div id="wrap">
@@ -1093,7 +1111,7 @@ abstract class driver implements driver_interface
 					</thead>
 					<tbody>
 					<tr>
-						<td class="row3"><textarea style="font-family:\'Courier New\',monospace;width:99%" rows="5" cols="10">' . preg_replace('/\t(AND|OR)(\W)/', "\$1\$2", htmlspecialchars(preg_replace('/[\s]*[\n\r\t]+[\n\r\s\t]*/', "\n", $query))) . '</textarea></td>
+						<td class="row3"><textarea style="font-family:\'Courier New\',monospace;width:99%" rows="5" cols="10">' . preg_replace('/\t(AND|OR)(\W)/', "\$1\$2", htmlspecialchars(preg_replace('/[\s]*[\n\r\t]+[\n\r\s\t]*/', "\n", $query), ENT_COMPAT)) . '</textarea></td>
 					</tr>
 					</tbody>
 					</table>
@@ -1114,7 +1132,7 @@ abstract class driver implements driver_interface
 				else
 				{
 					$error = $this->sql_error();
-					$this->sql_report .= '<b style="color: red">FAILED</b> - ' . $this->sql_layer . ' Error ' . $error['code'] . ': ' . htmlspecialchars($error['message']);
+					$this->sql_report .= '<b style="color: red">FAILED</b> - ' . $this->sql_layer . ' Error ' . $error['code'] . ': ' . htmlspecialchars($error['message'], ENT_COMPAT);
 				}
 
 				$this->sql_report .= '</p><br /><br />';
@@ -1138,7 +1156,7 @@ abstract class driver implements driver_interface
 				$html_table = func_get_arg(2);
 				$row = func_get_arg(3);
 
-				if (!$html_table && sizeof($row))
+				if (!$html_table && count($row))
 				{
 					$html_table = true;
 					$this->html_hold .= '<table cellspacing="1"><tr>';
@@ -1179,7 +1197,7 @@ abstract class driver implements driver_interface
 				$color = ($time_db > $time_cache) ? 'green' : 'red';
 
 				$this->sql_report .= '<table cellspacing="1"><thead><tr><th>Query results obtained from the cache</th></tr></thead><tbody><tr>';
-				$this->sql_report .= '<td class="row3"><textarea style="font-family:\'Courier New\',monospace;width:99%" rows="5" cols="10">' . preg_replace('/\t(AND|OR)(\W)/', "\$1\$2", htmlspecialchars(preg_replace('/[\s]*[\n\r\t]+[\n\r\s\t]*/', "\n", $query))) . '</textarea></td></tr></tbody></table>';
+				$this->sql_report .= '<td class="row3"><textarea style="font-family:\'Courier New\',monospace;width:99%" rows="5" cols="10">' . preg_replace('/\t(AND|OR)(\W)/', "\$1\$2", htmlspecialchars(preg_replace('/[\s]*[\n\r\t]+[\n\r\s\t]*/', "\n", $query), ENT_COMPAT)) . '</textarea></td></tr></tbody></table>';
 				$this->sql_report .= '<p style="text-align: center;">';
 				$this->sql_report .= 'Before: ' . sprintf('%.5f', $this->curtime - $starttime) . 's | After: ' . sprintf('%.5f', $endtime - $starttime) . 's | Elapsed [cache]: <b style="color: ' . $color . '">' . sprintf('%.5f', ($time_cache)) . 's</b> | Elapsed [db]: <b>' . sprintf('%.5f', $time_db) . 's</b></p><br /><br />';
 

@@ -13,8 +13,12 @@
 
 namespace phpbb\db;
 
+use phpbb\config\config;
+use phpbb\db\driver\driver_interface;
+use phpbb\db\migration\helper;
 use phpbb\db\output_handler\migrator_output_handler_interface;
 use phpbb\db\output_handler\null_migrator_output_handler;
+use phpbb\db\tools\tools_interface;
 use Symfony\Component\DependencyInjection\ContainerAwareInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -28,20 +32,26 @@ class migrator
 	 */
 	protected $container;
 
-	/** @var \phpbb\config\config */
+	/** @var config */
 	protected $config;
 
-	/** @var \phpbb\db\driver\driver_interface */
+	/** @var driver_interface */
 	protected $db;
 
-	/** @var \phpbb\db\tools\tools_interface */
+	/** @var tools_interface */
 	protected $db_tools;
 
-	/** @var \phpbb\db\migration\helper */
+	/** @var helper */
 	protected $helper;
 
 	/** @var string */
 	protected $table_prefix;
+
+	/** @var array */
+	protected $tables;
+
+	/** @var array */
+	protected $tools;
 
 	/** @var string */
 	protected $phpbb_root_path;
@@ -80,7 +90,7 @@ class migrator
 	*
 	* 'effectively_installed' set and set to true if the migration was effectively_installed
 	*
-	* @var array
+	* @var array|bool
 	*/
 	protected $last_run_migration = false;
 
@@ -92,9 +102,20 @@ class migrator
 	protected $output_handler;
 
 	/**
-	* Constructor of the database migrator
-	*/
-	public function __construct(ContainerInterface $container, \phpbb\config\config $config, \phpbb\db\driver\driver_interface $db, \phpbb\db\tools\tools_interface $db_tools, $migrations_table, $phpbb_root_path, $php_ext, $table_prefix, $tools, \phpbb\db\migration\helper $helper)
+	 * Constructor of the database migrator
+	 * @param ContainerInterface $container
+	 * @param config $config
+	 * @param driver\driver_interface $db
+	 * @param tools\tools_interface $db_tools
+	 * @param $migrations_table
+	 * @param $phpbb_root_path
+	 * @param $php_ext
+	 * @param $table_prefix
+	 * @param $tables
+	 * @param $tools
+	 * @param migration\helper $helper
+	 */
+	public function __construct(ContainerInterface $container, config $config, driver_interface $db, tools_interface $db_tools, $migrations_table, $phpbb_root_path, $php_ext, $table_prefix, $tables, $tools, helper $helper)
 	{
 		$this->container = $container;
 		$this->config = $config;
@@ -108,9 +129,11 @@ class migrator
 		$this->php_ext = $php_ext;
 
 		$this->table_prefix = $table_prefix;
+		$this->tables = $tables;
 
 		$this->output_handler = new null_migrator_output_handler();
 
+		$this->tools = [];
 		foreach ($tools as $tool)
 		{
 			$this->tools[$tool->get_name()] = $tool;
@@ -243,6 +266,34 @@ class migrator
 	}
 
 	/**
+	 * Get a valid migration name from the migration state array in case the
+	 * supplied name is not in the migration state list.
+	 *
+	 * @param string $name Migration name
+	 * @return string Migration name
+	 */
+	protected function get_valid_name($name)
+	{
+		// Try falling back to a valid migration name with or without leading backslash
+		if (!isset($this->migration_state[$name]))
+		{
+			$prepended_name = ($name[0] == '\\' ? '' : '\\') . $name;
+			$prefixless_name = $name[0] == '\\' ? substr($name, 1) : $name;
+
+			if (isset($this->migration_state[$prepended_name]))
+			{
+				$name = $prepended_name;
+			}
+			else if (isset($this->migration_state[$prefixless_name]))
+			{
+				$name = $prefixless_name;
+			}
+		}
+
+		return $name;
+	}
+
+	/**
 	 * Effectively runs a single update step from the next migration to be applied.
 	 *
 	 * @return null
@@ -251,6 +302,8 @@ class migrator
 	{
 		foreach ($this->migrations as $name)
 		{
+			$name = $this->get_valid_name($name);
+
 			if (!isset($this->migration_state[$name]) ||
 				!$this->migration_state[$name]['migration_schema_done'] ||
 				!$this->migration_state[$name]['migration_data_done'])
@@ -306,6 +359,9 @@ class migrator
 
 		foreach ($state['migration_depends_on'] as $depend)
 		{
+			$depend = $this->get_valid_name($depend);
+
+			// Test all possible namings before throwing exception
 			if ($this->unfulfillable($depend) !== false)
 			{
 				throw new \phpbb\db\migration\exception('MIGRATION_NOT_FULFILLABLE', $name, $depend);
@@ -470,11 +526,14 @@ class migrator
 			return;
 		}
 
-		foreach ($this->migration_state as $name => $state)
+		foreach ($this->migrations as $name)
 		{
-			if (!empty($state['migration_depends_on']) && in_array($migration, $state['migration_depends_on']))
+			$state = $this->migration_state($name);
+
+			if ($state && in_array($migration, $state['migration_depends_on']) && ($state['migration_schema_done'] || $state['migration_data_done']))
 			{
 				$this->revert_do($name);
+				return;
 			}
 		}
 
@@ -596,7 +655,7 @@ class migrator
 	*/
 	protected function process_data_step($steps, $state, $revert = false)
 	{
-		if (sizeof($steps) === 0)
+		if (count($steps) === 0)
 		{
 			return true;
 		}
@@ -623,7 +682,7 @@ class migrator
 			// Result will be null or true if everything completed correctly
 			// Stop after each update step, to let the updater control the script runtime
 			$result = $this->run_step($steps[$step], $last_result, $revert);
-			if (($result !== null && $result !== true) || $step + 1 < sizeof($steps))
+			if (($result !== null && $result !== true) || $step + 1 < count($steps))
 			{
 				return array(
 					'result'	=> $result,
@@ -644,7 +703,7 @@ class migrator
 				}
 
 				// Reverse the step that was run
-				$result = $this->run_step($reverse_step, false, !$revert);
+				$this->run_step($reverse_step, false, !$revert);
 			}
 
 			throw $e;
@@ -724,7 +783,7 @@ class migrator
 
 				$condition = $parameters[0];
 
-				if (!$condition)
+				if (!$condition || (is_array($condition) && !$this->run_step($condition, $last_result, $reverse)))
 				{
 					return false;
 				}
@@ -748,7 +807,7 @@ class migrator
 				{
 					return array(
 						$parameters[0],
-						array($last_result),
+						isset($parameters[1]) ? array_merge($parameters[1], array($last_result)) : array($last_result),
 					);
 				}
 			break;
@@ -829,6 +888,8 @@ class migrator
 	*/
 	public function unfulfillable($name)
 	{
+		$name = $this->get_valid_name($name);
+
 		if (isset($this->migration_state[$name]) || isset($this->fulfillable_migrations[$name]))
 		{
 			return false;
@@ -844,6 +905,7 @@ class migrator
 
 		foreach ($depends as $depend)
 		{
+			$depend = $this->get_valid_name($depend);
 			$unfulfillable = $this->unfulfillable($depend);
 			if ($unfulfillable !== false)
 			{
@@ -909,9 +971,9 @@ class migrator
 	* @param string $name Name of the migration
 	* @return \phpbb\db\migration\migration
 	*/
-	protected function get_migration($name)
+	public function get_migration($name)
 	{
-		$migration = new $name($this->config, $this->db, $this->db_tools, $this->phpbb_root_path, $this->php_ext, $this->table_prefix);
+		$migration = new $name($this->config, $this->db, $this->db_tools, $this->phpbb_root_path, $this->php_ext, $this->table_prefix, $this->tables);
 
 		if ($migration instanceof ContainerAwareInterface)
 		{
@@ -979,7 +1041,7 @@ class migrator
 	 * @param string $migration A migration class name
 	 * @return bool Return true if class is a migration, false otherwise
 	 */
-	static public function is_migration($migration)
+	public static function is_migration($migration)
 	{
 		if (class_exists($migration))
 		{

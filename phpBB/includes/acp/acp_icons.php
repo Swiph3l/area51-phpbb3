@@ -20,8 +20,8 @@ if (!defined('IN_PHPBB'))
 }
 
 /**
-* @todo [smilies] check regular expressions for special char replacements (stored specialchared in db)
-*/
+  * @todo {smilies} check regular expressions for special char replacements (stored specialchared in db)
+  */
 class acp_icons
 {
 	var $u_action;
@@ -166,7 +166,7 @@ class acp_icons
 					}
 					$db->sql_freeresult($result);
 
-					if (sizeof($smilies))
+					if (count($smilies))
 					{
 						foreach ($smilies as $row)
 						{
@@ -301,7 +301,7 @@ class acp_icons
 				}
 
 				// Ok, another row for adding an addition code for a pre-existing image...
-				if ($action == 'add' && $mode == 'smilies' && sizeof($smilies))
+				if ($action == 'add' && $mode == 'smilies' && count($smilies))
 				{
 					$template->assign_vars(array(
 						'S_ADD_CODE'		=> true,
@@ -378,7 +378,7 @@ class acp_icons
 				{
 					$smiley_count = $this->item_count($table);
 
-					$addable_smileys_count = sizeof($images);
+					$addable_smileys_count = count($images);
 					foreach ($images as $image)
 					{
 						if (!isset($image_add[$image]))
@@ -546,8 +546,8 @@ class acp_icons
 					{
 						if (preg_match_all("#'(.*?)', ?#", $pak_entry, $data))
 						{
-							if ((sizeof($data[1]) != 4 && $mode == 'icons') ||
-								((sizeof($data[1]) != 6 || (empty($data[1][4]) || empty($data[1][5]))) && $mode == 'smilies' ))
+							if ((count($data[1]) != 4 && $mode == 'icons') ||
+								((count($data[1]) != 6 || (empty($data[1][4]) || empty($data[1][5]))) && $mode == 'smilies' ))
 							{
 								trigger_error($user->lang['WRONG_PAK_TYPE'] . adm_back_link($this->u_action), E_USER_WARNING);
 							}
@@ -563,7 +563,6 @@ class acp_icons
 					{
 						switch ($db->get_sql_layer())
 						{
-							case 'sqlite':
 							case 'sqlite3':
 								$db->sql_query('DELETE FROM ' . $table);
 							break;
@@ -606,7 +605,7 @@ class acp_icons
 					if ($mode == 'smilies')
 					{
 						$smiley_count = $this->item_count($table);
-						if ($smiley_count + sizeof($pak_ary) > SMILEY_LIMIT)
+						if ($smiley_count + count($pak_ary) > SMILEY_LIMIT)
 						{
 							trigger_error($user->lang('TOO_MANY_SMILIES', SMILEY_LIMIT) . adm_back_link($this->u_action), E_USER_WARNING);
 						}
@@ -617,8 +616,8 @@ class acp_icons
 						$data = array();
 						if (preg_match_all("#'(.*?)', ?#", $pak_entry, $data))
 						{
-							if ((sizeof($data[1]) != 4 && $mode == 'icons') ||
-								(sizeof($data[1]) != 6 && $mode == 'smilies'))
+							if ((count($data[1]) != 4 && $mode == 'icons') ||
+								(count($data[1]) != 6 && $mode == 'smilies'))
 							{
 								trigger_error($user->lang['WRONG_PAK_TYPE'] . adm_back_link($this->u_action), E_USER_WARNING);
 							}
@@ -694,7 +693,7 @@ class acp_icons
 
 					foreach ($_paks as $pak)
 					{
-						$pak_options .= '<option value="' . $pak . '">' . htmlspecialchars($pak) . '</option>';
+						$pak_options .= '<option value="' . $pak . '">' . htmlspecialchars($pak, ENT_COMPAT) . '</option>';
 					}
 
 					$template->assign_vars(array(

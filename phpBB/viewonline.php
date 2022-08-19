@@ -19,8 +19,6 @@ $phpbb_root_path = (defined('PHPBB_ROOT_PATH')) ? PHPBB_ROOT_PATH : './';
 $phpEx = substr(strrchr(__FILE__, '.'), 1);
 include($phpbb_root_path . 'common.' . $phpEx);
 
-\QafooLabs\Profiler::setTransactionName("viewonline.php: default");
-
 // Start session management
 $user->session_begin();
 $auth->acl($user->data);
@@ -66,7 +64,10 @@ $order_by = $sort_key_sql[$sort_key] . ' ' . (($sort_dir == 'a') ? 'ASC' : 'DESC
 // Whois requested
 if ($mode == 'whois' && $auth->acl_get('a_') && $session_id)
 {
-	include($phpbb_root_path . 'includes/functions_user.' . $phpEx);
+	if (!function_exists('user_get_id_name'))
+	{
+		include($phpbb_root_path . 'includes/functions_user.' . $phpEx);
+	}
 
 	$sql = 'SELECT u.user_id, u.username, u.user_type, s.session_ip
 		FROM ' . USERS_TABLE . ' u, ' . SESSIONS_TABLE . " s
@@ -129,7 +130,6 @@ if (!$show_guests)
 {
 	switch ($db->get_sql_layer())
 	{
-		case 'sqlite':
 		case 'sqlite3':
 			$sql = 'SELECT COUNT(session_ip) as num_guests
 				FROM (
@@ -174,7 +174,7 @@ $sql_ary = array(
 * @var	int		guest_counter	Number of guests displayed
 * @var	array	forum_data		Array with forum data
 * @since 3.1.0-a1
-* @change 3.1.0-a2 Added vars guest_counter and forum_data
+* @changed 3.1.0-a2 Added vars guest_counter and forum_data
 */
 $vars = array('sql_ary', 'show_guests', 'guest_counter', 'forum_data');
 extract($phpbb_dispatcher->trigger_event('core.viewonline_modify_sql', compact($vars)));
@@ -399,7 +399,7 @@ while ($row = $db->sql_fetchrow($result))
 	* @var	string	location_url	Page url to displayed in the list
 	* @var	array	forum_data		Array with forum data
 	* @since 3.1.0-a1
-	* @change 3.1.0-a2 Added var forum_data
+	* @changed 3.1.0-a2 Added var forum_data
 	*/
 	$vars = array('on_page', 'row', 'location', 'location_url', 'forum_data');
 	extract($phpbb_dispatcher->trigger_event('core.viewonline_overwrite_location', compact($vars)));
@@ -488,8 +488,8 @@ $base_url = append_sid("{$phpbb_root_path}viewonline.$phpEx", "sg=$show_guests&a
 $pagination->generate_template_pagination($base_url, 'pagination', 'start', $counter, $config['topics_per_page'], $start);
 
 $template->assign_block_vars('navlinks', array(
-	'FORUM_NAME'	=> $user->lang('WHO_IS_ONLINE'),
-	'U_VIEW_FORUM'	=> append_sid("{$phpbb_root_path}viewonline.$phpEx"),
+	'BREADCRUMB_NAME'	=> $user->lang('WHO_IS_ONLINE'),
+	'U_BREADCRUMB'		=> append_sid("{$phpbb_root_path}viewonline.$phpEx"),
 ));
 
 // Send data to template

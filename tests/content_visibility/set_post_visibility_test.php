@@ -11,14 +11,14 @@
 *
 */
 
-require_once dirname(__FILE__) . '/../../phpBB/includes/functions_admin.php';
-require_once dirname(__FILE__) . '/../../phpBB/includes/functions_posting.php';
+require_once __DIR__ . '/../../phpBB/includes/functions_admin.php';
+require_once __DIR__ . '/../../phpBB/includes/functions_posting.php';
 
 class phpbb_content_visibility_set_post_visibility_test extends phpbb_database_test_case
 {
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/set_post_visibility.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/set_post_visibility.xml');
 	}
 
 	public function set_post_visibility_data()
@@ -120,7 +120,7 @@ class phpbb_content_visibility_set_post_visibility_test extends phpbb_database_t
 
 		$cache = new phpbb_mock_cache;
 		$db = $this->new_dbal();
-		$auth = $this->getMock('\phpbb\auth\auth');
+		$auth = $this->createMock('\phpbb\auth\auth');
 		$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
 		$lang = new \phpbb\language\language($lang_loader);
 		$user = new \phpbb\user($lang, '\phpbb\datetime');
@@ -173,7 +173,7 @@ class phpbb_content_visibility_set_post_visibility_test extends phpbb_database_t
 
 		$cache = new phpbb_mock_cache;
 		$db = $this->new_dbal();
-		$auth = $this->getMock('\phpbb\auth\auth');
+		$auth = $this->createMock('\phpbb\auth\auth');
 		$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
 		$lang = new \phpbb\language\language($lang_loader);
 		$user = new \phpbb\user($lang, '\phpbb\datetime');

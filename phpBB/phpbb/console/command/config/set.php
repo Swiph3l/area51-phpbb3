@@ -12,10 +12,12 @@
 */
 namespace phpbb\console\command\config;
 
+use Symfony\Component\Console\Command\Command as symfony_command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 class set extends command
 {
@@ -54,17 +56,21 @@ class set extends command
 	* @param InputInterface  $input  An InputInterface instance
 	* @param OutputInterface $output An OutputInterface instance
 	*
-	* @return null
+	* @return int
 	* @see \phpbb\config\config::set()
 	*/
 	protected function execute(InputInterface $input, OutputInterface $output)
 	{
+		$io = new SymfonyStyle($input, $output);
+
 		$key = $input->getArgument('key');
 		$value = $input->getArgument('value');
 		$use_cache = !$input->getOption('dynamic');
 
 		$this->config->set($key, $value, $use_cache);
 
-		$output->writeln('<info>' . $this->user->lang('CLI_CONFIG_SET_SUCCESS', $key) . '</info>');
+		$io->success($this->user->lang('CLI_CONFIG_SET_SUCCESS', $key));
+
+		return symfony_command::SUCCESS;
 	}
 }

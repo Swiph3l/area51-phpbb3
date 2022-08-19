@@ -169,7 +169,7 @@ abstract class captcha_abstract
 			}
 			while ($row = $db->sql_fetchrow($result));
 
-			if (sizeof($sql_in))
+			if (count($sql_in))
 			{
 				$sql = 'DELETE FROM ' . CONFIRM_TABLE . '
 					WHERE ' . $db->sql_in_set('session_id', $sql_in);
@@ -235,7 +235,7 @@ abstract class captcha_abstract
 		global $db, $user;
 
 		$this->code = gen_rand_string_friendly(mt_rand(CAPTCHA_MIN_CHARS, CAPTCHA_MAX_CHARS));
-		$this->confirm_id = md5(unique_id($user->ip));
+		$this->confirm_id = md5(unique_id());
 		$this->seed = hexdec(substr(unique_id(), 4, 10));
 		$this->solved = 0;
 		// compute $seed % 0x7fffffff
@@ -387,4 +387,15 @@ abstract class captcha_abstract
 	* @return string the name of the class used to generate the captcha
 	*/
 	abstract function get_generator_class();
+
+	/**
+	 * Get language variable for error message when CAPTCHA is being shown due
+	 * to exceeding the maximum number of login attempts
+	 *
+	 * @return string
+	 */
+	public function get_login_error_attempts(): string
+	{
+		return 'LOGIN_ERROR_ATTEMPTS';
+	}
 }

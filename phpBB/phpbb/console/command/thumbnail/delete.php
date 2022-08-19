@@ -12,12 +12,18 @@
 */
 namespace phpbb\console\command\thumbnail;
 
+use Symfony\Component\Console\Command\Command as symfony_command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 class delete extends \phpbb\console\command\command
 {
+	/**
+	* @var \phpbb\config\config
+	*/
+	protected $config;
+
 	/**
 	* @var \phpbb\db\driver\driver_interface
 	*/
@@ -32,12 +38,14 @@ class delete extends \phpbb\console\command\command
 	/**
 	* Constructor
 	*
+	* @param \phpbb\config\config $config The config
 	* @param \phpbb\user $user The user object (used to get language information)
 	* @param \phpbb\db\driver\driver_interface $db Database connection
 	* @param string $phpbb_root_path Root path
 	*/
-	public function __construct(\phpbb\user $user, \phpbb\db\driver\driver_interface $db, $phpbb_root_path)
+	public function __construct(\phpbb\config\config $config, \phpbb\user $user, \phpbb\db\driver\driver_interface $db, $phpbb_root_path)
 	{
+		$this->config = $config;
 		$this->db = $db;
 		$this->phpbb_root_path = $phpbb_root_path;
 
@@ -83,7 +91,7 @@ class delete extends \phpbb\console\command\command
 		if ($nb_missing_thumbnails === 0)
 		{
 			$io->warning($this->user->lang('CLI_THUMBNAIL_NOTHING_TO_DELETE'));
-			return 0;
+			return symfony_command::SUCCESS;
 		}
 
 		$sql = 'SELECT attach_id, physical_filename, extension, real_filename, mimetype
@@ -98,16 +106,16 @@ class delete extends \phpbb\console\command\command
 		$progress->start();
 
 		$thumbnail_deleted = array();
-		$return = 0;
+		$return = symfony_command::SUCCESS;
 		while ($row = $this->db->sql_fetchrow($result))
 		{
-			$thumbnail_path = $this->phpbb_root_path . 'files/thumb_' . $row['physical_filename'];
+			$thumbnail_path = $this->phpbb_root_path . $this->config['upload_path'] . '/thumb_' . $row['physical_filename'];
 
 			if (@unlink($thumbnail_path))
 			{
 				$thumbnail_deleted[] = $row['attach_id'];
 
-				if (sizeof($thumbnail_deleted) === 250)
+				if (count($thumbnail_deleted) === 250)
 				{
 					$this->commit_changes($thumbnail_deleted);
 					$thumbnail_deleted = array();
@@ -117,7 +125,7 @@ class delete extends \phpbb\console\command\command
 			}
 			else
 			{
-				$return = 1;
+				$return = symfony_command::FAILURE;
 				$progress->setMessage('<error>' . $this->user->lang('CLI_THUMBNAIL_SKIPPED', $row['real_filename'], $row['physical_filename']) . '</error>');
 			}
 

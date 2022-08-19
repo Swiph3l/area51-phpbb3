@@ -11,8 +11,8 @@
 *
 */
 
-require_once dirname(__FILE__) . '/../mock/container_builder.php';
-require_once dirname(__FILE__) . '/../mock/auth_provider.php';
+require_once __DIR__ . '/../mock/container_builder.php';
+require_once __DIR__ . '/../mock/auth_provider.php';
 
 /**
 * This class exists to setup an instance of phpbb's session class for testing.
@@ -120,10 +120,10 @@ class phpbb_session_testable_factory
 	/**
 	* Check if the cache used for the generated session contains correct data.
 	*
-	* @param PHPUnit_Framework_Assert $test The test case to call assert methods
+	* @param PHPUnit\Framework\Assert $test The test case to call assert methods
 	*                                       on
 	*/
-	public function check(PHPUnit_Framework_Assert $test)
+	public function check(PHPUnit\Framework\Assert $test)
 	{
 		$this->cache->check($test, $this->get_cache_data());
 	}

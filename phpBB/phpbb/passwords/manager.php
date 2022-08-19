@@ -24,7 +24,7 @@ class manager
 	* Hashing algorithm type map
 	* Will be used to map hash prefix to type
 	*/
-	protected $type_map = false;
+	protected $type_map = [];
 
 	/**
 	* Service collection of hashing algorithms
@@ -174,7 +174,7 @@ class manager
 
 		// Be on the lookout for multiple hashing algorithms
 		// 2 is correct: H\2a > 2, H\P > 2
-		if (strlen($match[1]) > 2)
+		if (strlen($match[1]) > 2 && strpos($match[1], '\\') !== false)
 		{
 			$hash_types = explode('\\', $match[1]);
 			$return_ary = array();
@@ -250,7 +250,7 @@ class manager
 
 	/**
 	* Check supplied password against hash and set convert_flag if password
-	* needs to be converted to different format (preferrably newer one)
+	* needs to be converted to different format (preferably newer one)
 	*
 	* @param string $password Password that should be checked
 	* @param string $hash Stored hash
@@ -297,7 +297,14 @@ class manager
 		}
 		else
 		{
-			$this->convert_flag = false;
+			if ($stored_hash_type instanceof driver\rehashable_driver_interface)
+			{
+				$this->convert_flag = $stored_hash_type->needs_rehash($hash);
+			}
+			else
+			{
+				$this->convert_flag = false;
+			}
 		}
 
 		// Check all legacy hash types if prefix is $CP$
@@ -322,12 +329,12 @@ class manager
 	* Create combined hash from already hashed password
 	*
 	* @param string $password_hash Complete current password hash
-	* @param string $type Type of the hashing algorithm the password hash
+	* @param array $type Type of the hashing algorithm the password hash
 	*		should be combined with
 	* @return string|bool Combined password hash if combined hashing was
 	*		successful, else false
 	*/
-	public function combined_hash_password($password_hash, $type)
+	public function combined_hash_password($password_hash, array $type)
 	{
 		$this->initialize();
 
@@ -375,11 +382,22 @@ class manager
 	* @param array $stored_hash_type An array containing the hash types
 	*				as described by stored password hash
 	* @param string $hash Stored password hash
+	* @param bool $skip_phpbb2_check True if phpBB2 password check should be skipped
 	*
 	* @return bool True if password is correct, false if not
 	*/
-	public function check_combined_hash($password, $stored_hash_type, $hash)
+	public function check_combined_hash($password, $stored_hash_type, $hash, bool $skip_phpbb2_check = false)
 	{
+		// Special case for passwords converted from phpBB2:
+		// These could be phpass(md5(password)) and hence already be double
+		// hashed. For these, try to also check combined hash output of
+		// md5 version of supplied password.
+		$is_valid_phpbb2_pass = false;
+		if (!$skip_phpbb2_check)
+		{
+			$is_valid_phpbb2_pass = $this->check_combined_hash(md5($password), $stored_hash_type, $hash, true);
+		}
+
 		$i = 0;
 		$data = array(
 			'prefix' => '$',
@@ -395,6 +413,7 @@ class manager
 			$password = str_replace($rebuilt_hash, '', $cur_hash);
 			$i++;
 		}
-		return ($hash === $this->helper->combine_hash_output($data, 'hash', $password));
+
+		return hash_equals($hash, $this->helper->combine_hash_output($data, 'hash', $password)) || $is_valid_phpbb2_pass;
 	}
 }

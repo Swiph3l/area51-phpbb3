@@ -12,11 +12,16 @@
 */
 namespace phpbb\console\command\extension;
 
+use Symfony\Component\Console\Command\Command as symfony_command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 class show extends command
 {
+	/**
+	 * {@inheritdoc}
+	 */
 	protected function configure()
 	{
 		$this
@@ -25,38 +30,41 @@ class show extends command
 		;
 	}
 
+	/**
+	 * Executes the command extension:show.
+	 *
+	 * Lists all extensions in the database and on the filesystem
+	 *
+	 * @param InputInterface  $input  An InputInterface instance
+	 * @param OutputInterface $output An OutputInterface instance
+	 *
+	 * @return int
+	 */
 	protected function execute(InputInterface $input, OutputInterface $output)
 	{
+		$io = new SymfonyStyle($input, $output);
+
 		$this->manager->load_extensions();
 		$all = array_keys($this->manager->all_available());
 
 		if (empty($all))
 		{
-			$output->writeln('<comment>' . $this->user->lang('CLI_EXTENSION_NOT_FOUND') . '</comment>');
-			return 3;
+			$io->note($this->user->lang('CLI_EXTENSION_NOT_FOUND'));
+			return symfony_command::FAILURE;
 		}
 
 		$enabled = array_keys($this->manager->all_enabled());
-		$this->print_extension_list($output, $this->user->lang('CLI_EXTENSIONS_ENABLED') . $this->user->lang('COLON'), $enabled);
-
-		$output->writeln('');
+		$io->section($this->user->lang('CLI_EXTENSIONS_ENABLED'));
+		$io->listing($enabled);
 
 		$disabled = array_keys($this->manager->all_disabled());
-		$this->print_extension_list($output, $this->user->lang('CLI_EXTENSIONS_DISABLED') . $this->user->lang('COLON'), $disabled);
-
-		$output->writeln('');
+		$io->section($this->user->lang('CLI_EXTENSIONS_DISABLED'));
+		$io->listing($disabled);
 
 		$purged = array_diff($all, $enabled, $disabled);
-		$this->print_extension_list($output, $this->user->lang('CLI_EXTENSIONS_AVAILABLE') . $this->user->lang('COLON'), $purged);
-	}
+		$io->section($this->user->lang('CLI_EXTENSIONS_AVAILABLE'));
+		$io->listing($purged);
 
-	protected function print_extension_list(OutputInterface $output, $type, array $extensions)
-	{
-		$output->writeln("<info>$type</info>");
-
-		foreach ($extensions as $extension)
-		{
-			$output->writeln(" - $extension");
-		}
+		return symfony_command::SUCCESS;
 	}
 }

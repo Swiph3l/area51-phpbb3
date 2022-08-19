@@ -21,8 +21,6 @@ require($phpbb_root_path . 'common.' . $phpEx);
 require($phpbb_root_path . 'includes/functions_user.' . $phpEx);
 require($phpbb_root_path . 'includes/functions_module.' . $phpEx);
 
-\QafooLabs\Profiler::setTransactionName("ucp.php: default");
-
 // Basic parameter data
 $id 	= $request->variable('i', '');
 $mode	= $request->variable('mode', '');
@@ -30,6 +28,12 @@ $mode	= $request->variable('mode', '');
 if (in_array($mode, array('login', 'login_link', 'logout', 'confirm', 'sendpassword', 'activate')))
 {
 	define('IN_LOGIN', true);
+}
+
+if ($mode === 'delete_cookies')
+{
+	define('SKIP_CHECK_BAN', true);
+	define('SKIP_CHECK_DISABLED', true);
 }
 
 // Start session management
@@ -59,8 +63,10 @@ switch ($mode)
 	break;
 
 	case 'sendpassword':
-		$module->load('ucp', 'remind');
-		$module->display($user->lang['UCP_REMIND']);
+		/** @var \phpbb\controller\helper $controller_helper */
+		$controller_helper = $phpbb_container->get('controller.helper');
+
+		redirect($controller_helper->route('phpbb_ucp_forgot_password_controller'));
 	break;
 
 	case 'register':
@@ -140,7 +146,7 @@ switch ($mode)
 			'AGREEMENT_TITLE'		=> $user->lang[$title],
 			'AGREEMENT_TEXT'		=> sprintf($user->lang[$message], $config['sitename'], generate_board_url()),
 			'U_BACK'				=> append_sid("{$phpbb_root_path}ucp.$phpEx", 'mode=login'),
-			'L_BACK'				=> $user->lang['BACK_TO_LOGIN'],
+			'L_BACK'				=> $user->lang['BACK_TO_PREV'],
 		));
 
 		page_footer();
@@ -239,6 +245,19 @@ switch ($mode)
 		$phpbb_log->add('admin', $user->data['user_id'], $user->ip, 'LOG_ACL_TRANSFER_PERMISSIONS', false, array($user_row['username']));
 
 		$message = sprintf($user->lang['PERMISSIONS_TRANSFERRED'], $user_row['username']) . '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . append_sid("{$phpbb_root_path}index.$phpEx") . '">', '</a>');
+
+		/**
+		* Event to run code after permissions are switched
+		*
+		* @event core.ucp_switch_permissions
+		* @var	int		user_id		User ID to switch permission to
+		* @var	array	user_row	User data
+		* @var	string	message		Success message
+		* @since 3.1.11-RC1
+		*/
+		$vars = array('user_id', 'user_row', 'message');
+		extract($phpbb_dispatcher->trigger_event('core.ucp_switch_permissions', compact($vars)));
+
 		trigger_error($message);
 
 	break;
@@ -262,6 +281,18 @@ switch ($mode)
 		$phpbb_log->add('admin', $user->data['user_id'], $user->ip, 'LOG_ACL_RESTORE_PERMISSIONS', false, array($username));
 
 		$message = $user->lang['PERMISSIONS_RESTORED'] . '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . append_sid("{$phpbb_root_path}index.$phpEx") . '">', '</a>');
+
+		/**
+		* Event to run code after permissions are restored
+		*
+		* @event core.ucp_restore_permissions
+		* @var	string	username	User name
+		* @var	string	message		Success message
+		* @since 3.1.11-RC1
+		*/
+		$vars = array('username', 'message');
+		extract($phpbb_dispatcher->trigger_event('core.ucp_restore_permissions', compact($vars)));
+
 		trigger_error($message);
 
 	break;
@@ -327,6 +358,20 @@ if ($module->is_active('zebra', 'friends'))
 		'ORDER_BY'	=> 'u.username_clean ASC',
 	);
 
+	/**
+	* Event to modify the SQL query before listing of friends
+	*
+	* @event core.ucp_modify_friends_sql
+	* @var	array	sql_ary		SQL query array for listing of friends
+	*
+	* @since 3.2.10-RC1
+	* @since 3.3.1-RC1
+	*/
+	$vars = [
+		'sql_ary',
+	];
+	extract($phpbb_dispatcher->trigger_event('core.ucp_modify_friends_sql', compact($vars)));
+
 	$sql = $db->sql_build_query('SELECT_DISTINCT', $sql_ary);
 	$result = $db->sql_query($sql);
 
@@ -334,14 +379,33 @@ if ($module->is_active('zebra', 'friends'))
 	{
 		$which = (time() - $update_time < $row['online_time'] && ($row['viewonline'] || $auth->acl_get('u_viewonline'))) ? 'online' : 'offline';
 
-		$template->assign_block_vars("friends_{$which}", array(
+		$tpl_ary = [
 			'USER_ID'		=> $row['user_id'],
-
 			'U_PROFILE'		=> get_username_string('profile', $row['user_id'], $row['username'], $row['user_colour']),
 			'USER_COLOUR'	=> get_username_string('colour', $row['user_id'], $row['username'], $row['user_colour']),
 			'USERNAME'		=> get_username_string('username', $row['user_id'], $row['username'], $row['user_colour']),
-			'USERNAME_FULL'	=> get_username_string('full', $row['user_id'], $row['username'], $row['user_colour']))
-		);
+			'USERNAME_FULL'	=> get_username_string('full', $row['user_id'], $row['username'], $row['user_colour'])
+		];
+
+		/**
+		* Event to modify the template before listing of friends
+		*
+		* @event core.ucp_modify_friends_template_vars
+		* @var	array	row			friend user row
+		* @var	array	tpl_ary		friend template array
+		* @var	string	which		friend is 'online' or 'offline'
+		*
+		* @since 3.2.10-RC1
+		* @since 3.3.1-RC1
+		*/
+		$vars = [
+			'row',
+			'tpl_ary',
+			'which',
+		];
+		extract($phpbb_dispatcher->trigger_event('core.ucp_modify_friends_template_vars', compact($vars)));
+
+		$template->assign_block_vars("friends_{$which}", $tpl_ary);
 	}
 	$db->sql_freeresult($result);
 }
@@ -365,8 +429,8 @@ $vars = array('module', 'id', 'mode');
 extract($phpbb_dispatcher->trigger_event('core.ucp_display_module_before', compact($vars)));
 
 $template->assign_block_vars('navlinks', array(
-	'FORUM_NAME'	=> $user->lang('UCP'),
-	'U_VIEW_FORUM'	=> append_sid("{$phpbb_root_path}ucp.$phpEx"),
+	'BREADCRUMB_NAME'	=> $user->lang('UCP'),
+	'U_BREADCRUMB'		=> append_sid("{$phpbb_root_path}ucp.$phpEx"),
 ));
 
 // Select the active module

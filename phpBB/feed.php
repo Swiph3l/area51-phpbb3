@@ -27,8 +27,6 @@ $phpbb_root_path = (defined('PHPBB_ROOT_PATH')) ? PHPBB_ROOT_PATH : './';
 $phpEx = substr(strrchr(__FILE__, '.'), 1);
 include($phpbb_root_path . 'common.' . $phpEx);
 
-\QafooLabs\Profiler::setTransactionName("feed.php: default");
-
 /** @var \phpbb\controller\helper $controller_helper */
 $controller_helper = $phpbb_container->get('controller.helper');
 
@@ -38,17 +36,17 @@ $mode	= $request->variable('mode', '');
 
 if ($forum_id !== 0)
 {
-	$url = $controller_helper->route('phpbb_feed_forum', array('forum_id' => $forum_id));
+	$url = $controller_helper->route('phpbb_feed_forum', array('forum_id' => $forum_id), false);
 }
 else if ($topic_id !== 0)
 {
-	$url = $controller_helper->route('phpbb_feed_topic', array('topic_id' => $topic_id));
+	$url = $controller_helper->route('phpbb_feed_topic', array('topic_id' => $topic_id), false);
 }
 else
 {
 	try
 	{
-		$url = $controller_helper->route('phpbb_feed_overall', array('mode' => $mode));
+		$url = $controller_helper->route('phpbb_feed_overall', array('mode' => $mode), false);
 	}
 	catch (InvalidParameterException $e)
 	{

@@ -14,17 +14,12 @@ keys:
 folders:
     - map: "."
       to: "/home/vagrant/phpbb"
+      php: "7.3"
 
 sites:
     - map: phpbb.app
       to: "/home/vagrant/phpbb/phpBB"
-
-databases:
-    - phpbb
-
-variables:
-    - key: APP_ENV
-      value: local
+      type: apache
 
 # blackfire:
 #     - id: foo

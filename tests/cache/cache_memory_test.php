@@ -11,7 +11,7 @@
  *
  */
 
-require_once dirname(__FILE__) . '/cache_memory.php';
+require_once __DIR__ . '/cache_memory.php';
 
 class phpbb_cache_memory_test extends phpbb_database_test_case
 {
@@ -20,10 +20,10 @@ class phpbb_cache_memory_test extends phpbb_database_test_case
 
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__).'/fixtures/cache_memory.xml');
+		return $this->createXMLDataSet(__DIR__.'/fixtures/cache_memory.xml');
 	}
 
-	protected function setUp()
+	protected function setUp(): void
 	{
 		global $db;
 		parent::setUp();
@@ -116,14 +116,14 @@ class phpbb_cache_memory_test extends phpbb_database_test_case
 				$results[] = $row;
 			}
 			$this->cache->sql_freeresult($query_id);
-			$this->assertEquals($query[1], sizeof($results));
+			$this->assertEquals($query[1], count($results));
 		}
 
 		$this->cache->destroy('sql', $table);
 
 		foreach ($sql_queries as $query)
 		{
-			$this->assertNotEquals(false, $this->cache->sql_load($query[0]));
+			$this->assertFalse($this->cache->sql_load($query[0]));
 		}
 	}
 }

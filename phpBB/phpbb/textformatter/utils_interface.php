@@ -15,6 +15,10 @@ namespace phpbb\textformatter;
 
 /**
 * Used to manipulate a parsed text
+*
+* In this interface, "plain text" refers to regular text as it would be inputted by a user.
+* "Parsed text" refers to whichever form is returned by the implementation after parsing, which
+* should be suitable to be reinserted into the database.
 */
 interface utils_interface
 {
@@ -62,10 +66,18 @@ interface utils_interface
 	public function remove_bbcode($text, $bbcode_name, $depth = 0);
 
 	/**
-	* Return a parsed text to its original form
-	*
-	* @param  string $text Parsed text
-	* @return string       Original plain text
-	*/
+	 * Return a parsed text to its original form
+	 *
+	 * @param  string $text Parsed text
+	 * @return string       Original plain text
+	 */
 	public function unparse($text);
+
+	/**
+	 * Return whether or not a parsed text represent an empty text.
+	 *
+	 * @param  string $text Parsed text
+	 * @return bool         True if the original text is empty
+	 */
+	public function is_empty($text);
 }

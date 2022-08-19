@@ -91,8 +91,8 @@ class phpbb_event_md_exporter_test extends phpbb_test_case
 	 */
 	public function test_crawl_eventsmd($file, $min_version, $max_version, $events)
 	{
-		$exporter = new \phpbb\event\md_exporter(dirname(__FILE__) . '/fixtures/', null, $min_version, $max_version);
-		$this->assertSame(sizeof($events), $exporter->crawl_eventsmd($file, 'adm'));
+		$exporter = new \phpbb\event\md_exporter(__DIR__ . '/fixtures/', null, $min_version, $max_version);
+		$this->assertSame(count($events), $exporter->crawl_eventsmd($file, 'adm'));
 		$this->assertEquals($events, $exporter->get_events());
 	}
 
@@ -126,7 +126,7 @@ class phpbb_event_md_exporter_test extends phpbb_test_case
 		);
 		foreach ($styles as $path => $filter)
 		{
-			$files = $exporter->get_recursive_file_list($phpbb_root_path . $path, $path);
+			$files = $exporter->get_recursive_file_list($phpbb_root_path . $path);
 			foreach ($files as $file)
 			{
 				$data_provider[] = array($filter, $path . $file);
@@ -146,7 +146,7 @@ class phpbb_event_md_exporter_test extends phpbb_test_case
 		$exporter->crawl_eventsmd('docs/events.md', $filter);
 		$events = $exporter->crawl_file_for_events($file);
 
-		$this->assertGreaterThanOrEqual(0, sizeof($events));
+		$this->assertGreaterThanOrEqual(0, count($events));
 		$this->assertTrue($exporter->validate_events_from_file($file, $events));
 	}
 }

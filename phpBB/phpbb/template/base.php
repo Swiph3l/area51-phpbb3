@@ -107,6 +107,27 @@ abstract class base implements template
 	/**
 	* {@inheritdoc}
 	*/
+	public function retrieve_vars(array $vararray)
+	{
+		$result = array();
+		foreach ($vararray as $varname)
+		{
+			$result[$varname] = $this->retrieve_var($varname);
+		}
+		return $result;
+	}
+
+	/**
+	* {@inheritdoc}
+	*/
+	public function retrieve_var($varname)
+	{
+		return $this->context->retrieve_var($varname);
+	}
+
+	/**
+	* {@inheritdoc}
+	*/
 	public function assign_block_vars($blockname, array $vararray)
 	{
 		$this->context->assign_block_vars($blockname, $vararray);
@@ -127,30 +148,24 @@ abstract class base implements template
 	/**
 	* {@inheritdoc}
 	*/
+	public function retrieve_block_vars($blockname, array $vararray)
+	{
+		return $this->context->retrieve_block_vars($blockname, $vararray);
+	}
+
+	/**
+	* {@inheritdoc}
+	*/
 	public function alter_block_array($blockname, array $vararray, $key = false, $mode = 'insert')
 	{
 		return $this->context->alter_block_array($blockname, $vararray, $key, $mode);
 	}
 
 	/**
-	* Calls hook if any is defined.
-	*
-	* @param string $handle Template handle being displayed.
-	* @param string $method Method name of the caller.
+	* {@inheritdoc}
 	*/
-	protected function call_hook($handle, $method)
+	public function find_key_index($blockname, $key)
 	{
-		global $phpbb_hook;
-
-		if (!empty($phpbb_hook) && $phpbb_hook->call_hook(array('template', $method), $handle, $this))
-		{
-			if ($phpbb_hook->hook_return(array('template', $method)))
-			{
-				$result = $phpbb_hook->hook_return_result(array('template', $method));
-				return array($result);
-			}
-		}
-
-		return false;
+		return $this->context->find_key_index($blockname, $key);
 	}
 }

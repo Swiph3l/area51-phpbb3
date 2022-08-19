@@ -22,19 +22,26 @@ class container_configuration implements ConfigurationInterface
 	/**
 	 * Generates the configuration tree builder.
 	 *
-	 * @return \Symfony\Component\Config\Definition\Builder\TreeBuilder The tree builder
+	 * @return TreeBuilder The tree builder
 	 */
 	public function getConfigTreeBuilder()
 	{
-		$treeBuilder = new TreeBuilder();
-		$rootNode = $treeBuilder->root('core');
+		$treeBuilder = new TreeBuilder('core');
+		$rootNode = $treeBuilder->getRootNode();
 		$rootNode
 			->children()
 				->booleanNode('require_dev_dependencies')->defaultValue(false)->end()
+				->booleanNode('allow_install_dir')->defaultValue(false)->end()
 				->arrayNode('debug')
 					->addDefaultsIfNotSet()
 					->children()
 						->booleanNode('exceptions')->defaultValue(false)->end()
+						->booleanNode('load_time')->defaultValue(false)->end()
+						->booleanNode('sql_explain')->defaultValue(false)->end()
+						->booleanNode('memory')->defaultValue(false)->end()
+						->booleanNode('show_errors')->defaultValue(false)->end()
+						->booleanNode('url_generator')->defaultValue(false)->end()
+						->booleanNode('url_matcher')->defaultValue(false)->end()
 					->end()
 				->end()
 				->arrayNode('twig')
@@ -43,6 +50,19 @@ class container_configuration implements ConfigurationInterface
 						->booleanNode('debug')->defaultValue(null)->end()
 						->booleanNode('auto_reload')->defaultValue(null)->end()
 						->booleanNode('enable_debug_extension')->defaultValue(false)->end()
+					->end()
+				->end()
+				->arrayNode('extensions')
+					->addDefaultsIfNotSet()
+					->children()
+						->booleanNode('composer_debug')->defaultValue(false)->end()
+						->booleanNode('composer_verbose')->defaultValue(false)->end()
+					->end()
+				->end()
+				->arrayNode('session')
+					->addDefaultsIfNotSet()
+					->children()
+						->booleanNode('log_errors')->defaultValue(false)->end()
 					->end()
 				->end()
 			->end()

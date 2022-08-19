@@ -171,7 +171,7 @@ function utf8_strspn($str, $mask, $start = null, $length = null)
 * Make a string's first character uppercase
 *
 * @author Harry Fuecks
-* @param string
+* @param string $str
 * @return string with first character as upper case (if applicable)
 */
 function utf8_ucfirst($str)
@@ -418,24 +418,43 @@ function utf8_recode($string, $encoding)
 }
 
 /**
-* Replace all UTF-8 chars that are not in ASCII with their NCR
-*
-* @param	string	$text		UTF-8 string in NFC
-* @return	string				ASCII string using NCRs for non-ASCII chars
-*/
+ * Replace some special UTF-8 chars that are not in ASCII with their UCR.
+ * using their Numeric Character Reference's Hexadecimal notation.
+ *
+ * Doesn't interfere with Japanese or Cyrillic etc.
+ * Unicode character visualization will depend on the character support
+ * of your web browser and the fonts installed on your system.
+ *
+ * @see https://en.wikibooks.org/wiki/Unicode/Character_reference/1F000-1FFFF
+ *
+ * @param	string	$text		UTF-8 string in NFC
+ * @return	string				ASCII string using NCR for non-ASCII chars
+ */
+function utf8_encode_ucr($text)
+{
+	return preg_replace_callback('/[\\xF0-\\xF4].../', 'utf8_encode_ncr_callback', $text);
+}
+
+/**
+ * Replace all UTF-8 chars that are not in ASCII with their NCR
+ * using their Numeric Character Reference's Hexadecimal notation.
+ *
+ * @param	string	$text		UTF-8 string in NFC
+ * @return	string				ASCII string using NCRs for non-ASCII chars
+ */
 function utf8_encode_ncr($text)
 {
 	return preg_replace_callback('#[\\xC2-\\xF4][\\x80-\\xBF]{1,3}#', 'utf8_encode_ncr_callback', $text);
 }
 
 /**
-* Callback used in encode_ncr()
-*
-* Takes a UTF-8 char and replaces it with its NCR. Attention, $m is an array
-*
-* @param	array	$m			0-based numerically indexed array passed by preg_replace_callback()
-* @return	string				A HTML NCR if the character is valid, or the original string otherwise
-*/
+ * Callback used in utf8_encode_ncr() and utf8_encode_ucr()
+ *
+ * Takes a UTF-8 char and replaces it with its NCR. Attention, $m is an array
+ *
+ * @param	array	$m			0-based numerically indexed array passed by preg_replace_callback()
+ * @return	string				A HTML NCR if the character is valid, or the original string otherwise
+ */
 function utf8_encode_ncr_callback($m)
 {
 	return '&#' . utf8_ord($m[0]) . ';';
@@ -1390,7 +1409,7 @@ function utf8_wordwrap($string, $width = 75, $break = "\n", $cut = false)
 	{
 		$words = explode(' ', $line);
 
-		for ($i = 0, $size = sizeof($words); $i < $size; $i++)
+		for ($i = 0, $size = count($words); $i < $size; $i++)
 		{
 			$word = $words[$i];
 

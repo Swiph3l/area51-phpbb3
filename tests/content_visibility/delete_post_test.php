@@ -11,15 +11,14 @@
 *
 */
 
-require_once dirname(__FILE__) . '/../../phpBB/includes/functions_admin.php';
-require_once dirname(__FILE__) . '/../../phpBB/includes/functions_posting.php';
-require_once dirname(__FILE__) . '/../mock/search.php';
+require_once __DIR__ . '/../../phpBB/includes/functions_admin.php';
+require_once __DIR__ . '/../../phpBB/includes/functions_posting.php';
 
 class phpbb_content_visibility_delete_post_test extends phpbb_database_test_case
 {
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/delete_post.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/delete_post.xml');
 	}
 
 	public function delete_post_data()
@@ -287,19 +286,21 @@ class phpbb_content_visibility_delete_post_test extends phpbb_database_test_case
 	*/
 	public function test_delete_post($forum_id, $topic_id, $post_id, $data, $is_soft, $reason, $expected_posts, $expected_topic, $expected_forum, $expected_user)
 	{
-		global $auth, $cache, $config, $db, $phpbb_container, $phpbb_dispatcher, $phpbb_root_path, $phpEx;
+		global $auth, $cache, $config, $db, $user, $phpbb_container, $phpbb_dispatcher, $phpbb_root_path, $phpEx;
 
 		$config = new \phpbb\config\config(array(
 			'num_posts' => 3,
 			'num_topics' => 1,
-			'search_type' => 'phpbb_mock_search',
+			'search_type' => 'foo',
 		));
 		$cache = new phpbb_mock_cache;
 		$db = $this->new_dbal();
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 
+		$storage = $this->createMock('\phpbb\storage\storage');
+
 		// Create auth mock
-		$auth = $this->getMock('\phpbb\auth\auth');
+		$auth = $this->createMock('\phpbb\auth\auth');
 		$auth->expects($this->any())
 			->method('acl_get')
 			->with($this->stringContains('_'), $this->anything())
@@ -309,7 +310,9 @@ class phpbb_content_visibility_delete_post_test extends phpbb_database_test_case
 		$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
 		$lang = new \phpbb\language\language($lang_loader);
 		$user = new \phpbb\user($lang, '\phpbb\datetime');
-		$attachment_delete = new \phpbb\attachment\delete($config, $db, new \phpbb_mock_event_dispatcher(), new \phpbb\filesystem\filesystem(), new \phpbb\attachment\resync($db), $phpbb_root_path);
+		$user->data['user_id'] = ANONYMOUS;
+
+		$attachment_delete = new \phpbb\attachment\delete($config, $db, new \phpbb_mock_event_dispatcher(), new \phpbb\attachment\resync($db), $storage);
 
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 
@@ -318,6 +321,11 @@ class phpbb_content_visibility_delete_post_test extends phpbb_database_test_case
 		$phpbb_container->set('content.visibility', new \phpbb\content_visibility($auth, $config, $phpbb_dispatcher, $db, $user, $phpbb_root_path, $phpEx, FORUMS_TABLE, POSTS_TABLE, TOPICS_TABLE, USERS_TABLE));
 		// Works as a workaround for tests
 		$phpbb_container->set('attachment.manager', $attachment_delete);
+
+		$search_backend = $this->createMock(\phpbb\search\backend\search_backend_interface::class);
+		$search_backend_factory = $this->createMock(\phpbb\search\search_backend_factory::class);
+		$search_backend_factory->method('get_active')->willReturn($search_backend);
+		$phpbb_container->set('search.backend_factory', $search_backend_factory);
 
 		delete_post($forum_id, $topic_id, $post_id, $data, $is_soft, $reason);
 

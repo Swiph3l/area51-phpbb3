@@ -39,7 +39,7 @@ class message
 	protected $sender_address = '';
 	/** @var string */
 	protected $sender_lang = '';
-	/** @var string */
+	/** @var string|int */
 	protected $sender_id = '';
 	/** @var string */
 	protected $sender_username = '';
@@ -209,7 +209,7 @@ class message
 	*/
 	public function cc_sender()
 	{
-		if (!sizeof($this->recipients))
+		if (!count($this->recipients))
 		{
 			trigger_error('No email recipients specified');
 		}
@@ -238,7 +238,7 @@ class message
 	*/
 	public function send(\messenger $messenger, $contact)
 	{
-		if (!sizeof($this->recipients))
+		if (!count($this->recipients))
 		{
 			return;
 		}
@@ -262,16 +262,16 @@ class message
 				$messenger->headers('X-AntiAbuse: Username - ' . $this->sender_username);
 			}
 
-			$messenger->subject(htmlspecialchars_decode($this->subject));
+			$messenger->subject(htmlspecialchars_decode($this->subject, ENT_COMPAT));
 
 			$messenger->assign_vars(array(
 				'BOARD_CONTACT'	=> $contact,
-				'TO_USERNAME'	=> htmlspecialchars_decode($recipient['to_name']),
-				'FROM_USERNAME'	=> htmlspecialchars_decode($this->sender_name),
-				'MESSAGE'		=> htmlspecialchars_decode($this->body))
+				'TO_USERNAME'	=> htmlspecialchars_decode($recipient['to_name'], ENT_COMPAT),
+				'FROM_USERNAME'	=> htmlspecialchars_decode($this->sender_name, ENT_COMPAT),
+				'MESSAGE'		=> htmlspecialchars_decode($this->body, ENT_COMPAT))
 			);
 
-			if (sizeof($this->template_vars))
+			if (count($this->template_vars))
 			{
 				$messenger->assign_vars($this->template_vars);
 			}

@@ -81,21 +81,34 @@ class phpbb_test_case_helpers
 		{
 			case E_NOTICE:
 			case E_STRICT:
-				PHPUnit_Framework_Error_Notice::$enabled = true;
-				$exceptionName = 'PHPUnit_Framework_Error_Notice';
+				// The static property was removed from PHPUnit since v.8.3.0
+				if (isset(PHPUnit\Framework\Error\Notice::$enabled))
+				{
+					PHPUnit\Framework\Error\Notice::$enabled = true;
+				}
+				$exceptionName = 'PHPUnit\Framework\Error\Notice';
 			break;
 
 			case E_WARNING:
-				PHPUnit_Framework_Error_Warning::$enabled = true;
-				$exceptionName = 'PHPUnit_Framework_Error_Warning';
+				// The static property was removed from PHPUnit since v.8.3.0
+				if (isset(PHPUnit\Framework\Error\Warning::$enabled))
+				{
+					PHPUnit\Framework\Error\Warning::$enabled = true;
+				}
+				$exceptionName = 'PHPUnit\Framework\Error\Warning';
 			break;
 
 			default:
-				$exceptionName = 'PHPUnit_Framework_Error';
+				$exceptionName = 'PHPUnit\Framework\Error\Error';
 			break;
 		}
 		$this->expectedTriggerError = true;
-		$this->test_case->setExpectedException($exceptionName, (string) $message, $errno);
+		$this->test_case->expectException($exceptionName);
+		$this->test_case->expectExceptionCode($errno);
+		if ($message)
+		{
+			$this->test_case->expectExceptionMessage((string) $message);
+		}
 	}
 
 	public function makedirs($path)
@@ -115,18 +128,7 @@ class phpbb_test_case_helpers
 		{
 			$config = array_merge($config, array(
 				'dbms'		=> 'phpbb\db\driver\sqlite3',
-				'dbhost'	=> dirname(__FILE__) . '/../phpbb_unit_tests.sqlite3', // filename
-				'dbport'	=> '',
-				'dbname'	=> '',
-				'dbuser'	=> '',
-				'dbpasswd'	=> '',
-			));
-		}
-		else if (extension_loaded('sqlite'))
-		{
-			$config = array_merge($config, array(
-				'dbms'		=> 'phpbb\db\driver\sqlite',
-				'dbhost'	=> dirname(__FILE__) . '/../phpbb_unit_tests.sqlite2', // filename
+				'dbhost'	=> __DIR__ . '/../phpbb_unit_tests.sqlite3', // filename
 				'dbport'	=> '',
 				'dbname'	=> '',
 				'dbuser'	=> '',
@@ -141,7 +143,7 @@ class phpbb_test_case_helpers
 		}
 		else
 		{
-			$test_config = dirname(__FILE__) . '/../test_config.php';
+			$test_config = __DIR__ . '/../test_config.php';
 		}
 
 		$config_php_file = new \phpbb\config_php_file('', '');
@@ -152,7 +154,7 @@ class phpbb_test_case_helpers
 			extract($config_php_file->get_all());
 
 			$config = array_merge($config, array(
-				'dbms'		=> $config_php_file->convert_30_dbms_to_31($dbms),
+				'dbms'		=> \phpbb\config_php_file::convert_30_dbms_to_31($dbms),
 				'dbhost'	=> $dbhost,
 				'dbport'	=> $dbport,
 				'dbname'	=> $dbname,
@@ -179,12 +181,22 @@ class phpbb_test_case_helpers
 			{
 				$config['fulltext_sphinx_id'] = $fulltext_sphinx_id;
 			}
+
+			if (isset($phpbb_memcached_host))
+			{
+				$config['memcached_host'] = $phpbb_memcached_host;
+			}
+
+			if (isset($phpbb_memcached_port))
+			{
+				$config['memcached_port'] = $phpbb_memcached_port;
+			}
 		}
 
 		if (isset($_SERVER['PHPBB_TEST_DBMS']))
 		{
 			$config = array_merge($config, array(
-				'dbms'		=> isset($_SERVER['PHPBB_TEST_DBMS']) ? $config_php_file->convert_30_dbms_to_31($_SERVER['PHPBB_TEST_DBMS']) : '',
+				'dbms'		=> isset($_SERVER['PHPBB_TEST_DBMS']) ? \phpbb\config_php_file::convert_30_dbms_to_31($_SERVER['PHPBB_TEST_DBMS']) : '',
 				'dbhost'	=> isset($_SERVER['PHPBB_TEST_DBHOST']) ? $_SERVER['PHPBB_TEST_DBHOST'] : '',
 				'dbport'	=> isset($_SERVER['PHPBB_TEST_DBPORT']) ? $_SERVER['PHPBB_TEST_DBPORT'] : '',
 				'dbname'	=> isset($_SERVER['PHPBB_TEST_DBNAME']) ? $_SERVER['PHPBB_TEST_DBNAME'] : '',
@@ -209,6 +221,16 @@ class phpbb_test_case_helpers
 		if (isset($_SERVER['PHPBB_TEST_REDIS_PORT']))
 		{
 			$config['redis_port'] = $_SERVER['PHPBB_TEST_REDIS_PORT'];
+		}
+
+		if (isset($_SERVER['PHPBB_TEST_MEMCACHED_HOST']))
+		{
+			$config['memcached_host'] = $_SERVER['PHPBB_TEST_MEMCACHED_HOST'];
+		}
+
+		if (isset($_SERVER['PHPBB_TEST_MEMCACHED_PORT']))
+		{
+			$config['memcached_port'] = $_SERVER['PHPBB_TEST_MEMCACHED_PORT'];
 		}
 
 		return $config;
@@ -388,15 +410,21 @@ class phpbb_test_case_helpers
 			$tables['phpbb_styles'][] = array(
 				'style_id' => 1,
 				'style_path' => 'prosilver',
-				'bbcode_bitfield' => 'kNg='
+				'bbcode_bitfield' => '//g='
 			);
 		}
 
 		// Mock the DAL, make it return data from the fixture
+		$db_driver = $this->test_case->getMockBuilder('phpbb\\db\\driver\\driver')
+			->disableOriginalConstructor()
+			->disableOriginalClone()
+			->disableArgumentCloning()
+			->disallowMockingUnknownTypes()
+			->getMock();
 		$mb = $this->test_case->getMockBuilder('phpbb\\textformatter\\data_access');
 		$mb->setMethods(array('get_bbcodes', 'get_censored_words', 'get_smilies', 'get_styles'));
 		$mb->setConstructorArgs(array(
-			$this->test_case->getMock('phpbb\\db\\driver\\driver'),
+			$db_driver,
 			'phpbb_bbcodes',
 			'phpbb_smilies',
 			'phpbb_styles',
@@ -427,7 +455,7 @@ class phpbb_test_case_helpers
 		$cache_key_renderer = $prefix . '_renderer';
 		$container->set('cache.driver', $cache);
 
-		if (!$container->isFrozen())
+		if (!$container->isCompiled())
 		{
 			$container->setParameter('cache.dir', $cache_dir);
 		}
@@ -500,14 +528,25 @@ class phpbb_test_case_helpers
 			$request = new phpbb_mock_request;
 		}
 
+		// Get a log interface
+		$log = ($container->has('log')) ? $container->get('log') : $this->test_case->getMockBuilder('phpbb\\log\\log_interface')->getMock();
+
 		// Create and register the text_formatter.s9e.factory service
-		$factory = new \phpbb\textformatter\s9e\factory($dal, $cache, $dispatcher, $config, new \phpbb\textformatter\s9e\link_helper, $cache_dir, $cache_key_parser, $cache_key_renderer);
+		$factory = new \phpbb\textformatter\s9e\factory($dal, $cache, $dispatcher, $config, new \phpbb\textformatter\s9e\link_helper, $log, $cache_dir, $cache_key_parser, $cache_key_renderer);
 		$container->set('text_formatter.s9e.factory', $factory);
 
 		// Create a user if none was provided, and add the common lang strings
 		if ($container->has('user'))
 		{
 			$user = $container->get('user');
+
+			// Set default required user data if not set
+			$user->data['is_bot'] = $user->data['is_bot'] ?? false;
+			$user->data['is_registered'] = $user->data['is_registered'] ?? false;
+			$user->data['style_id'] = $user->data['style_id'] ?? 1;
+			$user->data['user_id'] = $user->data['user_id'] ?? ANONYMOUS;
+			$user->data['user_options'] = $user->data['user_options'] ?? 230271;
+			$user->style['style_id'] = $user->style['style_id'] ?? 1;
 		}
 		else
 		{
@@ -522,6 +561,14 @@ class phpbb_test_case_helpers
 			     ->method('format_date')
 			     ->will($this->test_case->returnCallback(__CLASS__ . '::format_date'));
 
+			// Set default required user data
+			$user->data['is_bot'] = false;
+			$user->data['is_registered'] = false;
+			$user->data['style_id'] = 1;
+			$user->data['user_id'] = ANONYMOUS;
+			$user->data['user_options'] = 230271;
+			$user->style['style_id'] = 1;
+
 			$user->date_format = 'Y-m-d H:i:s';
 			$user->optionset('viewcensors', true);
 			$user->optionset('viewflash', true);
@@ -531,11 +578,6 @@ class phpbb_test_case_helpers
 			$container->set('user', $user);
 		}
 		$user->add_lang('common');
-
-		if (!isset($user->style))
-		{
-			$user->style = array('style_id' => 1);
-		}
 
 		// Create and register a quote_helper
 		$quote_helper = new \phpbb\textformatter\s9e\quote_helper(

@@ -25,8 +25,6 @@ require($phpbb_root_path . 'includes/functions_acp.' . $phpEx);
 require($phpbb_root_path . 'includes/functions_admin.' . $phpEx);
 require($phpbb_root_path . 'includes/functions_module.' . $phpEx);
 
-\QafooLabs\Profiler::setTransactionName("adm/index.php: default");
-
 // Start session management
 $user->session_begin();
 $auth->acl($user->data);
@@ -51,7 +49,6 @@ if (!$auth->acl_get('a_'))
 define('IN_ADMIN', true);
 
 // Some oft used variables
-$safe_mode		= (@ini_get('safe_mode') == '1' || strtolower(@ini_get('safe_mode')) === 'on') ? true : false;
 $file_uploads	= (@ini_get('file_uploads') == '1' || strtolower(@ini_get('file_uploads')) === 'on') ? true : false;
 $module_id		= $request->variable('i', '');
 $mode			= $request->variable('mode', '');

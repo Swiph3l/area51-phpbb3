@@ -76,7 +76,7 @@ class module_manager
 	 *
 	 * @return array	Array of data fetched from the database
 	 *
-	 * @throws \phpbb\module\exception\module_not_found_exception	When there is no module with $module_id
+	 * @throws module_not_found_exception	When there is no module with $module_id
 	 */
 	public function get_module_row($module_id, $module_class)
 	{
@@ -208,7 +208,7 @@ class module_manager
 			WHERE m1.module_class = '" . $this->db->sql_escape($module_class) . "'
 				AND m2.module_class = '" . $this->db->sql_escape($module_class) . "'
 				AND m1.module_id = $module_id
-			ORDER BY m2.left_id DESC";
+			ORDER BY m2.left_id";
 		$result = $this->db->sql_query($sql);
 
 		while ($row = $this->db->sql_fetchrow($result))
@@ -243,7 +243,7 @@ class module_manager
 	 *
 	 * @param array	&$module_data	The module data
 	 *
-	 * @throws \phpbb\module\exception\module_not_found_exception	When parent module or the category is not exist
+	 * @throws module_not_found_exception	When parent module or the category is not exist
 	 */
 	public function update_module_data(&$module_data)
 	{
@@ -311,7 +311,7 @@ class module_manager
 				// we're turning a category into a module
 				$branch = $this->get_module_branch($module_data['module_id'], $module_data['module_class'], 'children', false);
 
-				if (sizeof($branch))
+				if (count($branch))
 				{
 					throw new module_not_found_exception('NO_CATEGORY_TO_MODULE');
 				}
@@ -340,8 +340,8 @@ class module_manager
 	 * @param int		$to_parent_id	ID of the target parent module
 	 * @param string	$module_class	Class of the module (acp, ucp, mcp etc...)
 	 *
-	 * @throws \phpbb\module\exception\module_not_found_exception	If the module specified to move modules from does not
-	 * 																have any children.
+	 * @throws module_not_found_exception	If the module specified to move modules from does not
+	 * 										have any children.
 	 */
 	public function move_module($from_module_id, $to_parent_id, $module_class)
 	{
@@ -353,10 +353,10 @@ class module_manager
 		}
 
 		$from_data = $moved_modules[0];
-		$diff = sizeof($moved_modules) * 2;
+		$diff = count($moved_modules) * 2;
 
 		$moved_ids = array();
-		for ($i = 0, $size = sizeof($moved_modules); $i < $size; ++$i)
+		for ($i = 0, $size = count($moved_modules); $i < $size; ++$i)
 		{
 			$moved_ids[] = $moved_modules[$i]['module_id'];
 		}
@@ -433,7 +433,7 @@ class module_manager
 	 * @param int		$module_id		ID of the module to delete
 	 * @param string	$module_class	Class of the module (acp, ucp, mcp etc...)
 	 *
-	 * @throws \phpbb\module\exception\module_exception	When the specified module cannot be removed
+	 * @throws module_exception	When the specified module cannot be removed
 	 */
 	public function delete_module($module_id, $module_class)
 	{
@@ -443,7 +443,7 @@ class module_manager
 
 		$branch = $this->get_module_branch($module_id, $module_class, 'children', false);
 
-		if (sizeof($branch))
+		if (count($branch))
 		{
 			throw new module_exception('CANNOT_REMOVE_MODULE');
 		}
@@ -482,7 +482,7 @@ class module_manager
 	 *
 	 * @return string	Returns the language name of the module
 	 *
-	 * @throws \phpbb\module\exception\module_not_found_exception	When the specified module does not exists
+	 * @throws module_not_found_exception	When the specified module does not exists
 	 */
 	public function move_module_by($module_row, $module_class, $action = 'move_up', $steps = 1)
 	{
@@ -506,7 +506,7 @@ class module_manager
 		}
 		$this->db->sql_freeresult($result);
 
-		if (!sizeof($target))
+		if (!count($target))
 		{
 			// The module is already on top or bottom
 			throw new module_not_found_exception();

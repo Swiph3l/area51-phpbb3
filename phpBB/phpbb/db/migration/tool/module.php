@@ -20,9 +20,6 @@ use phpbb\module\exception\module_exception;
 */
 class module implements \phpbb\db\migration\tool\tool_interface
 {
-	/** @var \phpbb\cache\service */
-	protected $cache;
-
 	/** @var \phpbb\db\driver\driver_interface */
 	protected $db;
 
@@ -31,12 +28,6 @@ class module implements \phpbb\db\migration\tool\tool_interface
 
 	/** @var \phpbb\module\module_manager */
 	protected $module_manager;
-
-	/** @var string */
-	protected $phpbb_root_path;
-
-	/** @var string */
-	protected $php_ext;
 
 	/** @var string */
 	protected $modules_table;
@@ -48,21 +39,15 @@ class module implements \phpbb\db\migration\tool\tool_interface
 	* Constructor
 	*
 	* @param \phpbb\db\driver\driver_interface $db
-	* @param \phpbb\cache\service $cache
 	* @param \phpbb\user $user
 	* @param \phpbb\module\module_manager	$module_manager
-	* @param string $phpbb_root_path
-	* @param string $php_ext
 	* @param string $modules_table
 	*/
-	public function __construct(\phpbb\db\driver\driver_interface $db, \phpbb\cache\service $cache, \phpbb\user $user, \phpbb\module\module_manager $module_manager, $phpbb_root_path, $php_ext, $modules_table)
+	public function __construct(\phpbb\db\driver\driver_interface $db, \phpbb\user $user, \phpbb\module\module_manager $module_manager, $modules_table)
 	{
 		$this->db = $db;
-		$this->cache = $cache;
 		$this->user = $user;
 		$this->module_manager = $module_manager;
-		$this->phpbb_root_path = $phpbb_root_path;
-		$this->php_ext = $php_ext;
 		$this->modules_table = $modules_table;
 	}
 
@@ -84,9 +69,12 @@ class module implements \phpbb\db\migration\tool\tool_interface
 	*		Use false to ignore the parent check and check class wide.
 	* @param int|string $module The module_id|module_langname you would like to
 	* 		check for to see if it exists
-	* @return bool true/false if module exists
+	* @param bool $lazy Checks lazily if the module exists. Returns true if it exists in at
+	*       least one given parent.
+	* @return bool true if module exists in *all* given parents, false if not in any given parent;
+	 *      true if ignoring parent check and module exists class wide, false if not found at all.
 	*/
-	public function exists($class, $parent, $module)
+	public function exists($class, $parent, $module, $lazy = false)
 	{
 		// the main root directory should return true
 		if (!$module)
@@ -94,28 +82,48 @@ class module implements \phpbb\db\migration\tool\tool_interface
 			return true;
 		}
 
-		$parent_sql = '';
+		$parent_sqls = [];
 		if ($parent !== false)
 		{
-			$parent = $this->get_parent_module_id($parent, $module);
-			$parent_sql = 'AND parent_id = ' . (int) $parent;
+			$parents = $this->get_parent_module_id($parent, $module, false);
+			if ($parents === false)
+			{
+				return false;
+			}
+
+			foreach ((array) $parents as $parent_id)
+			{
+				$parent_sqls[] = 'AND parent_id = ' . (int) $parent_id;
+			}
 		}
-
-		$sql = 'SELECT module_id
-			FROM ' . $this->modules_table . "
-			WHERE module_class = '" . $this->db->sql_escape($class) . "'
-				$parent_sql
-				AND " . ((is_numeric($module)) ? 'module_id = ' . (int) $module : "module_langname = '" . $this->db->sql_escape($module) . "'");
-		$result = $this->db->sql_query($sql);
-		$module_id = $this->db->sql_fetchfield('module_id');
-		$this->db->sql_freeresult($result);
-
-		if ($module_id)
+		else
 		{
-			return true;
+			$parent_sqls[] = '';
 		}
 
-		return false;
+		foreach ($parent_sqls as $parent_sql)
+		{
+			$sql = 'SELECT module_id
+				FROM ' . $this->modules_table . "
+				WHERE module_class = '" . $this->db->sql_escape($class) . "'
+					$parent_sql
+					AND " . ((is_numeric($module)) ? 'module_id = ' . (int) $module : "module_langname = '" . $this->db->sql_escape($module) . "'");
+			$result = $this->db->sql_query($sql);
+			$module_id = $this->db->sql_fetchfield('module_id');
+			$this->db->sql_freeresult($result);
+
+			if (!$lazy && !$module_id)
+			{
+				return false;
+			}
+			if ($lazy && $module_id)
+			{
+				return true;
+			}
+		}
+
+		// Returns true, if modules exist in all parents and false otherwise
+		return !$lazy;
 	}
 
 	/**
@@ -167,7 +175,7 @@ class module implements \phpbb\db\migration\tool\tool_interface
 			$data = array('module_langname' => $data);
 		}
 
-		$parent = $data['parent_id'] = $this->get_parent_module_id($parent, $data);
+		$parents = (array) $this->get_parent_module_id($parent, $data);
 
 		if (!isset($data['module_langname']))
 		{
@@ -190,99 +198,135 @@ class module implements \phpbb\db\migration\tool\tool_interface
 					);
 
 					// Run the "manual" way with the data we've collected.
-					$this->add($class, $parent, $new_module);
+					foreach ($parents as $parent)
+					{
+						$this->add($class, $parent, $new_module);
+					}
 				}
 			}
 
 			return;
 		}
 
-		// The "manual" way
-		if (!$this->exists($class, false, $parent))
+		foreach ($parents as $parent)
 		{
-			throw new \phpbb\db\migration\exception('MODULE_NOT_EXIST', $parent);
-		}
+			$data['parent_id'] = $parent;
 
-		if ($this->exists($class, $parent, $data['module_langname']))
-		{
-			throw new \phpbb\db\migration\exception('MODULE_EXISTS', $module_id);
-		}
-
-		$module_data = array(
-			'module_enabled'	=> (isset($data['module_enabled'])) ? $data['module_enabled'] : 1,
-			'module_display'	=> (isset($data['module_display'])) ? $data['module_display'] : 1,
-			'module_basename'	=> (isset($data['module_basename'])) ? $data['module_basename'] : '',
-			'module_class'		=> $class,
-			'parent_id'			=> (int) $parent,
-			'module_langname'	=> (isset($data['module_langname'])) ? $data['module_langname'] : '',
-			'module_mode'		=> (isset($data['module_mode'])) ? $data['module_mode'] : '',
-			'module_auth'		=> (isset($data['module_auth'])) ? $data['module_auth'] : '',
-		);
-
-		try
-		{
-			$this->module_manager->update_module_data($module_data);
-
-			// Success
-			$module_log_name = ((isset($this->user->lang[$data['module_langname']])) ? $this->user->lang[$data['module_langname']] : $data['module_langname']);
-			$phpbb_log->add('admin', (isset($user->data['user_id'])) ? $user->data['user_id'] : ANONYMOUS, $user->ip, 'LOG_MODULE_ADD', false, array($module_log_name));
-
-			// Move the module if requested above/below an existing one
-			if (isset($data['before']) && $data['before'])
+			// The "manual" way
+			if (!$this->exists($class, false, $parent))
 			{
-				$sql = 'SELECT left_id
+				throw new \phpbb\db\migration\exception('MODULE_NOT_EXIST', $parent);
+			}
+
+			if ($this->exists($class, $parent, $data['module_langname']))
+			{
+				throw new \phpbb\db\migration\exception('MODULE_EXISTS', $data['module_langname']);
+			}
+
+			$module_data = array(
+				'module_enabled'	=> (isset($data['module_enabled'])) ? $data['module_enabled'] : 1,
+				'module_display'	=> (isset($data['module_display'])) ? $data['module_display'] : 1,
+				'module_basename'	=> (isset($data['module_basename'])) ? $data['module_basename'] : '',
+				'module_class'		=> $class,
+				'parent_id'			=> (int) $parent,
+				'module_langname'	=> (isset($data['module_langname'])) ? $data['module_langname'] : '',
+				'module_mode'		=> (isset($data['module_mode'])) ? $data['module_mode'] : '',
+				'module_auth'		=> (isset($data['module_auth'])) ? $data['module_auth'] : '',
+			);
+
+			try
+			{
+				$this->module_manager->update_module_data($module_data);
+
+				// Success
+				$module_log_name = ((isset($this->user->lang[$data['module_langname']])) ? $this->user->lang[$data['module_langname']] : $data['module_langname']);
+				$phpbb_log->add('admin', (isset($user->data['user_id'])) ? $user->data['user_id'] : ANONYMOUS, $user->ip, 'LOG_MODULE_ADD', false, array($module_log_name));
+
+				// Move the module if requested above/below an existing one
+				if (isset($data['before']) && $data['before'])
+				{
+					$before_mode = $before_langname = '';
+					if (is_array($data['before']))
+					{
+						// Restore legacy-legacy behaviour from phpBB 3.0
+						list($before_mode, $before_langname) = $data['before'];
+					}
+					else
+					{
+						// Legacy behaviour from phpBB 3.1+
+						$before_langname = $data['before'];
+					}
+
+					$sql = 'SELECT left_id
 					FROM ' . $this->modules_table . "
 					WHERE module_class = '" . $this->db->sql_escape($class) . "'
 						AND parent_id = " . (int) $parent . "
-						AND module_langname = '" . $this->db->sql_escape($data['before']) . "'";
-				$this->db->sql_query($sql);
-				$to_left = (int) $this->db->sql_fetchfield('left_id');
+						AND module_langname = '" . $this->db->sql_escape($before_langname) . "'"
+						. (($before_mode) ? " AND module_mode = '" . $this->db->sql_escape($before_mode) . "'" : '');
+					$result = $this->db->sql_query($sql);
+					$to_left = (int) $this->db->sql_fetchfield('left_id');
+					$this->db->sql_freeresult($result);
 
-				$sql = 'UPDATE ' . $this->modules_table . "
+					$sql = 'UPDATE ' . $this->modules_table . "
 					SET left_id = left_id + 2, right_id = right_id + 2
 					WHERE module_class = '" . $this->db->sql_escape($class) . "'
 						AND left_id >= $to_left
 						AND left_id < {$module_data['left_id']}";
-				$this->db->sql_query($sql);
+					$this->db->sql_query($sql);
 
-				$sql = 'UPDATE ' . $this->modules_table . "
+					$sql = 'UPDATE ' . $this->modules_table . "
 					SET left_id = $to_left, right_id = " . ($to_left + 1) . "
 					WHERE module_class = '" . $this->db->sql_escape($class) . "'
 						AND module_id = {$module_data['module_id']}";
-				$this->db->sql_query($sql);
-			}
-			else if (isset($data['after']) && $data['after'])
-			{
-				$sql = 'SELECT right_id
+					$this->db->sql_query($sql);
+				}
+				else if (isset($data['after']) && $data['after'])
+				{
+					$after_mode = $after_langname = '';
+					if (is_array($data['after']))
+					{
+						// Restore legacy-legacy behaviour from phpBB 3.0
+						list($after_mode, $after_langname) = $data['after'];
+					}
+					else
+					{
+						// Legacy behaviour from phpBB 3.1+
+						$after_langname = $data['after'];
+					}
+
+					$sql = 'SELECT right_id
 					FROM ' . $this->modules_table . "
 					WHERE module_class = '" . $this->db->sql_escape($class) . "'
 						AND parent_id = " . (int) $parent . "
-						AND module_langname = '" . $this->db->sql_escape($data['after']) . "'";
-				$this->db->sql_query($sql);
-				$to_right = (int) $this->db->sql_fetchfield('right_id');
+						AND module_langname = '" . $this->db->sql_escape($after_langname) . "'"
+						. (($after_mode) ? " AND module_mode = '" . $this->db->sql_escape($after_mode) . "'" : '');
+					$result = $this->db->sql_query($sql);
+					$to_right = (int) $this->db->sql_fetchfield('right_id');
+					$this->db->sql_freeresult($result);
 
-				$sql = 'UPDATE ' . $this->modules_table . "
+					$sql = 'UPDATE ' . $this->modules_table . "
 					SET left_id = left_id + 2, right_id = right_id + 2
 					WHERE module_class = '" . $this->db->sql_escape($class) . "'
 						AND left_id >= $to_right
 						AND left_id < {$module_data['left_id']}";
-				$this->db->sql_query($sql);
+					$this->db->sql_query($sql);
 
-				$sql = 'UPDATE ' . $this->modules_table . '
+					$sql = 'UPDATE ' . $this->modules_table . '
 					SET left_id = ' . ($to_right + 1) . ', right_id = ' . ($to_right + 2) . "
 					WHERE module_class = '" . $this->db->sql_escape($class) . "'
 						AND module_id = {$module_data['module_id']}";
-				$this->db->sql_query($sql);
+					$this->db->sql_query($sql);
+				}
 			}
-		}
-		catch (module_exception $e)
-		{
-			// Error
-			throw new \phpbb\db\migration\exception('MODULE_ERROR', $e->getMessage());
+			catch (module_exception $e)
+			{
+				// Error
+				throw new \phpbb\db\migration\exception('MODULE_ERROR', $e->getMessage());
+			}
 		}
 
 		// Clear the Modules Cache
-		$this->cache->destroy("_modules_$class");
+		$this->module_manager->remove_cache_file($class);
 	}
 
 	/**
@@ -329,7 +373,7 @@ class module implements \phpbb\db\migration\tool\tool_interface
 		}
 		else
 		{
-			if (!$this->exists($class, $parent, $module))
+			if (!$this->exists($class, $parent, $module, true))
 			{
 				return;
 			}
@@ -337,8 +381,8 @@ class module implements \phpbb\db\migration\tool\tool_interface
 			$parent_sql = '';
 			if ($parent !== false)
 			{
-				$parent = $this->get_parent_module_id($parent, $module);
-				$parent_sql = 'AND parent_id = ' . (int) $parent;
+				$parents = (array) $this->get_parent_module_id($parent, $module);
+				$parent_sql = 'AND ' . $this->db->sql_in_set('parent_id', $parents);
 			}
 
 			$module_ids = array();
@@ -366,7 +410,7 @@ class module implements \phpbb\db\migration\tool\tool_interface
 				$this->module_manager->delete_module($module_id, $class);
 			}
 
-			$this->cache->destroy("_modules_$class");
+			$this->module_manager->remove_cache_file($class);
 		}
 	}
 
@@ -431,12 +475,11 @@ class module implements \phpbb\db\migration\tool\tool_interface
 	protected function get_categories_list()
 	{
 		// Select the top level categories
-		// and 2nd level [sub]categories which exist for ACP only
+		// and 2nd level [sub]categories
 		$sql = 'SELECT m2.module_id, m2.module_langname
 			FROM ' . $this->modules_table . ' m1, ' . $this->modules_table . " m2
 			WHERE m1.parent_id = 0
-				AND (m1.module_id = m2.module_id
-				OR m2.module_class = 'acp' AND m2.parent_id = m1.module_id)
+				AND (m1.module_id = m2.module_id OR m2.parent_id = m1.module_id)
 			ORDER BY m1.module_id, m2.module_id ASC";
 
 		$result = $this->db->sql_query($sql);
@@ -451,20 +494,15 @@ class module implements \phpbb\db\migration\tool\tool_interface
 	* Get parent module id
 	*
 	* @param string|int $parent_id The parent module_id|module_langname
-	* @param int|string|array $data The module_id, module_langname for existance checking or module data array for adding
-	* @return int The parent module_id
+	* @param int|string|array $data The module_id, module_langname for existence checking or module data array for adding
+	* @param bool $throw_exception The flag indicating if exception should be thrown on error
+	* @return mixed The int parent module_id, an array of int parent module_id values or false
 	* @throws \phpbb\db\migration\exception
 	*/
-	public function get_parent_module_id($parent_id, $data = '')
+	public function get_parent_module_id($parent_id, $data = '', $throw_exception = true)
 	{
 		// Allow '' to be sent as 0
 		$parent_id = $parent_id ?: 0;
-
-		// If automatic adding is in action, convert array back to string to simplify things
-		if (is_array($data) && sizeof($data) == 1)
-		{
-			$data = $data['module_langname'];
-		}
 
 		if (!is_numeric($parent_id))
 		{
@@ -474,52 +512,26 @@ class module implements \phpbb\db\migration\tool\tool_interface
 			// Search for the parent module_langname
 			$ids = array_keys($this->module_categories, $parent_id);
 
-			switch (sizeof($ids))
+			switch (count($ids))
 			{
 				// No parent with the given module_langname exist
 				case 0:
-					throw new \phpbb\db\migration\exception('MODULE_NOT_EXIST', $parent_id);
+					if ($throw_exception)
+					{
+						throw new \phpbb\db\migration\exception('MODULE_NOT_EXIST', $parent_id);
+					}
+
+					return false;
 				break;
 
 				// Return the module id
 				case 1:
-					$parent_id = (int) $ids[0];
+					return (int) $ids[0];
 				break;
 
-				// Several modules with the given module_langname were found
-				// Try to determine the parent_id by the neighbour module parent
 				default:
-					if (is_array($data) && (isset($data['before']) || isset($data['after'])))
-					{
-						$neighbour_module_langname = isset($data['before']) ? $data['before'] : $data['after'];
-						$sql = 'SELECT parent_id
-							FROM ' . $this->modules_table . "
-							WHERE module_langname = '" . $this->db->sql_escape($neighbour_module_langname) . "'
-								AND " . $this->db->sql_in_set('parent_id', $ids);
-						$result = $this->db->sql_query($sql);
-						$parent_id = (int) $this->db->sql_fetchfield('parent_id');
-						if (!$parent_id)
-						{
-							throw new \phpbb\db\migration\exception('PARENT_MODULE_FIND_ERROR', $data['parent_id']);
-						}
-					}
-					else if (!empty($data) && !is_array($data))
-					{
-						// The module_langname is set, checking for the module existance
-						// As more than 1 parents were found already, there's no way for null parent_id here
-						$sql = 'SELECT m2.module_id as module_parent_id
-							FROM ' . $this->modules_table . ' m1, ' . $this->modules_table . " m2
-							WHERE " . ((is_numeric($data)) ? 'm1.module_id = ' . (int) $data : "m1.module_langname = '" . $this->db->sql_escape($data)) . "'
-								AND m2.module_id = m1.parent_id
-								AND " . $this->db->sql_in_set('m2.module_id', $ids);
-						$result = $this->db->sql_query($sql);
-						$parent_id = (int) $this->db->sql_fetchfield('module_parent_id');
-					}
-					else
-					{
-						//Unable to get the parent module id, throwing an exception
-						throw new \phpbb\db\migration\exception('MODULE_EXIST_MULTIPLE', $parent_id);
-					}
+					// This represents the old behaviour of phpBB 3.0
+					return $ids;
 				break;
 			}
 		}

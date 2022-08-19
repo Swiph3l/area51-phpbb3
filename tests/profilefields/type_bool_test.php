@@ -23,19 +23,19 @@ class phpbb_profilefield_type_bool_test extends phpbb_test_case
 	* @access public
 	* @return void
 	*/
-	public function setUp()
+	protected function setUp(): void
 	{
-		global $phpbb_root_path, $phpEx;
+		$db = $this->createMock('phpbb\\db\\driver\\driver');
 
-		$user = $this->getMock('\phpbb\user', array(), array(
-			new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx)),
-			'\phpbb\datetime'
-		));
+		$user = $this->createMock('\phpbb\user');
 		$user->expects($this->any())
 			->method('lang')
 			->will($this->returnCallback(array($this, 'return_callback_implode')));
 
-		$lang = $this->getMock('\phpbb\profilefields\lang_helper', array(), array(null, null));
+		$lang = $this->getMockBuilder('\phpbb\profilefields\lang_helper')
+			->setMethods(array('get_options_lang', 'is_set', 'get'))
+			->setConstructorArgs(array($db, LANG_TABLE))
+			->getMock();
 
 		$lang->expects($this->any())
 			->method('get_options_lang');
@@ -48,8 +48,8 @@ class phpbb_profilefield_type_bool_test extends phpbb_test_case
 			->method('get')
 			->will($this->returnCallback(array($this, 'get')));
 
-		$request = $this->getMock('\phpbb\request\request');
-		$template = $this->getMock('\phpbb\template\template');
+		$request = $this->createMock('\phpbb\request\request');
+		$template = $this->createMock('\phpbb\template\template');
 
 		$this->cp = new \phpbb\profilefields\type\type_bool(
 			$lang,
@@ -65,8 +65,10 @@ class phpbb_profilefield_type_bool_test extends phpbb_test_case
 			'lang_id'	 	   => 1,
 			'lang_name'        => 'field',
 			'field_required'   => false,
-			'field_default_value' => 1,
-			'field_length' => 1,
+			'field_default_value'	=> 1,
+			'field_length'			=> 1,
+			'field_show_novalue'	=> null,
+			'field_novalue'			=> null,
 		);
 
 		$this->options = array(

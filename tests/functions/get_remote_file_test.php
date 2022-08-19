@@ -24,7 +24,7 @@ class phpbb_functions_get_remote_file extends phpbb_test_case
 
 		$hostname = 'version.phpbb.com';
 
-		if (!phpbb_checkdnsrr($hostname, 'A'))
+		if (!checkdnsrr($hostname, 'A'))
 		{
 			$this->markTestSkipped(sprintf(
 				'Could not find a DNS record for hostname %s. ' .
@@ -58,7 +58,7 @@ class phpbb_functions_get_remote_file extends phpbb_test_case
 
 		$this->assertGreaterThanOrEqual(
 			2,
-			sizeof($lines),
+			count($lines),
 			'Failed asserting that the version file has at least two lines.'
 		);
 
@@ -74,7 +74,7 @@ class phpbb_functions_get_remote_file extends phpbb_test_case
 			'Failed asserting that the second line of the version file is a valid URL.'
 		);
 
-		$this->assertContains('http', $lines[1]);
-		$this->assertContains('phpbb.com', $lines[1], '', true);
+		$this->assertStringContainsString('http', $lines[1]);
+		$this->assertStringContainsString('phpbb.com', $lines[1], '', true);
 	}
 }

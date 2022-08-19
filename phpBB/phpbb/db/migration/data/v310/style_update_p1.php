@@ -13,6 +13,8 @@
 
 namespace phpbb\db\migration\data\v310;
 
+use phpbb\json\sanitizer as json_sanitizer;
+
 class style_update_p1 extends \phpbb\db\migration\migration
 {
 	public function effectively_installed()
@@ -20,7 +22,7 @@ class style_update_p1 extends \phpbb\db\migration\migration
 		return !$this->db_tools->sql_table_exists($this->table_prefix . 'styles_imageset');
 	}
 
-	static public function depends_on()
+	public static function depends_on()
 	{
 		return array('\phpbb\db\migration\data\v30x\release_3_0_11');
 	}
@@ -69,13 +71,26 @@ class style_update_p1 extends \phpbb\db\migration\migration
 		$skip_dirs = array('.', '..', 'prosilver');
 		foreach ($iterator as $fileinfo)
 		{
-			if ($fileinfo->isDir() && !in_array($fileinfo->getFilename(), $skip_dirs) && file_exists($fileinfo->getPathname() . '/style.cfg'))
+			if ($fileinfo->isDir() && !in_array($fileinfo->getFilename(), $skip_dirs))
 			{
-				$style_cfg = parse_cfg_file($fileinfo->getPathname() . '/style.cfg');
-				if (isset($style_cfg['phpbb_version']) && version_compare($style_cfg['phpbb_version'], '3.1.0-dev', '>='))
+				if (file_exists($fileinfo->getPathname() . '/style.cfg'))
 				{
-					// 3.1 style
-					$available_styles[] = $fileinfo->getFilename();
+					$style_cfg = parse_cfg_file($fileinfo->getPathname() . '/style.cfg');
+					if (isset($style_cfg['phpbb_version']) && version_compare($style_cfg['phpbb_version'], '3.1.0-dev', '>='))
+					{
+						// 3.1 - 3.3 style
+						$available_styles[] = $fileinfo->getFilename();
+					}
+				}
+				else if (file_exists($fileinfo->getPathname() . '/composer.json'))
+				{
+					$json = file_get_contents($fileinfo->getPathname() . '/composer.json');
+					$style_data = json_sanitizer::decode($json);
+					if (isset($style_data['extra']['phpbb-version']) && version_compare($style_data['extra']['phpbb-version'], '4.0.0-dev', '>='))
+					{
+						// 4.x style
+						$available_styles[] = $fileinfo->getFilename();
+					}
 				}
 			}
 		}
@@ -133,7 +148,7 @@ class style_update_p1 extends \phpbb\db\migration\migration
 		}
 
 		// Remove old entries from styles table
-		if (!sizeof($valid_styles))
+		if (!count($valid_styles))
 		{
 			// No valid styles: remove everything and add prosilver
 			$this->sql_query('DELETE FROM ' . STYLES_TABLE);
@@ -160,12 +175,12 @@ class style_update_p1 extends \phpbb\db\migration\migration
 				FROM ' . STYLES_TABLE . "
 				WHERE style_name = 'prosilver'";
 			$result = $this->sql_query($sql);
-			$default_style = $this->db->sql_fetchfield('style_id');
+			$default_style = (int) $this->db->sql_fetchfield('style_id');
 			$this->db->sql_freeresult($result);
 
 			$this->config->set('default_style', $default_style);
 
-			$sql = 'UPDATE ' . USERS_TABLE . ' SET user_style = 0';
+			$sql = 'UPDATE ' . USERS_TABLE . ' SET user_style = ' .  (int) $default_style;
 			$this->sql_query($sql);
 		}
 		else
@@ -183,9 +198,9 @@ class style_update_p1 extends \phpbb\db\migration\migration
 			}
 
 			// Reset styles for users
-			$this->sql_query('UPDATE ' . USERS_TABLE . '
-				SET user_style = 0
-				WHERE ' . $this->db->sql_in_set('user_style', $valid_styles, true));
+			$this->sql_query('UPDATE ' . USERS_TABLE . "
+				SET user_style = '" . (int) $valid_styles[0] . "'
+				WHERE " . $this->db->sql_in_set('user_style', $valid_styles, true));
 		}
 	}
 }

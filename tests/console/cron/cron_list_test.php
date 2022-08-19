@@ -11,8 +11,8 @@
 *
 */
 
-require_once dirname(__FILE__) . '/tasks/simple_ready.php';
-require_once dirname(__FILE__) . '/tasks/simple_not_ready.php';
+require_once __DIR__ . '/tasks/simple_ready.php';
+require_once __DIR__ . '/tasks/simple_not_ready.php';
 
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -30,39 +30,36 @@ class phpbb_console_command_cron_list_test extends phpbb_test_case
 
 	protected $command_tester;
 
-	protected function setUp()
+	protected function setUp(): void
 	{
 		global $phpbb_root_path, $phpEx;
 
-		$this->user = $this->getMock('\phpbb\user', array(), array(
-			new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx)),
-			'\phpbb\datetime'
-		));
+		$this->user = $this->createMock('\phpbb\user');
 		$this->user->method('lang')->will($this->returnArgument(0));
 	}
 
 	public function test_no_task()
 	{
 		$this->initiate_test(0, 0);
-		$this->assertContains('CRON_NO_TASKS', $this->command_tester->getDisplay());
+		$this->assertStringContainsString('CRON_NO_TASKS', $this->command_tester->getDisplay());
 	}
 
 	public function test_only_ready()
 	{
 		$this->initiate_test(2, 0);
-		$this->assertContains('TASKS_READY command1 command2', preg_replace('/\s+/', ' ', trim($this->command_tester->getDisplay())));
+		$this->assertStringContainsString('TASKS_READY command1 command2', preg_replace('/[\s*=]+/', ' ', trim($this->command_tester->getDisplay())));
 	}
 
 	public function test_only_not_ready()
 	{
 		$this->initiate_test(0, 2);
-		$this->assertContains('TASKS_NOT_READY command1 command2', preg_replace('/\s+/', ' ', trim($this->command_tester->getDisplay())));
+		$this->assertStringContainsString('TASKS_NOT_READY command1 command2', preg_replace('/[\s*=]+/', ' ', trim($this->command_tester->getDisplay())));
 	}
 
 	public function test_both_ready()
 	{
 		$this->initiate_test(2, 2);
-		$this->assertSame('TASKS_READY command1 command2 TASKS_NOT_READY command3 command4', preg_replace('/\s+/', ' ', trim($this->command_tester->getDisplay())));
+		$this->assertSame('TASKS_READY command1 command2 TASKS_NOT_READY command3 command4', preg_replace('/[\s*=]+/', ' ', trim($this->command_tester->getDisplay())));
 	}
 
 	public function get_cron_manager(array $tasks)
@@ -97,12 +94,15 @@ class phpbb_console_command_cron_list_test extends phpbb_test_case
 			$mock_router,
 			new \phpbb\symfony_request($request),
 			$request,
-			new \phpbb\filesystem\filesystem(),
 			$phpbb_root_path,
 			$pathEx
 		);
 
-		$this->cron_manager = new \phpbb\cron\manager($tasks, $routing_helper, $phpbb_root_path, $pathEx);
+		$mock_container = new phpbb_mock_container_builder();
+		$mock_container->set('cron.task_collection', []);
+
+		$this->cron_manager = new \phpbb\cron\manager($mock_container, $routing_helper, $phpbb_root_path, $pathEx);
+		$this->cron_manager->load_tasks($tasks);
 	}
 
 	public function get_command_tester()

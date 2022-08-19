@@ -11,7 +11,7 @@
 *
 */
 
-require_once dirname(__FILE__) . '/phpbb_database_connection_odbc_pdo_wrapper.php';
+require_once __DIR__ . '/phpbb_database_connection_odbc_pdo_wrapper.php';
 
 class phpbb_database_test_connection_manager
 {
@@ -55,7 +55,6 @@ class phpbb_database_test_connection_manager
 
 		switch ($this->dbms['PDO'])
 		{
-			case 'sqlite2':
 			case 'sqlite':	// SQLite3 driver
 				$dsn .= $this->config['dbhost'];
 			break;
@@ -151,7 +150,6 @@ class phpbb_database_test_connection_manager
 
 		switch ($this->config['dbms'])
 		{
-			case 'phpbb\db\driver\mysql':
 			case 'phpbb\db\driver\mysqli':
 				$this->pdo->exec('SET NAMES utf8');
 
@@ -179,7 +177,7 @@ class phpbb_database_test_connection_manager
 	{
 		$this->ensure_connected(__METHOD__);
 
-		$directory = dirname(__FILE__) . '/../../phpBB/install/schemas/';
+		$directory = __DIR__ . '/../../phpBB/install/schemas/';
 		$this->load_schema_from_file($directory, $db);
 	}
 
@@ -193,7 +191,6 @@ class phpbb_database_test_connection_manager
 	{
 		switch ($this->config['dbms'])
 		{
-			case 'phpbb\db\driver\sqlite':
 			case 'phpbb\db\driver\sqlite3':
 				$this->connect();
 				// Drop all of the tables
@@ -221,6 +218,14 @@ class phpbb_database_test_connection_manager
 				{
 					$this->pdo->exec('DROP TABLE ' . $table . ' CASCADE');
 				}
+				$this->purge_extras();
+			break;
+
+			case 'phpbb\db\driver\mssql':
+			case 'phpbb\db\driver\mssqlnative':
+				$this->connect();
+				// Drop all tables
+				$this->pdo->exec("EXEC sp_MSforeachtable 'DROP TABLE ?'");
 				$this->purge_extras();
 			break;
 
@@ -264,15 +269,8 @@ class phpbb_database_test_connection_manager
 
 		switch ($this->config['dbms'])
 		{
-			case 'phpbb\db\driver\mysql':
 			case 'phpbb\db\driver\mysqli':
 				$sql = 'SHOW TABLES';
-			break;
-
-			case 'phpbb\db\driver\sqlite':
-				$sql = 'SELECT name
-					FROM sqlite_master
-					WHERE type = "table"';
 			break;
 
 			case 'phpbb\db\driver\sqlite3':
@@ -336,14 +334,7 @@ class phpbb_database_test_connection_manager
 			$sth = $this->pdo->query('SELECT VERSION() AS version');
 			$row = $sth->fetch(PDO::FETCH_ASSOC);
 
-			if (version_compare($row['version'], '4.1.3', '>='))
-			{
-				$schema .= '_41';
-			}
-			else
-			{
-				$schema .= '_40';
-			}
+			$schema .= '_41';
 		}
 
 		$filename = $directory . $schema . '_schema.sql';
@@ -374,15 +365,16 @@ class phpbb_database_test_connection_manager
 		{
 			global $phpbb_root_path, $phpEx, $table_prefix;
 
-			$finder = new \phpbb\finder(new \phpbb\filesystem\filesystem(), $phpbb_root_path, null, $phpEx);
+			$finder = new \phpbb\finder($phpbb_root_path, null, $phpEx);
 			$classes = $finder->core_path('phpbb/db/migration/data/')
 				->get_classes();
 
-			$db = new \phpbb\db\driver\sqlite();
+			$db = new \phpbb\db\driver\sqlite3();
 			$factory = new \phpbb\db\tools\factory();
 			$db_tools = $factory->get($db, true);
+			$tables = phpbb_database_test_case::get_core_tables();
 
-			$schema_generator = new \phpbb\db\migration\schema_generator($classes, new \phpbb\config\config(array()), $db, $db_tools, $phpbb_root_path, $phpEx, $table_prefix);
+			$schema_generator = new \phpbb\db\migration\schema_generator($classes, new \phpbb\config\config(array()), $db, $db_tools, $phpbb_root_path, $phpEx, $table_prefix, $tables);
 			$db_table_schema = $schema_generator->get_schema();
 		}
 
@@ -401,12 +393,16 @@ class phpbb_database_test_connection_manager
 				{
 					$this->pdo->beginTransaction();
 				}
-				else if ($query === 'commit')
+				else if ($query === 'commit' && $this->pdo->inTransaction())
 				{
 					$this->pdo->commit();
 				}
 				else
 				{
+					if (!$this->pdo->inTransaction())
+					{
+						$this->pdo->beginTransaction();
+					}
 					$this->pdo->exec($query);
 				}
 			}
@@ -421,11 +417,6 @@ class phpbb_database_test_connection_manager
 		$available_dbms = array(
 			'phpbb\db\driver\mysqli'	=> array(
 				'SCHEMA'		=> 'mysql_41',
-				'DELIM'			=> ';',
-				'PDO'			=> 'mysql',
-			),
-			'phpbb\db\driver\mysql'		=> array(
-				'SCHEMA'		=> 'mysql',
 				'DELIM'			=> ';',
 				'PDO'			=> 'mysql',
 			),
@@ -453,11 +444,6 @@ class phpbb_database_test_connection_manager
 				'SCHEMA'		=> 'postgres',
 				'DELIM'			=> ';',
 				'PDO'			=> 'pgsql',
-			),
-			'phpbb\db\driver\sqlite'		=> array(
-				'SCHEMA'		=> 'sqlite',
-				'DELIM'			=> ';',
-				'PDO'			=> 'sqlite2',
 			),
 			'phpbb\db\driver\sqlite3'		=> array(
 				'SCHEMA'		=> 'sqlite',
@@ -634,7 +620,7 @@ class phpbb_database_test_connection_manager
 				}
 
 				// Combine all of the SETVALs into one query
-				if (sizeof($setval_queries))
+				if (count($setval_queries))
 				{
 					$queries[] = 'SELECT ' . implode(', ', $setval_queries);
 				}

@@ -1071,7 +1071,7 @@ function phpbb_convert_authentication($mode)
 				}
 			}
 
-			if (sizeof($forum_ids))
+			if (count($forum_ids))
 			{
 				// Now make sure the user is able to read these forums
 				$hold_ary = $auth->acl_group_raw_data(false, 'f_list', $forum_ids);
@@ -1267,7 +1267,7 @@ function phpbb_prepare_message($message)
 	// parse($allow_bbcode, $allow_magic_url, $allow_smilies, $allow_img_bbcode = true, $allow_flash_bbcode = true, $allow_quote_bbcode = true, $allow_url_bbcode = true, $update_this_message = true, $mode = 'post')
 	$message_parser->parse($enable_bbcode, $enable_magic_url, $enable_smilies);
 
-	if (sizeof($message_parser->warn_msg))
+	if (count($message_parser->warn_msg))
 	{
 		$msg_id = isset($convert->row['post_id']) ? $convert->row['post_id'] : $convert->row['privmsgs_id'];
 		$convert->p_master->error('<span style="color:red">' . $user->lang['POST_ID'] . ': ' . $msg_id . ' ' . $user->lang['CONV_ERROR_MESSAGE_PARSER'] . ': <br /><br />' . implode('<br />', $message_parser->warn_msg), __LINE__, __FILE__, true);
@@ -1399,10 +1399,6 @@ function phpbb_attachment_category($cat_id)
 		case 2:
 			return ATTACHMENT_CATEGORY_WM;
 		break;
-
-		case 3:
-			return ATTACHMENT_CATEGORY_FLASH;
-		break;
 	}
 
 	return ATTACHMENT_CATEGORY_NONE;
@@ -1495,7 +1491,7 @@ function phpbb_attachment_forum_perms($forum_permissions)
 		$forum_ids[] = (int) $forum_id;
 	}
 
-	if (sizeof($forum_ids))
+	if (count($forum_ids))
 	{
 		return attachment_forum_perms($forum_ids);
 	}
@@ -1694,7 +1690,6 @@ function phpbb_import_attach_config()
 	$config->set('img_create_thumbnail', $attach_config['img_create_thumbnail']);
 	$config->set('img_max_thumb_width', 400);
 	$config->set('img_min_thumb_filesize', $attach_config['img_min_thumb_filesize']);
-	$config->set('img_imagick', $attach_config['img_imagick']);
 }
 
 /**
@@ -1759,21 +1754,6 @@ function phpbb_create_userconv_table()
 
 	switch ($db->get_sql_layer())
 	{
-		case 'mysql':
-			$map_dbms = 'mysql_40';
-		break;
-
-		case 'mysql4':
-			if (version_compare($db->sql_server_info(true), '4.1.3', '>='))
-			{
-				$map_dbms = 'mysql_41';
-			}
-			else
-			{
-				$map_dbms = 'mysql_40';
-			}
-		break;
-
 		case 'mysqli':
 			$map_dbms = 'mysql_41';
 		break;
@@ -1799,13 +1779,6 @@ function phpbb_create_userconv_table()
 			)';
 		break;
 
-		case 'mysql_40':
-			$create_sql = 'CREATE TABLE ' . USERCONV_TABLE . ' (
-				user_id mediumint(8) NOT NULL,
-				username_clean blob NOT NULL
-			)';
-		break;
-
 		case 'mysql_41':
 			$create_sql = 'CREATE TABLE ' . USERCONV_TABLE . ' (
 				user_id mediumint(8) NOT NULL,
@@ -1827,7 +1800,6 @@ function phpbb_create_userconv_table()
 			)';
 		break;
 
-		case 'sqlite':
 		case 'sqlite3':
 			$create_sql = 'CREATE TABLE ' . USERCONV_TABLE . ' (
 				user_id INTEGER NOT NULL DEFAULT \'0\',
@@ -1861,7 +1833,7 @@ function phpbb_check_username_collisions()
 	$db->sql_freeresult($result);
 
 	// there was at least one collision, the admin will have to solve it before conversion can continue
-	if (sizeof($colliding_names))
+	if (count($colliding_names))
 	{
 		$sql = 'SELECT user_id, username_clean
 			FROM ' . USERCONV_TABLE . '

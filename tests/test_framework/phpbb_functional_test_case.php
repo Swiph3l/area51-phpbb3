@@ -17,10 +17,10 @@ require_once __DIR__ . '/mock/phpbb_mock_null_installer_task.php';
 class phpbb_functional_test_case extends phpbb_test_case
 {
 	/** @var \Goutte\Client */
-	static protected $client;
-	static protected $cookieJar;
-	static protected $root_url;
-	static protected $install_success = false;
+	protected static $client;
+	protected static $cookieJar;
+	protected static $root_url;
+	protected static $install_success = false;
 
 	protected $cache = null;
 	protected $db = null;
@@ -38,11 +38,11 @@ class phpbb_functional_test_case extends phpbb_test_case
 	*/
 	protected $lang = array();
 
-	static protected $config = array();
-	static protected $already_installed = false;
-	static protected $last_post_timestamp = 0;
+	protected static $config = array();
+	protected static $already_installed = false;
+	protected static $last_post_timestamp = 0;
 
-	static public function setUpBeforeClass()
+	static public function setUpBeforeClass(): void
 	{
 		parent::setUpBeforeClass();
 
@@ -70,12 +70,12 @@ class phpbb_functional_test_case extends phpbb_test_case
 	/**
 	* @return array List of extensions that should be set up
 	*/
-	static protected function setup_extensions()
+	protected static function setup_extensions()
 	{
 		return array();
 	}
 
-	public function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 
@@ -114,7 +114,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 		}
 	}
 
-	protected function tearDown()
+	protected function tearDown(): void
 	{
 		parent::tearDown();
 
@@ -183,13 +183,14 @@ class phpbb_functional_test_case extends phpbb_test_case
 	{
 	}
 
-	public function __construct($name = NULL, array $data = array(), $dataName = '')
+	public function __construct($name = NULL, array $data = [], $dataName = '')
 	{
 		parent::__construct($name, $data, $dataName);
 
-		$this->backupStaticAttributesBlacklist += array(
-			'phpbb_functional_test_case' => array('config', 'already_installed'),
-		);
+		$backupStaticAttributesBlacklist = [
+			'phpbb_functional_test_case' => ['config', 'already_installed'],
+		];
+		$this->excludeBackupStaticAttributes($backupStaticAttributesBlacklist);
 	}
 
 	protected function get_db()
@@ -234,7 +235,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 	{
 		global $phpbb_root_path, $phpEx;
 
-		$config = new \phpbb\config\config(array());
+		$config = new \phpbb\config\config(array('version' => PHPBB_VERSION));
 		$db = $this->get_db();
 		$factory = new \phpbb\db\tools\factory();
 		$db_tools = $factory->get($db);
@@ -249,6 +250,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 			$phpbb_root_path,
 			$phpEx,
 			self::$config['table_prefix'],
+			phpbb_database_test_case::get_core_tables(),
 			array(),
 			new \phpbb\db\migration\helper()
 		);
@@ -259,17 +261,16 @@ class phpbb_functional_test_case extends phpbb_test_case
 			$container,
 			$db,
 			$config,
-			new phpbb\filesystem\filesystem(),
 			self::$config['table_prefix'] . 'ext',
-			dirname(__FILE__) . '/',
+			__DIR__ . '/',
 			$phpEx,
-			$this->get_cache_driver()
+			new \phpbb\cache\service($this->get_cache_driver(), $config, $this->db, $phpbb_root_path, $phpEx)
 		);
 
 		return $extension_manager;
 	}
 
-	static protected function install_board()
+	protected static function install_board()
 	{
 		global $phpbb_root_path, $phpEx;
 
@@ -291,6 +292,13 @@ class phpbb_functional_test_case extends phpbb_test_case
 			}
 		}
 
+		$install_config_file = $phpbb_root_path . 'store/install_config.php';
+
+		if (file_exists($install_config_file))
+		{
+			unlink($install_config_file);
+		}
+
 		$container_builder = new \phpbb\di\container_builder($phpbb_root_path, $phpEx);
 		$container = $container_builder
 			->with_environment('installer')
@@ -304,11 +312,14 @@ class phpbb_functional_test_case extends phpbb_test_case
 				],
 				'cache.driver.class' => 'phpbb\cache\driver\file'
 			])
+			->with_config(new \phpbb\config_php_file($phpbb_root_path, $phpEx))
 			->without_compiled_container()
 			->get_container();
 
 		$container->register('installer.install_finish.notify_user')->setSynthetic(true);
 		$container->set('installer.install_finish.notify_user', new phpbb_mock_null_installer_task());
+		$container->register('installer.install_finish.install_extensions')->setSynthetic(true);
+		$container->set('installer.install_finish.install_extensions', new phpbb_mock_null_installer_task());
 		$container->compile();
 
 		$language = $container->get('language');
@@ -387,6 +398,14 @@ class phpbb_functional_test_case extends phpbb_test_case
 		global $phpbb_container;
 		$phpbb_container->reset();
 
+		// Purge cache to remove cached files
+		$phpbb_container = new phpbb_mock_container_builder();
+		$phpbb_container->setParameter('core.environment', PHPBB_ENVIRONMENT);
+		$phpbb_container->setParameter('core.cache_dir', $phpbb_root_path . 'cache/' . PHPBB_ENVIRONMENT . '/');
+
+		$cache = new \phpbb\cache\driver\file;
+		$cache->purge();
+
 		$blacklist = ['phpbb_class_loader_mock', 'phpbb_class_loader_ext', 'phpbb_class_loader'];
 
 		foreach (array_keys($GLOBALS) as $key)
@@ -400,22 +419,23 @@ class phpbb_functional_test_case extends phpbb_test_case
 
 	public function install_ext($extension)
 	{
+		$this->add_lang('acp/extensions');
+
 		$this->login();
 		$this->admin_login();
 
 		$ext_path = str_replace('/', '%2F', $extension);
 
 		$crawler = self::request('GET', 'adm/index.php?i=acp_extensions&mode=main&action=enable_pre&ext_name=' . $ext_path . '&sid=' . $this->sid);
-		$this->assertGreaterThan(0, $crawler->filter('.submit-buttons')->count());
+		$this->assertGreaterThan(1, $crawler->filter('div.main fieldset.submit-buttons input')->count());
 
-		$form = $crawler->selectButton('Enable')->form();
+		$form = $crawler->selectButton($this->lang('EXTENSION_ENABLE'))->form();
 		$crawler = self::submit($form);
-		$this->add_lang('acp/extensions');
 
 		$meta_refresh = $crawler->filter('meta[http-equiv="refresh"]');
 
 		// Wait for extension to be fully enabled
-		while (sizeof($meta_refresh))
+		while (count($meta_refresh))
 		{
 			preg_match('#url=.+/(adm+.+)#', $meta_refresh->attr('content'), $match);
 			$url = $match[1];
@@ -428,7 +448,75 @@ class phpbb_functional_test_case extends phpbb_test_case
 		$this->logout();
 	}
 
-	static private function recreate_database($config)
+	public function disable_ext($extension)
+	{
+		$this->add_lang('acp/extensions');
+
+		$this->login();
+		$this->admin_login();
+
+		$ext_path = str_replace('/', '%2F', $extension);
+
+		$crawler = self::request('GET', 'adm/index.php?i=acp_extensions&mode=main&action=disable_pre&ext_name=' . $ext_path . '&sid=' . $this->sid);
+		$this->assertGreaterThan(1, $crawler->filter('div.main fieldset.submit-buttons input')->count());
+
+		$form = $crawler->selectButton($this->lang('EXTENSION_DISABLE'))->form();
+		$crawler = self::submit($form);
+
+		$meta_refresh = $crawler->filter('meta[http-equiv="refresh"]');
+
+		// Wait for extension to be fully enabled
+		while (count($meta_refresh))
+		{
+			preg_match('#url=.+/(adm+.+)#', $meta_refresh->attr('content'), $match);
+			$url = $match[1];
+			$crawler = self::request('POST', $url);
+			$meta_refresh = $crawler->filter('meta[http-equiv="refresh"]');
+		}
+
+		$this->assertContainsLang('EXTENSION_DISABLE_SUCCESS', $crawler->filter('div.successbox')->text());
+
+		$this->logout();
+	}
+
+	public function delete_ext_data($extension)
+	{
+		$this->add_lang('acp/extensions');
+
+		$this->login();
+		$this->admin_login();
+
+		$ext_path = str_replace('/', '%2F', $extension);
+
+		$crawler = self::request('GET', 'adm/index.php?i=acp_extensions&mode=main&action=delete_data_pre&ext_name=' . $ext_path . '&sid=' . $this->sid);
+		$this->assertGreaterThan(1, $crawler->filter('div.main fieldset.submit-buttons input')->count());
+
+		$form = $crawler->selectButton($this->lang('EXTENSION_DELETE_DATA'))->form();
+		$crawler = self::submit($form);
+
+		$meta_refresh = $crawler->filter('meta[http-equiv="refresh"]');
+
+		// Wait for extension to be fully enabled
+		while (count($meta_refresh))
+		{
+			preg_match('#url=.+/(adm+.+)#', $meta_refresh->attr('content'), $match);
+			$url = $match[1];
+			$crawler = self::request('POST', $url);
+			$meta_refresh = $crawler->filter('meta[http-equiv="refresh"]');
+		}
+
+		$this->assertContainsLang('EXTENSION_DELETE_DATA_SUCCESS', $crawler->filter('div.successbox')->text());
+
+		$this->logout();
+	}
+
+	public function uninstall_ext($extension)
+	{
+		$this->disable_ext($extension);
+		$this->delete_ext_data($extension);
+	}
+
+	private static function recreate_database($config)
 	{
 		$db_conn_mgr = new phpbb_database_test_connection_manager($config);
 		$db_conn_mgr->recreate_db();
@@ -437,9 +525,9 @@ class phpbb_functional_test_case extends phpbb_test_case
 	/**
 	* Creates a new style
 	*
-	* @param string $style_id Style ID
+	* @param int $style_id Style ID
 	* @param string $style_path Style directory
-	* @param string $parent_style_id Parent style id. Default = 1
+	* @param int $parent_style_id Parent style id. Default = 1
 	* @param string $parent_style_path Parent style directory. Default = 'prosilver'
 	*/
 	protected function add_style($style_id, $style_path, $parent_style_id = 1, $parent_style_path = 'prosilver')
@@ -499,7 +587,6 @@ class phpbb_functional_test_case extends phpbb_test_case
 		else
 		{
 			$db->sql_multi_insert(STYLES_TABLE, array(array(
-				'style_id' => $style_id,
 				'style_name' => $style_path,
 				'style_copyright' => '',
 				'style_active' => 1,
@@ -514,7 +601,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 	/**
 	* Remove temporary style created by add_style()
 	*
-	* @param string $style_id Style ID
+	* @param int $style_id Style ID
 	* @param string $style_path Style directory
 	*/
 	protected function delete_style($style_id, $style_path)
@@ -541,9 +628,10 @@ class phpbb_functional_test_case extends phpbb_test_case
 	* Creates a new user with limited permissions
 	*
 	* @param string $username Also doubles up as the user's password
+	* @param string $email User email (defaults to nobody@example.com)
 	* @return int ID of created user
 	*/
-	protected function create_user($username)
+	protected function create_user($username, $email = 'nobody@example.com')
 	{
 		// Required by unique_id
 		global $config;
@@ -561,6 +649,9 @@ class phpbb_functional_test_case extends phpbb_test_case
 		$config['newest_user_colour'] = '';
 		$config['rand_seed'] = '';
 		$config['rand_seed_last_update'] = time() + 600;
+
+		// Prevent new user to have an invalid style
+		$config['default_style'] = 1;
 
 		// Required by user_add
 		global $db, $cache, $phpbb_dispatcher, $phpbb_container;
@@ -592,7 +683,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 		$user_row = array(
 			'username' => $username,
 			'group_id' => 2,
-			'user_email' => 'nobody@example.com',
+			'user_email' => $email,
 			'user_type' => 0,
 			'user_lang' => 'en',
 			'user_timezone' => 'UTC',
@@ -602,20 +693,43 @@ class phpbb_functional_test_case extends phpbb_test_case
 		return user_add($user_row);
 	}
 
+	/**
+	 * Get group ID
+	 *
+	 * @param string $group_name Group name
+	 * @return int Group id of specified group name
+	 */
+	protected function get_group_id($group_name)
+	{
+		$db = $this->get_db();
+		$sql = 'SELECT group_id
+			FROM ' . GROUPS_TABLE . "
+			WHERE group_name = '" . $db->sql_escape($group_name) . "'";
+		$result = $db->sql_query($sql);
+		$group_id = (int) $db->sql_fetchfield('group_id');
+		$db->sql_freeresult($result);
+
+		return $group_id;
+	}
+
 	protected function remove_user_group($group_name, $usernames)
 	{
-		global $db, $cache, $auth, $config, $phpbb_dispatcher, $phpbb_log, $phpbb_container, $phpbb_root_path, $phpEx;
+		global $db, $cache, $auth, $config, $phpbb_dispatcher, $phpbb_log, $phpbb_container, $user, $phpbb_root_path, $phpEx;
 
 		$config = new \phpbb\config\config(array());
 		$config['coppa_enable'] = 0;
 
 		$db = $this->get_db();
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
-		$user = $this->getMock('\phpbb\user', array(), array(
+
+		$user = $this->createMock('\phpbb\user', array(), array(
 			new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx)),
 			'\phpbb\datetime'
 		));
-		$auth = $this->getMock('\phpbb\auth\auth');
+		$user->data['user_id'] = 2; // admin
+		$user->ip = '';
+
+		$auth = $this->createMock('\phpbb\auth\auth');
 
 		$phpbb_log = new \phpbb\log\log($db, $user, $auth, $phpbb_dispatcher, $phpbb_root_path, 'adm/', $phpEx, LOG_TABLE);
 		$cache = new phpbb_mock_null_cache;
@@ -634,36 +748,35 @@ class phpbb_functional_test_case extends phpbb_test_case
 			require_once(__DIR__ . '/../../phpBB/includes/functions_user.php');
 		}
 
-		$sql = 'SELECT group_id
-			FROM ' . GROUPS_TABLE . "
-			WHERE group_name = '" . $db->sql_escape($group_name) . "'";
-		$result = $db->sql_query($sql);
-		$group_id = (int) $db->sql_fetchfield('group_id');
-		$db->sql_freeresult($result);
+		$group_id = $this->get_group_id($group_name);
 
 		return group_user_del($group_id, false, $usernames, $group_name);
 	}
 
 	protected function add_user_group($group_name, $usernames, $default = false, $leader = false)
 	{
-		global $db, $cache, $auth, $config, $phpbb_dispatcher, $phpbb_log, $phpbb_container, $phpbb_root_path, $phpEx;
+		global $db, $cache, $auth, $config, $phpbb_dispatcher, $phpbb_log, $phpbb_container, $user, $phpbb_root_path, $phpEx;
 
 		$config = new \phpbb\config\config(array());
 		$config['coppa_enable'] = 0;
 
 		$db = $this->get_db();
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
-		$user = $this->getMock('\phpbb\user', array(), array(
+
+		$user = $this->createMock('\phpbb\user', array(), array(
 			new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx)),
 			'\phpbb\datetime'
 		));
-		$auth = $this->getMock('\phpbb\auth\auth');
+		$user->data['user_id'] = 2; // admin
+		$user->ip = '';
+
+		$auth = $this->createMock('\phpbb\auth\auth');
 
 		$phpbb_log = new \phpbb\log\log($db, $user, $auth, $phpbb_dispatcher, $phpbb_root_path, 'adm/', $phpEx, LOG_TABLE);
 		$cache = new phpbb_mock_null_cache;
 
 		$cache_driver = new \phpbb\cache\driver\dummy();
-		$phpbb_container = $this->getMock('Symfony\Component\DependencyInjection\ContainerInterface');
+		$phpbb_container = $this->createMock('Symfony\Component\DependencyInjection\ContainerInterface');
 		$phpbb_container
 			->expects($this->any())
 			->method('get')
@@ -679,31 +792,30 @@ class phpbb_functional_test_case extends phpbb_test_case
 			require_once(__DIR__ . '/../../phpBB/includes/functions_user.php');
 		}
 
-		$sql = 'SELECT group_id
-			FROM ' . GROUPS_TABLE . "
-			WHERE group_name = '" . $db->sql_escape($group_name) . "'";
-		$result = $db->sql_query($sql);
-		$group_id = (int) $db->sql_fetchfield('group_id');
-		$db->sql_freeresult($result);
+		$group_id = $this->get_group_id($group_name);
 
 		return group_user_add($group_id, false, $usernames, $group_name, $default, $leader);
 	}
 
-	protected function login($username = 'admin')
+	protected function login($username = 'admin', $autologin = false)
 	{
 		$this->add_lang('ucp');
 
 		$crawler = self::request('GET', 'ucp.php');
-		$this->assertContains($this->lang('LOGIN_EXPLAIN_UCP'), $crawler->filter('html')->text());
+		$this->assertStringContainsString($this->lang('LOGIN_EXPLAIN_UCP'), $crawler->filter('html')->text());
 
 		$form = $crawler->selectButton($this->lang('LOGIN'))->form();
+		if ($autologin)
+		{
+			$form['autologin']->tick();
+		}
 		$crawler = self::submit($form, array('username' => $username, 'password' => $username . $username));
-		$this->assertNotContains($this->lang('LOGIN'), $crawler->filter('.navbar')->text());
+		$this->assertStringNotContainsString($this->lang('LOGIN'), $crawler->filter('.navbar')->text());
 
 		$cookies = self::$cookieJar->all();
 
 		// The session id is stored in a cookie that ends with _sid - we assume there is only one such cookie
-		foreach ($cookies as $cookie);
+		foreach ($cookies as $cookie)
 		{
 			if (substr($cookie->getName(), -4) == '_sid')
 			{
@@ -717,7 +829,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 		$this->add_lang('ucp');
 
 		$crawler = self::request('GET', 'ucp.php?sid=' . $this->sid . '&mode=logout');
-		$this->assertContains($this->lang('REGISTER'), $crawler->filter('.navbar')->text());
+		$this->assertStringContainsString($this->lang('REGISTER'), $crawler->filter('.navbar')->text());
 		unset($this->sid);
 
 	}
@@ -738,7 +850,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 		}
 
 		$crawler = self::request('GET', 'adm/index.php?sid=' . $this->sid);
-		$this->assertContains($this->lang('LOGIN_ADMIN_CONFIRM'), $crawler->filter('html')->text());
+		$this->assertStringContainsString($this->lang('LOGIN_ADMIN_CONFIRM'), $crawler->filter('html')->text());
 
 		$form = $crawler->selectButton($this->lang('LOGIN'))->form();
 
@@ -747,12 +859,12 @@ class phpbb_functional_test_case extends phpbb_test_case
 			if (strpos($field, 'password_') === 0)
 			{
 				$crawler = self::submit($form, array('username' => $username, $field => $username . $username));
-				$this->assertContains($this->lang('ADMIN_PANEL'), $crawler->filter('h1')->text());
+				$this->assertStringContainsString($this->lang('ADMIN_PANEL'), $crawler->filter('h1')->text());
 
 				$cookies = self::$cookieJar->all();
 
 				// The session id is stored in a cookie that ends with _sid - we assume there is only one such cookie
-				foreach ($cookies as $cookie);
+				foreach ($cookies as $cookie)
 				{
 					if (substr($cookie->getName(), -4) == '_sid')
 					{
@@ -773,6 +885,8 @@ class phpbb_functional_test_case extends phpbb_test_case
 			{
 				$this->add_lang($file);
 			}
+
+			return;
 		}
 
 		$lang_path = __DIR__ . "/../../phpBB/language/en/$lang_file.php";
@@ -833,9 +947,9 @@ class phpbb_functional_test_case extends phpbb_test_case
 	 * @param string $haystack	Search this
 	 * @param string $message	Optional failure message
 	 */
-	public function assertContainsLang($needle, $haystack, $message = null)
+	public function assertContainsLang($needle, $haystack, $message = '')
 	{
-		$this->assertContains(html_entity_decode($this->lang($needle), ENT_QUOTES), $haystack, $message);
+		$this->assertStringContainsString(html_entity_decode($this->lang($needle), ENT_QUOTES), $haystack, $message);
 	}
 
 	/**
@@ -845,9 +959,9 @@ class phpbb_functional_test_case extends phpbb_test_case
 	* @param string $haystack	Search this
 	* @param string $message	Optional failure message
 	*/
-	public function assertNotContainsLang($needle, $haystack, $message = null)
+	public function assertNotContainsLang($needle, $haystack, $message = '')
 	{
-		$this->assertNotContains(html_entity_decode($this->lang($needle), ENT_QUOTES), $haystack, $message);
+		$this->assertStringNotContainsString(html_entity_decode($this->lang($needle), ENT_QUOTES), $haystack, $message);
 	}
 
 	/*
@@ -862,7 +976,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 	{
 		// Any output before the doc type means there was an error
 		$content = self::get_content();
-		self::assertNotContains('[phpBB Debug]', $content);
+		self::assertStringNotContainsString('[phpBB Debug]', $content);
 		self::assertStringStartsWith('<!DOCTYPE', trim($content), 'Output found before DOCTYPE specification.');
 
 		if ($status_code !== false)
@@ -883,7 +997,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 	{
 		// Any output before the xml opening means there was an error
 		$content = self::get_content();
-		self::assertNotContains('[phpBB Debug]', $content);
+		self::assertStringNotContainsString('[phpBB Debug]', $content);
 		self::assertStringStartsWith('<?xml', trim($content), 'Output found before XML specification.');
 
 		if ($status_code !== false)
@@ -899,11 +1013,16 @@ class phpbb_functional_test_case extends phpbb_test_case
 	* status code. This assertion tries to catch that.
 	*
 	* @param int $status_code	Expected status code
-	* @return null
+	* @return void
 	*/
 	static public function assert_response_status_code($status_code = 200)
 	{
-		self::assertEquals($status_code, self::$client->getResponse()->getStatus(), 'HTTP status code does not match');
+		if ($status_code != self::$client->getResponse()->getStatusCode() &&
+			preg_match('/^5[0-9]{2}/', self::$client->getResponse()->getStatusCode()))
+		{
+			self::fail("Encountered unexpected server error:\n" . self::$client->getResponse()->getContent());
+		}
+		self::assertEquals($status_code, self::$client->getResponse()->getStatusCode(), 'HTTP status code does not match');
 	}
 
 	public function assert_filter($crawler, $expr, $msg = null)
@@ -977,7 +1096,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 
 		$this->assertEquals(
 			1,
-			sizeof($result),
+			count($result),
 			$message ?: 'Failed asserting that exactly one checkbox with name' .
 				" $name exists in crawler scope."
 		);
@@ -1059,7 +1178,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 			}
 			else
 			{
-				$this->assertContains($expected, $crawler->filter('html')->text());
+				$this->assertStringContainsString($expected, $crawler->filter('html')->text());
 			}
 			return null;
 		}
@@ -1102,7 +1221,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 
 		$crawler = self::submit_message($posting_url, 'POST_NEW_PM', $form_data);
 
-		$this->assertContains($this->lang('MESSAGE_STORED'), $crawler->filter('html')->text());
+		$this->assertStringContainsString($this->lang('MESSAGE_STORED'), $crawler->filter('html')->text());
 		$url = $crawler->selectLink($this->lang('VIEW_PRIVATE_MESSAGE', '', ''))->link()->getUri();
 
 		return $this->get_parameter_from_link($url, 'p');
@@ -1126,7 +1245,7 @@ class phpbb_functional_test_case extends phpbb_test_case
 		self::$last_post_timestamp = time();
 
 		$crawler = self::request('GET', $posting_url);
-		$this->assertContains($this->lang($posting_contains), $crawler->filter('html')->text());
+		$this->assertStringContainsString($this->lang($posting_contains), $crawler->filter('html')->text());
 
 		if (!empty($form_data['upload_files']))
 		{
@@ -1140,28 +1259,14 @@ class phpbb_functional_test_case extends phpbb_test_case
 					'error'		=> UPLOAD_ERR_OK,
 				);
 
-				$crawler = self::$client->request('POST', $posting_url, array('add_file' => $this->lang('ADD_FILE')), array('fileupload' => $file));
+				$file_form_data = array_merge(['add_file' => $this->lang('ADD_FILE')], $this->get_hidden_fields($crawler, $posting_url));
+
+				$crawler = self::$client->request('POST', $posting_url, $file_form_data, array('fileupload' => $file));
 			}
 			unset($form_data['upload_files']);
 		}
 
-		$hidden_fields = array(
-			$crawler->filter('[type="hidden"]')->each(function ($node, $i) {
-				return array('name' => $node->attr('name'), 'value' => $node->attr('value'));
-			}),
-		);
-
-		foreach ($hidden_fields as $fields)
-		{
-			foreach($fields as $field)
-			{
-				$form_data[$field['name']] = $field['value'];
-			}
-		}
-
-		// Bypass time restriction that said that if the lastclick time (i.e. time when the form was opened)
-		// is not at least 2 seconds before submission, cancel the form
-		$form_data['lastclick'] = 0;
+		$form_data = array_merge($form_data, $this->get_hidden_fields($crawler, $posting_url));
 
 		// I use a request because the form submission method does not allow you to send data that is not
 		// contained in one of the actual form fields that the browser sees (i.e. it ignores "hidden" inputs)
@@ -1291,5 +1396,38 @@ class phpbb_functional_test_case extends phpbb_test_case
 		$link = $crawler->filter('#quickmod')->selectLink($this->lang($action))->link()->getUri();
 
 		return self::request('GET', substr($link, strpos($link, 'mcp.')));
+	}
+
+	/**
+	 * Get hidden fields for URL
+	 *
+	 * @param Symfony\Component\DomCrawler\Crawler|null $crawler Crawler instance or null
+	 * @param string $url Request URL
+	 *
+	 * @return array Hidden form fields array
+	 */
+	protected function get_hidden_fields($crawler, $url)
+	{
+		if (!$crawler)
+		{
+			$crawler = self::$client->request('GET', $url);
+		}
+		$hidden_fields = [
+			$crawler->filter('[type="hidden"]')->each(function ($node, $i) {
+				return ['name' => $node->attr('name'), 'value' => $node->attr('value')];
+			}),
+		];
+
+		$file_form_data = [];
+
+		foreach ($hidden_fields as $fields)
+		{
+			foreach($fields as $field)
+			{
+				$file_form_data[$field['name']] = $field['value'];
+			}
+		}
+
+		return $file_form_data;
 	}
 }

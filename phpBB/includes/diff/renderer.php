@@ -56,7 +56,7 @@ class diff_renderer
 	/**
 	* Constructor.
 	*/
-	function diff_renderer($params = array())
+	function __construct($params = array())
 	{
 		foreach ($params as $param => $value)
 		{
@@ -128,8 +128,8 @@ class diff_renderer
 				if (is_array($block))
 				{
 					// How many lines to keep as context from the copy block.
-					$keep = ($i == sizeof($diffs) - 1) ? $ntrail : $nlead + $ntrail;
-					if (sizeof($edit->orig) <= $keep)
+					$keep = ($i == count($diffs) - 1) ? $ntrail : $nlead + $ntrail;
+					if (count($edit->orig) <= $keep)
 					{
 						// We have less lines in the block than we want for context => keep the whole block.
 						$block[] = $edit;
@@ -156,9 +156,9 @@ class diff_renderer
 				if (!is_array($block))
 				{
 					// Extract context lines from the preceding copy block.
-					$context = array_slice($context, sizeof($context) - $nlead);
-					$x0 = $xi - sizeof($context);
-					$y0 = $yi - sizeof($context);
+					$context = array_slice($context, count($context) - $nlead);
+					$x0 = $xi - count($context);
+					$y0 = $yi - count($context);
 					$block = array();
 
 					if ($context)
@@ -169,8 +169,8 @@ class diff_renderer
 				$block[] = $edit;
 			}
 
-			$xi += ($edit->orig) ? sizeof($edit->orig) : 0;
-			$yi += ($edit->final) ? sizeof($edit->final) : 0;
+			$xi += ($edit->orig) ? count($edit->orig) : 0;
+			$yi += ($edit->final) ? count($edit->final) : 0;
 		}
 
 		if (is_array($block))
@@ -322,17 +322,17 @@ class diff_renderer_unified extends diff_renderer
 
 	function _context($lines)
 	{
-		return '<pre class="diff context">' . htmlspecialchars($this->_lines($lines, ' ')) . '<br /></pre>';
+		return '<pre class="diff context">' . htmlspecialchars($this->_lines($lines, ' '), ENT_COMPAT) . '<br /></pre>';
 	}
 
 	function _added($lines)
 	{
-		return '<pre class="diff added">' . htmlspecialchars($this->_lines($lines, '+')) . '<br /></pre>';
+		return '<pre class="diff added">' . htmlspecialchars($this->_lines($lines, '+'), ENT_COMPAT) . '<br /></pre>';
 	}
 
 	function _deleted($lines)
 	{
-		return '<pre class="diff removed">' . htmlspecialchars($this->_lines($lines, '-')) . '<br /></pre>';
+		return '<pre class="diff removed">' . htmlspecialchars($this->_lines($lines, '-'), ENT_COMPAT) . '<br /></pre>';
 	}
 
 	function _changed($orig, $final)
@@ -433,7 +433,7 @@ class diff_renderer_inline extends diff_renderer
 	{
 		array_walk($lines, array(&$this, '_encode'));
 		$lines[0] = $this->_ins_prefix . $lines[0];
-		$lines[sizeof($lines) - 1] .= $this->_ins_suffix;
+		$lines[count($lines) - 1] .= $this->_ins_suffix;
 		return $this->_lines($lines, ' ', false);
 	}
 
@@ -441,7 +441,7 @@ class diff_renderer_inline extends diff_renderer
 	{
 		array_walk($lines, array(&$this, '_encode'));
 		$lines[0] = $this->_del_prefix . $lines[0];
-		$lines[sizeof($lines) - 1] .= $this->_del_suffix;
+		$lines[count($lines) - 1] .= $this->_del_suffix;
 		return $this->_lines($lines, ' ', false);
 	}
 
@@ -519,7 +519,7 @@ class diff_renderer_inline extends diff_renderer
 
 	function _encode(&$string)
 	{
-		$string = htmlspecialchars($string);
+		$string = htmlspecialchars($string, ENT_COMPAT);
 	}
 }
 
@@ -539,7 +539,7 @@ class diff_renderer_raw extends diff_renderer
 	*/
 	function get_diff_content($diff)
 	{
-		return '<textarea style="height: 290px;" rows="15" cols="76" class="full">' . htmlspecialchars($this->render($diff)) . '</textarea>';
+		return '<textarea style="height: 290px;" rows="15" cols="76" class="full">' . htmlspecialchars($this->render($diff), ENT_COMPAT) . '</textarea>';
 	}
 
 	function _block_header($xbeg, $xlen, $ybeg, $ylen)
@@ -617,7 +617,7 @@ class diff_renderer_side_by_side extends diff_renderer
 		$this->render($diff);
 
 		// Is the diff empty?
-		if (!sizeof($this->lines))
+		if (!count($this->lines))
 		{
 			$output .= '<tr><th colspan="2">' . $user->lang['NO_VISIBLE_CHANGES'] . '</th></tr>';
 		}
@@ -649,7 +649,7 @@ class diff_renderer_side_by_side extends diff_renderer
 
 							foreach ($change['lines'] as $_line)
 							{
-								$line .= htmlspecialchars($_line) . '<br />';
+								$line .= htmlspecialchars($_line, ENT_COMPAT) . '<br />';
 							}
 
 							$output .= '<tr><td class="added_empty">&nbsp;</td><td class="added"><pre>' . ((strlen($line)) ? $line : '&nbsp;') . '<br /></pre></td></tr>';
@@ -660,27 +660,27 @@ class diff_renderer_side_by_side extends diff_renderer
 
 							foreach ($change['lines'] as $_line)
 							{
-								$line .= htmlspecialchars($_line) . '<br />';
+								$line .= htmlspecialchars($_line, ENT_COMPAT) . '<br />';
 							}
 
 							$output .= '<tr><td class="removed"><pre>' . ((strlen($line)) ? $line : '&nbsp;') . '<br /></pre></td><td class="removed_empty">&nbsp;</td></tr>';
 						break;
 
 						case 'empty':
-							$current_context .= htmlspecialchars($change['line']) . '<br />';
+							$current_context .= htmlspecialchars($change['line'], ENT_COMPAT) . '<br />';
 						break;
 
 						case 'change':
 							// Pop the old/new stacks one by one, until both are empty.
-							$oldsize = sizeof($change['old']);
-							$newsize = sizeof($change['new']);
+							$oldsize = count($change['old']);
+							$newsize = count($change['new']);
 							$left = $right = '';
 
 							for ($row = 0, $row_max = max($oldsize, $newsize); $row < $row_max; ++$row)
 							{
-								$left .= isset($change['old'][$row]) ? htmlspecialchars($change['old'][$row]) : '';
+								$left .= isset($change['old'][$row]) ? htmlspecialchars($change['old'][$row], ENT_COMPAT) : '';
 								$left .= '<br />';
-								$right .= isset($change['new'][$row]) ? htmlspecialchars($change['new'][$row]) : '';
+								$right .= isset($change['new'][$row]) ? htmlspecialchars($change['new'][$row], ENT_COMPAT) : '';
 								$right .= '<br />';
 							}
 

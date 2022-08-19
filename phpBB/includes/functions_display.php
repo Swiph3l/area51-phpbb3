@@ -30,6 +30,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 
 	$forum_rows = $subforums = $forum_ids = $forum_ids_moderator = $forum_moderators = $active_forum_ary = array();
 	$parent_id = $visible_forums = 0;
+	$parent_subforum_limit = false;
 
 	// Mark forums read?
 	$mark_read = $request->variable('mark', '');
@@ -70,7 +71,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 				$data = array(
 					'NO_UNREAD_POSTS'	=> $user->lang['NO_UNREAD_POSTS'],
 					'UNREAD_POSTS'		=> $user->lang['UNREAD_POSTS'],
-					'U_MARK_FORUMS'		=> ($user->data['is_registered'] || $config['load_anon_lastread']) ? append_sid("{$phpbb_root_path}index.$phpEx", 'hash=' . generate_link_hash('global') . '&mark=forums&mark_time=' . time()) : '',
+					'U_MARK_FORUMS'		=> ($user->data['is_registered'] || $config['load_anon_lastread']) ? append_sid("{$phpbb_root_path}index.$phpEx", 'hash=' . generate_link_hash('global') . '&mark=forums&mark_time=' . time(), false) : '',
 					'MESSAGE_TITLE'		=> $user->lang['INFORMATION'],
 					'MESSAGE_TEXT'		=> $user->lang['FORUMS_MARKED']
 				);
@@ -266,6 +267,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 
 			// Direct child of current branch
 			$parent_id = $forum_id;
+			$parent_subforum_limit = $row['display_subforum_limit'] ?? false;
 			$forum_rows[$forum_id] = $row;
 
 			if ($row['forum_type'] == FORUM_CAT && $row['parent_id'] == $root_data['forum_id'])
@@ -278,10 +280,11 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 		}
 		else if ($row['forum_type'] != FORUM_CAT)
 		{
-			$subforums[$parent_id][$forum_id]['display'] = ($row['display_on_index']) ? true : false;
+			$subforums[$parent_id][$forum_id]['display'] = ($row['display_on_index'] && (!$parent_subforum_limit || $parent_id == $row['parent_id']));
 			$subforums[$parent_id][$forum_id]['name'] = $row['forum_name'];
 			$subforums[$parent_id][$forum_id]['orig_forum_last_post_time'] = $row['forum_last_post_time'];
 			$subforums[$parent_id][$forum_id]['children'] = array();
+			$subforums[$parent_id][$forum_id]['type'] = $row['forum_type'];
 
 			if (isset($subforums[$parent_id][$row['parent_id']]) && !$row['display_on_index'])
 			{
@@ -354,7 +357,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 				$data = array(
 					'NO_UNREAD_POSTS'	=> $user->lang['NO_UNREAD_POSTS'],
 					'UNREAD_POSTS'		=> $user->lang['UNREAD_POSTS'],
-					'U_MARK_FORUMS'		=> ($user->data['is_registered'] || $config['load_anon_lastread']) ? append_sid("{$phpbb_root_path}viewforum.$phpEx", 'hash=' . generate_link_hash('global') . '&f=' . $root_data['forum_id'] . '&mark=forums&mark_time=' . time()) : '',
+					'U_MARK_FORUMS'		=> ($user->data['is_registered'] || $config['load_anon_lastread']) ? append_sid("{$phpbb_root_path}viewforum.$phpEx", 'hash=' . generate_link_hash('global') . '&f=' . $root_data['forum_id'] . '&mark=forums&mark_time=' . time(), false) : '',
 					'MESSAGE_TITLE'		=> $user->lang['INFORMATION'],
 					'MESSAGE_TEXT'		=> $user->lang['FORUMS_MARKED']
 				);
@@ -441,7 +444,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 			* @var	array	root_data		Array with the root forum data
 			* @var	array	row				The data of the 'category'
 			* @since 3.1.0-RC4
-			* @change 3.1.7-RC1 Removed undefined catless variable
+			* @changed 3.1.7-RC1 Removed undefined catless variable
 			*/
 			$vars = array(
 				'cat_row',
@@ -490,6 +493,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 						'link'		=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $subforum_id),
 						'name'		=> $subforum_row['name'],
 						'unread'	=> $subforum_unread,
+						'type'		=> $subforum_row['type'],
 					);
 				}
 				else
@@ -504,7 +508,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 				}
 			}
 
-			$l_subforums = (sizeof($subforums[$forum_id]) == 1) ? $user->lang['SUBFORUM'] : $user->lang['SUBFORUMS'];
+			$l_subforums = (count($subforums[$forum_id]) == 1) ? $user->lang['SUBFORUM'] : $user->lang['SUBFORUMS'];
 			$folder_image = ($forum_unread) ? 'forum_unread_subforum' : 'forum_read_subforum';
 		}
 		else
@@ -535,9 +539,10 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 		// Create last post link information, if appropriate
 		if ($row['forum_last_post_id'])
 		{
-			if ($row['forum_password_last_post'] === '' && $auth->acl_get('f_read', $row['forum_id_last_post']))
+			if ($row['forum_password_last_post'] === '' && $auth->acl_gets('f_read', 'f_list_topics', $row['forum_id_last_post']))
 			{
-				$last_post_subject = censor_text($row['forum_last_post_subject']);
+				$last_post_subject = utf8_decode_ncr(censor_text($row['forum_last_post_subject']));
+
 				$last_post_subject_truncated = truncate_string($last_post_subject, 30, 255, false, $user->lang['ELLIPSIS']);
 			}
 			else
@@ -545,18 +550,19 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 				$last_post_subject = $last_post_subject_truncated = '';
 			}
 			$last_post_time = $user->format_date($row['forum_last_post_time']);
+			$last_post_time_rfc3339 = gmdate(DATE_RFC3339, $row['forum_last_post_time']);
 			$last_post_url = append_sid("{$phpbb_root_path}viewtopic.$phpEx", 'f=' . $row['forum_id_last_post'] . '&amp;p=' . $row['forum_last_post_id']) . '#p' . $row['forum_last_post_id'];
 		}
 		else
 		{
-			$last_post_subject = $last_post_time = $last_post_url = $last_post_subject_truncated = '';
+			$last_post_subject = $last_post_time = $last_post_time_rfc3339 = $last_post_url = $last_post_subject_truncated = '';
 		}
 
 		// Output moderator listing ... if applicable
 		$l_moderator = $moderators_list = '';
 		if ($display_moderators && !empty($forum_moderators[$forum_id]))
 		{
-			$l_moderator = (sizeof($forum_moderators[$forum_id]) == 1) ? $user->lang['MODERATOR'] : $user->lang['MODERATORS'];
+			$l_moderator = (count($forum_moderators[$forum_id]) == 1) ? $user->lang['MODERATOR'] : $user->lang['MODERATORS'];
 			$moderators_list = implode($user->lang['COMMA_SEPARATOR'], $forum_moderators[$forum_id]);
 		}
 
@@ -571,6 +577,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 				'U_SUBFORUM'	=> $subforum['link'],
 				'SUBFORUM_NAME'	=> $subforum['name'],
 				'S_UNREAD'		=> $subforum['unread'],
+				'IS_LINK'		=> $subforum['type'] == FORUM_LINK,
 			);
 		}
 		$s_subforums_list = (string) implode($user->lang['COMMA_SEPARATOR'], $s_subforums_list);
@@ -602,7 +609,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 			'S_AUTH_READ'		=> $auth->acl_get('f_read', $row['forum_id']),
 			'S_LOCKED_FORUM'	=> ($row['forum_status'] == ITEM_LOCKED) ? true : false,
 			'S_LIST_SUBFORUMS'	=> ($row['display_subforum_list']) ? true : false,
-			'S_SUBFORUMS'		=> (sizeof($subforums_list)) ? true : false,
+			'S_SUBFORUMS'		=> (count($subforums_list)) ? true : false,
 			'S_DISPLAY_SUBJECT'	=>	($last_post_subject !== '' && $config['display_last_subject']) ? true : false,
 			'S_FEED_ENABLED'	=> ($config['feed_forum'] && !phpbb_optionget(FORUM_OPTION_FEED_EXCLUDE, $row['forum_options']) && $row['forum_type'] == FORUM_POST) ? true : false,
 
@@ -619,6 +626,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 			'LAST_POST_SUBJECT'		=> $last_post_subject,
 			'LAST_POST_SUBJECT_TRUNCATED'	=> $last_post_subject_truncated,
 			'LAST_POST_TIME'		=> $last_post_time,
+			'LAST_POST_TIME_RFC3339'=> $last_post_time_rfc3339,
 			'LAST_POSTER'			=> get_username_string('username', $row['forum_last_poster_id'], $row['forum_last_poster_name'], $row['forum_last_poster_colour']),
 			'LAST_POSTER_COLOUR'	=> get_username_string('colour', $row['forum_last_poster_id'], $row['forum_last_poster_name'], $row['forum_last_poster_colour']),
 			'LAST_POSTER_FULL'		=> get_username_string('full', $row['forum_last_poster_id'], $row['forum_last_poster_name'], $row['forum_last_poster_colour']),
@@ -645,7 +653,7 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 		* @var	array	row				The data of the forum
 		* @var	array	subforums_row	Template data of subforums
 		* @since 3.1.0-a1
-		* @change 3.1.0-b5 Added var subforums_row
+		* @changed 3.1.0-b5 Added var subforums_row
 		*/
 		$vars = array('forum_row', 'row', 'subforums_row');
 		extract($phpbb_dispatcher->trigger_event('core.display_forums_modify_template_vars', compact($vars)));
@@ -726,17 +734,17 @@ function display_forums($root_data = '', $display_moderators = true, $return_mod
 */
 function generate_forum_rules(&$forum_data)
 {
+	if ($forum_data['forum_rules'])
+	{
+		$forum_data['forum_rules'] = generate_text_for_display($forum_data['forum_rules'], $forum_data['forum_rules_uid'], $forum_data['forum_rules_bitfield'], $forum_data['forum_rules_options']);
+	}
+
 	if (!$forum_data['forum_rules'] && !$forum_data['forum_rules_link'])
 	{
 		return;
 	}
 
 	global $template;
-
-	if ($forum_data['forum_rules'])
-	{
-		$forum_data['forum_rules'] = generate_text_for_display($forum_data['forum_rules'], $forum_data['forum_rules_uid'], $forum_data['forum_rules_bitfield'], $forum_data['forum_rules_options']);
-	}
 
 	$template->assign_vars(array(
 		'S_FORUM_RULES'	=> true,
@@ -759,7 +767,7 @@ function generate_forum_nav(&$forum_data_ary)
 		return;
 	}
 
-	$navlinks_parents = $forum_template_data = array();
+	$navlinks_parents = array();
 
 	// Get forum parents
 	$forum_parents = get_forum_parents($forum_data_ary);
@@ -780,25 +788,25 @@ function generate_forum_nav(&$forum_data_ary)
 			}
 
 			$navlinks_parents[] = array(
-				'S_IS_CAT'		=> ($parent_type == FORUM_CAT) ? true : false,
-				'S_IS_LINK'		=> ($parent_type == FORUM_LINK) ? true : false,
-				'S_IS_POST'		=> ($parent_type == FORUM_POST) ? true : false,
-				'FORUM_NAME'	=> $parent_name,
-				'FORUM_ID'		=> $parent_forum_id,
-				'MICRODATA'		=> $microdata_attr . '="' . $parent_forum_id . '"',
-				'U_VIEW_FORUM'	=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $parent_forum_id),
+				'S_IS_CAT'			=> ($parent_type == FORUM_CAT) ? true : false,
+				'S_IS_LINK'			=> ($parent_type == FORUM_LINK) ? true : false,
+				'S_IS_POST'			=> ($parent_type == FORUM_POST) ? true : false,
+				'BREADCRUMB_NAME'	=> $parent_name,
+				'FORUM_ID'			=> $parent_forum_id,
+				'MICRODATA'			=> $microdata_attr . '="' . $parent_forum_id . '"',
+				'U_BREADCRUMB'		=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $parent_forum_id),
 			);
 		}
 	}
 
 	$navlinks = array(
-		'S_IS_CAT'		=> ($forum_data_ary['forum_type'] == FORUM_CAT) ? true : false,
-		'S_IS_LINK'		=> ($forum_data_ary['forum_type'] == FORUM_LINK) ? true : false,
-		'S_IS_POST'		=> ($forum_data_ary['forum_type'] == FORUM_POST) ? true : false,
-		'FORUM_NAME'	=> $forum_data_ary['forum_name'],
-		'FORUM_ID'		=> $forum_data_ary['forum_id'],
-		'MICRODATA'		=> $microdata_attr . '="' . $forum_data_ary['forum_id'] . '"',
-		'U_VIEW_FORUM'	=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $forum_data_ary['forum_id']),
+		'S_IS_CAT'			=> ($forum_data_ary['forum_type'] == FORUM_CAT) ? true : false,
+		'S_IS_LINK'			=> ($forum_data_ary['forum_type'] == FORUM_LINK) ? true : false,
+		'S_IS_POST'			=> ($forum_data_ary['forum_type'] == FORUM_POST) ? true : false,
+		'BREADCRUMB_NAME'	=> $forum_data_ary['forum_name'],
+		'FORUM_ID'			=> $forum_data_ary['forum_id'],
+		'MICRODATA'			=> $microdata_attr . '="' . $forum_data_ary['forum_id'] . '"',
+		'U_BREADCRUMB'		=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $forum_data_ary['forum_id']),
 	);
 
 	$forum_template_data = array(
@@ -1108,13 +1116,15 @@ function display_custom_bbcodes()
 			$row['bbcode_helpline'] = $user->lang[strtoupper($row['bbcode_helpline'])];
 		}
 
+		// Convert Numeric Character References to UTF-8 chars.
+		$row['bbcode_helpline'] = utf8_decode_ncr($row['bbcode_helpline']);
+
 		$custom_tags = array(
 			'BBCODE_NAME'		=> "'[{$row['bbcode_tag']}]', '[/" . str_replace('=', '', $row['bbcode_tag']) . "]'",
 			'BBCODE_ID'			=> $num_predefined_bbcodes + ($i * 2),
 			'BBCODE_TAG'		=> $row['bbcode_tag'],
 			'BBCODE_TAG_CLEAN'	=> str_replace('=', '-', $row['bbcode_tag']),
 			'BBCODE_HELPLINE'	=> $row['bbcode_helpline'],
-			'A_BBCODE_HELPLINE'	=> str_replace(array('&amp;', '&quot;', "'", '&lt;', '&gt;'), array('&', '"', "\'", '<', '>'), $row['bbcode_helpline']),
 		);
 
 		/**
@@ -1142,7 +1152,7 @@ function display_custom_bbcodes()
 	* @event core.display_custom_bbcodes
 	* @since 3.1.0-a1
 	*/
-	$phpbb_dispatcher->dispatch('core.display_custom_bbcodes');
+	$phpbb_dispatcher->trigger_event('core.display_custom_bbcodes');
 }
 
 /**
@@ -1150,12 +1160,13 @@ function display_custom_bbcodes()
 */
 function display_user_activity(&$userdata_ary)
 {
-	global $auth, $template, $db, $user;
+	global $auth, $template, $db, $user, $config;
 	global $phpbb_root_path, $phpEx;
 	global $phpbb_container, $phpbb_dispatcher;
 
-	// Do not display user activity for users having more than 5000 posts...
-	if ($userdata_ary['user_posts'] > 5000)
+	// Do not display user activity for users having too many posts...
+	$limit = $config['load_user_activity_limit'];
+	if ($userdata_ary['user_posts'] > $limit && $limit != 0)
 	{
 		return;
 	}
@@ -1225,6 +1236,7 @@ function display_user_activity(&$userdata_ary)
 	}
 
 	$userdata = $userdata_ary;
+	$show_user_activity = true;
 	/**
 	* Alter list of forums and topics to display as active
 	*
@@ -1232,9 +1244,11 @@ function display_user_activity(&$userdata_ary)
 	* @var	array	userdata						User's data
 	* @var	array	active_f_row					List of active forums
 	* @var	array	active_t_row					List of active posts
+	* @var	bool	show_user_activity				Show user forum and topic activity
 	* @since 3.1.0-RC3
+	* @changed 3.2.5-RC1 Added show_user_activity into event
 	*/
-	$vars = array('userdata', 'active_f_row', 'active_t_row');
+	$vars = array('userdata', 'active_f_row', 'active_t_row', 'show_user_activity');
 	extract($phpbb_dispatcher->trigger_event('core.display_user_activity_modify_actives', compact($vars)));
 	$userdata_ary = $userdata;
 	unset($userdata);
@@ -1271,7 +1285,7 @@ function display_user_activity(&$userdata_ary)
 		'ACTIVE_TOPIC_PCT'		=> sprintf($l_active_pct, $active_t_pct),
 		'U_ACTIVE_FORUM'		=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $active_f_id),
 		'U_ACTIVE_TOPIC'		=> append_sid("{$phpbb_root_path}viewtopic.$phpEx", 't=' . $active_t_id),
-		'S_SHOW_ACTIVITY'		=> true)
+		'S_SHOW_ACTIVITY'		=> $show_user_activity)
 	);
 }
 
@@ -1531,6 +1545,23 @@ function phpbb_get_user_rank($user_data, $user_posts)
 		}
 	}
 
+	/**
+	* Modify a user's rank before displaying
+	*
+	* @event core.get_user_rank_after
+	* @var	array	user_data		Array with user's data
+	* @var	int		user_posts		User_posts to change
+	* @var	array	user_rank_data	User rank data
+	* @since 3.1.11-RC1
+	*/
+
+	$vars = array(
+		'user_data',
+		'user_posts',
+		'user_rank_data',
+	);
+	extract($phpbb_dispatcher->trigger_event('core.get_user_rank_after', compact($vars)));
+
 	return $user_rank_data;
 }
 
@@ -1539,7 +1570,7 @@ function phpbb_get_user_rank($user_data, $user_posts)
 */
 function phpbb_show_profile($data, $user_notes_enabled = false, $warn_user_enabled = false, $check_can_receive_pm = true)
 {
-	global $config, $auth, $user, $phpEx, $phpbb_root_path, $phpbb_dispatcher;
+	global $config, $auth, $user, $phpEx, $phpbb_root_path, $phpbb_dispatcher, $phpbb_container;
 
 	$username = $data['username'];
 	$user_id = $data['user_id'];
@@ -1613,17 +1644,23 @@ function phpbb_show_profile($data, $user_notes_enabled = false, $warn_user_enabl
 		($data['user_type'] != USER_INACTIVE || $data['user_inactive_reason'] != INACTIVE_MANUAL) &&
 
 		// They must be able to read PMs
-		sizeof($auth->acl_get_list($user_id, 'u_readpm')) &&
+		count($auth->acl_get_list($user_id, 'u_readpm')) &&
 
 		// They must not be permanently banned
-		!sizeof(phpbb_get_banned_user_ids($user_id, false)) &&
+		!count(phpbb_get_banned_user_ids($user_id, false)) &&
 
 		// They must allow users to contact via PM
 		(($auth->acl_gets('a_', 'm_') || $auth->acl_getf_global('m_')) || $data['user_allow_pm'])
 	);
 
+	/** @var \phpbb\avatar\helper $avatar_helper */
+	$avatar_helper = $phpbb_container->get('avatar.helper');
+
+	$avatar = $avatar_helper->get_user_avatar($data);
+	$avatar_vars = $avatar_helper->get_template_vars($avatar);
+
 	// Dump it out to the template
-	$template_data = array(
+	$template_data = array_merge($avatar_vars, [
 		'AGE'			=> $age,
 		'RANK_TITLE'	=> $user_rank_data['title'],
 		'JOINED'		=> $user->format_date($data['user_regdate']),
@@ -1638,7 +1675,6 @@ function phpbb_show_profile($data, $user_notes_enabled = false, $warn_user_enabl
 
 		'A_USERNAME'		=> addslashes(get_username_string('username', $user_id, $username, $data['user_colour'])),
 
-		'AVATAR_IMG'		=> phpbb_get_user_avatar($data),
 		'ONLINE_IMG'		=> (!$config['load_onlinetrack']) ? '' : (($online) ? $user->img('icon_user_online', 'ONLINE') : $user->img('icon_user_offline', 'OFFLINE')),
 		'S_ONLINE'			=> ($config['load_onlinetrack'] && $online) ? true : false,
 		'RANK_IMG'			=> $user_rank_data['img'],
@@ -1654,13 +1690,13 @@ function phpbb_show_profile($data, $user_notes_enabled = false, $warn_user_enabl
 		'U_EMAIL'		=> $email,
 		'U_JABBER'		=> ($data['user_jabber'] && $auth->acl_get('u_sendim')) ? append_sid("{$phpbb_root_path}memberlist.$phpEx", 'mode=contact&amp;action=jabber&amp;u=' . $user_id) : '',
 
-		'USER_JABBER'		=> ($config['jab_enable']) ? $data['user_jabber'] : '',
-		'USER_JABBER_IMG'	=> ($config['jab_enable'] && $data['user_jabber']) ? $user->img('icon_contact_jabber', $data['user_jabber']) : '',
+		'USER_JABBER'		=> ($config['jab_enable'] && $auth->acl_get('u_sendim')) ? $data['user_jabber'] : '',
+		'USER_JABBER_IMG'	=> ($config['jab_enable'] && $auth->acl_get('u_sendim') && $data['user_jabber']) ? $user->img('icon_contact_jabber', $data['user_jabber']) : '',
 
 		'L_SEND_EMAIL_USER' => $user->lang('SEND_EMAIL_USER', $username),
 		'L_CONTACT_USER'	=> $user->lang('CONTACT_USER', $username),
 		'L_VIEWING_PROFILE' => $user->lang('VIEWING_PROFILE', $username),
-	);
+	]);
 
 	/**
 	* Preparing a user's data before displaying it in profile and memberlist

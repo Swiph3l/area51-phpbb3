@@ -11,10 +11,10 @@
 *
 */
 
-require_once dirname(__FILE__) . '/ext/vendor2/bar/ext.php';
-require_once dirname(__FILE__) . '/ext/vendor2/foo/ext.php';
-require_once dirname(__FILE__) . '/ext/vendor3/foo/ext.php';
-require_once dirname(__FILE__) . '/ext/vendor/moo/ext.php';
+require_once __DIR__ . '/ext/vendor2/bar/ext.php';
+require_once __DIR__ . '/ext/vendor2/foo/ext.php';
+require_once __DIR__ . '/ext/vendor3/foo/ext.php';
+require_once __DIR__ . '/ext/vendor/moo/ext.php';
 
 class phpbb_extension_manager_test extends phpbb_database_test_case
 {
@@ -23,10 +23,10 @@ class phpbb_extension_manager_test extends phpbb_database_test_case
 
 	public function getDataSet()
 	{
-		return $this->createXMLDataSet(dirname(__FILE__) . '/fixtures/extensions.xml');
+		return $this->createXMLDataSet(__DIR__ . '/fixtures/extensions.xml');
 	}
 
-	protected function setUp()
+	protected function setUp(): void
 	{
 		parent::setUp();
 
@@ -36,7 +36,7 @@ class phpbb_extension_manager_test extends phpbb_database_test_case
 	public function test_all_available()
 	{
 		// barfoo and vendor3/bar should not listed due to missing composer.json. barfoo also has incorrect dir structure.
-		$this->assertEquals(array('vendor/moo', 'vendor2/bar', 'vendor2/foo', 'vendor3/foo', 'vendor4/bar'), array_keys($this->extension_manager->all_available()));
+		$this->assertEquals(array('vendor/moo', 'vendor2/bar', 'vendor2/foo', 'vendor3/foo', 'vendor4/bar', 'vendor5/foo'), array_keys($this->extension_manager->all_available()));
 	}
 
 	public function test_all_enabled()
@@ -167,6 +167,7 @@ class phpbb_extension_manager_test extends phpbb_database_test_case
 			$phpbb_root_path,
 			$php_ext,
 			$table_prefix,
+			self::get_core_tables(),
 			array(),
 			new \phpbb\db\migration\helper()
 		);
@@ -176,11 +177,10 @@ class phpbb_extension_manager_test extends phpbb_database_test_case
 			$container,
 			$db,
 			$config,
-			new \phpbb\filesystem\filesystem(),
 			'phpbb_ext',
-			dirname(__FILE__) . '/',
+			__DIR__ . '/',
 			$php_ext,
-			($with_cache) ? new phpbb_mock_cache() : null
+			($with_cache) ? new \phpbb\cache\service(new phpbb_mock_cache(), $config, $db, $phpbb_root_path, $php_ext) : null
 		);
 	}
 }

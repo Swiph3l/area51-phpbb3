@@ -13,7 +13,10 @@
 
 class phpbb_version_helper_test extends phpbb_test_case
 {
-	public function setUp()
+	protected $cache;
+	protected $version_helper;
+
+	protected function setUp(): void
 	{
 		parent::setUp();
 
@@ -25,15 +28,12 @@ class phpbb_version_helper_test extends phpbb_test_case
 			->disableOriginalConstructor()
 			->getMock();
 
-		$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
-
 		$this->version_helper = new \phpbb\version_helper(
 			$this->cache,
 			new \phpbb\config\config(array(
 				'version'	=> '3.1.0',
 			)),
-			new \phpbb\file_downloader(),
-			new \phpbb\user(new \phpbb\language\language($lang_loader), '\phpbb\datetime')
+			new \phpbb\file_downloader()
 		);
 	}
 
@@ -343,5 +343,641 @@ class phpbb_version_helper_test extends phpbb_test_case
 			->will($this->returnValue($versions));
 
 		$this->assertSame($expected, $version_helper->get_latest_on_current_branch());
+	}
+
+	public function get_update_on_branch_data()
+	{
+		return array(
+			array(
+				'1.0.0',
+				array(
+					'1.0'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'1.1'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.0.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'1.0.1',
+				array(
+					'1.0'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'1.1'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(),
+			),
+			array(
+				'1.0.1-a1',
+				array(
+					'1.0'	=> array(
+						'current'		=> '1.0.1-a2',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'1.1'	=> array(
+						'current'		=> '1.1.0',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.0.1-a2',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'1.1.0',
+				array(
+					'1.0'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'1.1'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.1.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'1.1.1',
+				array(
+					'1.0'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'1.1'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(),
+			),
+			array(
+				'1.1.0-a1',
+				array(
+					'1.0'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'1.1'	=> array(
+						'current'		=> '1.1.0-a2',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.1.0-a2',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'1.1.0',
+				array(),
+				array(),
+			),
+			// Latest safe release is 1.0.1
+			array(
+				'1.0.0',
+				array(
+					'1.0'	=> array(
+						'current'		=> '1.0.1',
+						'eol'			=> false,
+						'security'		=> '1.0.1',
+					),
+					'1.1'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.0.1',
+					'eol'			=> false,
+					'security'		=> '1.0.1',
+				),
+			),
+			// Latest safe release is 1.0.0
+			array(
+				'1.0.0',
+				array(
+					'1.0'	=> array(
+						'current'		=> '1.0.1',
+						'eol'			=> false,
+						'security'		=> '1.0.0',
+					),
+					'1.1'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.0.1',
+					'eol'			=> false,
+					'security'		=> '1.0.0',
+				),
+			),
+			// Latest safe release is 1.1.0
+			array(
+				'1.0.0',
+				array(
+					'1.0'	=> array(
+						'current'		=> '1.0.1',
+						'eol'			=> false,
+						'security'		=> '1.1.0',
+					),
+					'1.1'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.1.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			// Latest 1.0 release is EOL
+			array(
+				'1.0.0',
+				array(
+					'1.0'	=> array(
+						'current'		=> '1.0.1',
+						'eol'			=> true,
+						'security'	=> false,
+					),
+					'1.1'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.1.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			// All are EOL -- somewhat undefined behavior
+			array(
+				'1.0.0',
+				array(
+					'1.0'	=> array(
+						'current'		=> '1.0.1',
+						'eol'			=> true,
+						'security'		=> false,
+					),
+					'1.1'	=> array(
+						'current'		=> '1.1.1',
+						'eol'			=> true,
+						'security'		=> false,
+					),
+				),
+				array(),
+			),
+		);
+	}
+
+	/**
+	 * @dataProvider get_update_on_branch_data
+	 */
+	public function test_get_update_on_branch($current_version, $versions, $expected)
+	{
+		global $phpbb_root_path, $phpEx;
+
+		$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
+		$lang = new \phpbb\language\language($lang_loader);
+
+		$version_helper = $this
+			->getMockBuilder('\phpbb\version_helper')
+			->setMethods(array(
+				'get_versions_matching_stability',
+			))
+			->setConstructorArgs(array(
+				$this->cache,
+				new \phpbb\config\config(array(
+					'version'	=> $current_version,
+				)),
+				new \phpbb\file_downloader(),
+				new \phpbb\user($lang, '\phpbb\datetime'),
+			))
+			->getMock()
+		;
+
+		$version_helper->expects($this->any())
+			->method('get_versions_matching_stability')
+			->will($this->returnValue($versions));
+
+		$this->assertSame($expected, $version_helper->get_update_on_branch());
+	}
+
+	public function get_ext_update_on_branch_data()
+	{
+		return array(
+			// Single branch, check version for current branch
+			array(
+				'3.1.0',
+				'1.0.0',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.0.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'3.1.0',
+				'1.0.1',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(),
+			),
+			array(
+				'3.2.0',
+				'1.0.0',
+				array(
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.1.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'3.2.0',
+				'1.1.1',
+				array(
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(),
+			),
+			// Single branch, check for newest version when branches don't match up
+			array(
+				'3.1.0',
+				'1.0.0',
+				array(
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.1.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'3.1.0',
+				'1.1.1',
+				array(
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(),
+			),
+			array(
+				'3.2.0',
+				'1.0.0',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.0.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'3.2.0',
+				'1.0.1',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(),
+			),
+			array(
+				'3.3.0',
+				'1.0.0',
+				array(
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.1.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'3.3.0',
+				'1.1.1',
+				array(
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(),
+			),
+			// Multiple branches, check version for current branch
+			array(
+				'3.1.0',
+				'1.0.0',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.0.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'3.1.0',
+				'1.0.1',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(),
+			),
+			array(
+				'3.1.0',
+				'1.1.1',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(),
+			),
+			array(
+				'3.2.0',
+				'1.0.0',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.1.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'3.2.0',
+				'1.0.1',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.1.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'3.2.0',
+				'1.1.1',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(),
+			),
+			// Multiple branches, check for newest version when branches don't match up
+			array(
+				'3.3.0',
+				'1.0.0',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.1.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'3.3.0',
+				'1.0.1',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.1.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'3.3.0',
+				'1.1.0',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(
+					'current'		=> '1.1.1',
+					'eol'		=> false,
+					'security'	=> false,
+				),
+			),
+			array(
+				'3.3.0',
+				'1.1.1',
+				array(
+					'3.1'	=> array(
+						'current'		=> '1.0.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+					'3.2'	=> array(
+						'current'		=> '1.1.1',
+						'eol'		=> false,
+						'security'	=> false,
+					),
+				),
+				array(),
+			),
+		);
+	}
+
+	/**
+	 * @dataProvider get_ext_update_on_branch_data
+	 */
+	public function test_get_ext_update_on_branch($phpbb_version, $ext_version, $versions, $expected)
+	{
+		global $phpbb_root_path, $phpEx;
+
+		$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
+		$lang = new \phpbb\language\language($lang_loader);
+
+		$version_helper = $this
+			->getMockBuilder('\phpbb\version_helper')
+			->setMethods(array(
+				'get_versions_matching_stability',
+			))
+			->setConstructorArgs(array(
+				$this->cache,
+				new \phpbb\config\config(array(
+					'version'	=> $phpbb_version,
+				)),
+				new \phpbb\file_downloader(),
+				new \phpbb\user($lang, '\phpbb\datetime'),
+			))
+			->getMock()
+		;
+
+		$version_helper->expects($this->any())
+			->method('get_versions_matching_stability')
+			->will($this->returnValue($versions));
+
+		$version_helper->set_current_version($ext_version);
+
+		$this->assertSame($expected, $version_helper->get_ext_update_on_branch());
 	}
 }

@@ -24,29 +24,31 @@ class schema_generator_test extends phpbb_test_case
 	/** @var \phpbb\db\migration\schema_generator */
 	protected $generator;
 
-	public function setUp()
+	protected function setUp(): void
 	{
+		global $phpbb_root_path, $phpEx;
+
 		parent::setUp();
 
 		$this->config = new \phpbb\config\config(array());
-		$this->db = new \phpbb\db\driver\sqlite();
+		$this->db = new \phpbb\db\driver\sqlite3();
 		$factory = new \phpbb\db\tools\factory();
 		$this->db_tools = $factory->get($this->db);
 		$this->table_prefix = 'phpbb_';
+		$this->phpbb_root_path = $phpbb_root_path;
+		$this->php_ext = $phpEx;
 	}
 
 	protected function get_schema_generator(array $class_names)
 	{
-		$this->generator = new \phpbb\db\migration\schema_generator($class_names, $this->config, $this->db, $this->db_tools, $this->phpbb_root_path, $this->php_ext, $this->table_prefix);
+		$this->generator = new \phpbb\db\migration\schema_generator($class_names, $this->config, $this->db, $this->db_tools, $this->phpbb_root_path, $this->php_ext, $this->table_prefix, phpbb_database_test_case::get_core_tables());
 
 		return $this->generator;
 	}
 
-	/**
-	 * @expectedException \UnexpectedValueException
-	 */
 	public function test_check_dependencies_fail()
 	{
+		$this->expectException(\UnexpectedValueException::class);
 		$this->get_schema_generator(array('\phpbb\db\migration\data\v310\forgot_password'));
 
 		$this->generator->get_schema();

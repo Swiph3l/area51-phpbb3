@@ -1,3 +1,5 @@
+/* global phpbb */
+
 /**
 * phpBB3 ACP functions
 */
@@ -5,12 +7,12 @@
 /**
 * Parse document block
 */
-function parse_document(container) 
+function parse_document(container)
 {
 	var test = document.createElement('div'),
 		oldBrowser = (typeof test.style.borderRadius == 'undefined');
 
-	delete test;
+	test.remove();
 
 	/**
 	* Navigation
@@ -90,7 +92,7 @@ function parse_document(container)
 				}
 			});
 		}
-		
+
 		headersLength = headers.length;
 
 		// Add header text to each cell as <dfn>
@@ -157,7 +159,7 @@ function parse_document(container)
 		if ($this.html() == '&nbsp;') {
 			$this.addClass('responsive-hide');
 		}
-		
+
 	});
 
 	/**
@@ -169,7 +171,7 @@ function parse_document(container)
 			ul = $this.children(),
 			tabs = ul.children().not('[data-skip-responsive]'),
 			links = tabs.children('a'),
-			item = ul.append('<li class="tab responsive-tab" style="display:none;"><a href="javascript:void(0);" class="responsive-tab-link">&nbsp;</a><div class="dropdown tab-dropdown" style="display: none;"><div class="pointer"><div class="pointer-inner" /></div><ul class="dropdown-contents" /></div></li>').find('li.responsive-tab'),
+			item = ul.append('<li class="tab responsive-tab" style="display:none;"><a href="javascript:void(0);" class="responsive-tab-link">&nbsp;</a><div class="dropdown tab-dropdown" style="display: none;"><div class="pointer"><div class="pointer-inner"></div></div><ul class="dropdown-contents" /></div></li>').find('li.responsive-tab'),
 			menu = item.find('.dropdown-contents'),
 			maxHeight = 0,
 			lastWidth = false,
@@ -243,8 +245,21 @@ function parse_document(container)
 
 		parse_document($('body'));
 
-		// Hide configlist and success message in send statistics page
-		phpbb.toggleDisplay('configlist', -1);
-		phpbb.toggleDisplay('questionnaire-thanks', -1);
+		$('#questionnaire-form').css('display', 'none');
+		var $triggerConfiglist = $('#trigger-configlist');
+
+		$triggerConfiglist.on('click', function () {
+			var $configlist = $('#configlist');
+			$configlist.closest('.send-stats-data-row').toggleClass('send-stats-data-hidden');
+			$configlist.closest('.send-stats-row').find('.send-stats-data-row:first-child').toggleClass('send-stats-data-only-row');
+			$(this).find('i').toggleClass('fa-angle-down fa-angle-up');
+		});
+
+		$('#configlist').closest('.send-stats-data-row').addClass('send-stats-data-hidden');
+
+		// Do not underline actions icons on hover (could not be done via CSS)
+		$('.actions a:has(i.acp-icon)').mouseover(function () {
+			$(this).css("text-decoration", "none");
+		});
 	});
 })(jQuery);

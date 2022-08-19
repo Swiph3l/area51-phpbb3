@@ -21,8 +21,6 @@ $phpbb_root_path = (defined('PHPBB_ROOT_PATH')) ? PHPBB_ROOT_PATH : './';
 $phpEx = substr(strrchr(__FILE__, '.'), 1);
 include($phpbb_root_path . 'common.' . $phpEx);
 
-\QafooLabs\Profiler::setTransactionName("report.php: default");
-
 // Start session management
 $user->session_begin();
 $auth->acl($user->data);
@@ -37,7 +35,7 @@ $controller_helper = $phpbb_container->get('controller.helper');
 $response = new RedirectResponse(
 	$controller_helper->route($redirect_route_name, array(
 		'id'	=> ($pm_id === 0) ? $post_id : $pm_id,
-	)),
+	), false),
 	301
 );
 $response->send();

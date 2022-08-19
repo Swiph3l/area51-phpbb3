@@ -31,12 +31,7 @@ class add_modules extends \phpbb\install\task_base
 	protected $db;
 
 	/**
-	 * @var \phpbb\extension\manager
-	 */
-	protected $extension_manager;
-
-	/**
-	 * @var \phpbb\install\helper\iohandler\iohandler_interface
+	 * @var iohandler_interface
 	 */
 	protected $iohandler;
 
@@ -146,7 +141,7 @@ class add_modules extends \phpbb\install\task_base
 	/**
 	 * Constructor
 	 *
-	 * @parma config				$config		Installer's config
+	 * @param config				$config		Installer's config
 	 * @param iohandler_interface	$iohandler	Installer's input-output handler
 	 * @param container_factory		$container	Installer's DI container
 	 */
@@ -154,7 +149,6 @@ class add_modules extends \phpbb\install\task_base
 	{
 		$this->config				= $config;
 		$this->db					= $container->get('dbal.conn');
-		$this->extension_manager	= $container->get('ext.manager');
 		$this->iohandler			= $iohandler;
 		$this->module_manager		= $container->get('module.manager');
 
@@ -169,7 +163,7 @@ class add_modules extends \phpbb\install\task_base
 		$this->db->sql_return_on_error(true);
 
 		$module_classes = array('acp', 'mcp', 'ucp');
-		$total = sizeof($module_classes);
+		$total = count($module_classes);
 		$i = $this->config->get('module_class_index', 0);
 		$module_classes = array_slice($module_classes, $i);
 
@@ -553,7 +547,7 @@ class add_modules extends \phpbb\install\task_base
 	/**
 	 * {@inheritdoc}
 	 */
-	static public function get_step_count()
+	public static function get_step_count()
 	{
 		return 1;
 	}

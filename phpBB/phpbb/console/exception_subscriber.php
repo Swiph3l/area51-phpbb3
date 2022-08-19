@@ -15,60 +15,55 @@ namespace phpbb\console;
 
 use phpbb\exception\exception_interface;
 use Symfony\Component\Console\ConsoleEvents;
-use Symfony\Component\Console\Event\ConsoleExceptionEvent;
+use Symfony\Component\Console\Event\ConsoleErrorEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 class exception_subscriber implements EventSubscriberInterface
 {
-	/**
-	 * @var \phpbb\language\language
-	 */
+	/** @var \phpbb\language\language */
 	protected $language;
 
 	/**
-	 * Construct method
+	 * Constructor.
 	 *
-	 * @param \phpbb\language\language $language Language object
-	 * @param bool $debug Debug mode
+	 * @param \phpbb\language\language	$language	Language object
 	 */
-	public function __construct(\phpbb\language\language $language, $debug = false)
+	public function __construct(\phpbb\language\language $language)
 	{
 		$this->language = $language;
-		$this->debug = $debug;
 	}
 
 	/**
-	 * This listener is run when the ConsoleEvents::EXCEPTION event is triggered.
-	 * It translate the exception message. If din debug mode the original exception is embedded.
+	 * This listener is run when the ConsoleEvents::ERROR event is triggered.
+	 * It translate the error message. If in debug mode the original exception is embedded.
 	 *
-	 * @param ConsoleExceptionEvent $event
+	 * @param ConsoleErrorEvent $event
 	 */
-	public function on_exception(ConsoleExceptionEvent $event)
+	public function on_error(ConsoleErrorEvent $event)
 	{
-		$original_exception = $event->getException();
+		$original_exception = $event->getError();
 
 		if ($original_exception instanceof exception_interface)
 		{
-			$parameters = array_merge(array($original_exception->getMessage()), $original_exception->get_parameters());
-			$message = call_user_func_array(array($this->language, 'lang'), $parameters);
+			$parameters = array_merge([$original_exception->getMessage()], $original_exception->get_parameters());
+			$message = call_user_func_array([$this->language, 'lang'], $parameters);
 
-			if ($this->debug)
-			{
-				$exception = new \RuntimeException($message , $original_exception->getCode(), $original_exception);
-			}
-			else
-			{
-				$exception = new \RuntimeException($message , $original_exception->getCode());
-			}
+			$exception = new \RuntimeException($message , $original_exception->getCode(), $original_exception);
 
-			$event->setException($exception);
+			$event->setError($exception);
+		}
+
+		// If the exception has an exit code of 0, Symfony will suppress it by default which we don't want
+		if ($event->getExitCode() === 0 && $original_exception->getCode() === 0)
+		{
+			$event->setExitCode(1);
 		}
 	}
 
-	static public function getSubscribedEvents()
+	public static function getSubscribedEvents()
 	{
-		return array(
-			ConsoleEvents::EXCEPTION => 'on_exception',
-		);
+		return [
+			ConsoleEvents::ERROR => 'on_error',
+		];
 	}
 }

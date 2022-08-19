@@ -13,7 +13,7 @@
 
 namespace phpbb\language;
 
-use \phpbb\language\exception\language_file_not_found;
+use phpbb\language\exception\language_file_not_found;
 
 /**
  * Language file loader
@@ -31,7 +31,7 @@ class language_file_loader
 	protected $php_ext;
 
 	/**
-	 * @var \phpbb\extension\manager	Extension manager
+	 * @var \phpbb\extension\manager|null	Extension manager
 	 */
 	protected $extension_manager;
 
@@ -127,7 +127,7 @@ class language_file_loader
 			// the first directory from the path (that should be the language directory)
 			$path_diff_parts = explode('/', $path_diff);
 
-			if (sizeof($path_diff_parts) > 1)
+			if (count($path_diff_parts) > 1)
 			{
 				array_shift($path_diff_parts);
 				$component = implode('/', $path_diff_parts) . '/';
@@ -151,6 +151,7 @@ class language_file_loader
 	 *
 	 * @param string	$path		Path to language directory
 	 * @param string	$filename	Filename to load language strings from
+	 * @param array		$locales	Array containing language fallback options
 	 *
 	 * @return string	Relative path to language file
 	 *
