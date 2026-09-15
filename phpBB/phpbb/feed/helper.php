@@ -97,7 +97,7 @@ class helper
 		if (empty($offset_string))
 		{
 			$zone_offset = $this->user->create_datetime()->getOffset();
-			$offset_string = phpbb_format_timezone_offset($zone_offset);
+			$offset_string = phpbb_format_timezone_offset($zone_offset, true);
 		}
 
 		return gmdate("Y-m-d\TH:i:s", $time + $zone_offset) . $offset_string;
@@ -126,7 +126,7 @@ class helper
 
 		$this->renderer->set_smilies_path($this->get_board_url() . '/' . $this->config['smilies_path']);
 
-		$this->renderer->configure_user($this->user, $this->config, $this->auth);
+		$this->renderer->configure_user($this->auth, $this->config, $this->user);
 
 		$content = generate_text_for_display($content, $uid, $bitfield, $options);
 
@@ -167,7 +167,9 @@ class helper
 			$content .= implode('<br />', $post_attachments);
 
 			// Convert attachments' relative path to absolute path
-			$content = str_replace($this->path_helper->get_web_root_path() . 'download/file.' . $this->path_helper->get_php_ext(), $this->get_board_url() . '/download/file.' . $this->path_helper->get_php_ext(), $content);
+			$pattern = '#(/index.php)?/download/attachment/#';
+			$replacement = $this->get_board_url() . '\1/download/attachment/';
+			$content = preg_replace($pattern, $replacement, $content);
 		}
 
 		// Remove Comments from inline attachments [ia]
@@ -189,6 +191,6 @@ class helper
 		// Other control characters
 		$content = preg_replace('#(?:[\x00-\x1F\x7F]+|(?:\xC2[\x80-\x9F])+)#', '', $content);
 
-		return $content;
+		return $content ?: '';
 	}
 }

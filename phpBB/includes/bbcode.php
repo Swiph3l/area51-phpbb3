@@ -162,6 +162,7 @@ class bbcode
 				$phpbb_container->get('config'),
 				new \phpbb\template\context(),
 				new \phpbb\template\twig\environment(
+					$phpbb_container->get('assets.bag'),
 					$phpbb_container->get('config'),
 					$phpbb_container->get('filesystem'),
 					$phpbb_container->get('path_helper'),
@@ -353,25 +354,6 @@ class bbcode
 					);
 				break;
 
-				case BBCODE_ID_FLASH:
-					if ($user->optionget('viewflash'))
-					{
-						$this->bbcode_cache[$bbcode_id] = array(
-							'preg' => array(
-								'#\[flash=([0-9]+),([0-9]+):$uid\](.*?)\[/flash:$uid\]#'	=> $this->bbcode_tpl('flash', $bbcode_id),
-							)
-						);
-					}
-					else
-					{
-						$this->bbcode_cache[$bbcode_id] = array(
-							'preg' => array(
-								'#\[flash=([0-9]+),([0-9]+):$uid\](.*?)\[/flash:$uid\]#'	=> str_replace('$1', '$3', str_replace('$2', '[ flash ]', $this->bbcode_tpl('url', $bbcode_id, true)))
-							)
-						);
-					}
-				break;
-
 				case BBCODE_ID_ATTACH:
 					$this->bbcode_cache[$bbcode_id] = array(
 						'str'	=> array(
@@ -539,7 +521,6 @@ class bbcode
 			'color'					=> array('{COLOR}'		=> '$1', '{TEXT}'			=> '$2'),
 			'size'					=> array('{SIZE}'		=> '$1', '{TEXT}'			=> '$2'),
 			'img'					=> array('{URL}'		=> '$1'),
-			'flash'					=> array('{WIDTH}'		=> '$1', '{HEIGHT}'			=> '$2', '{URL}'	=> '$3'),
 			'url'					=> array('{URL}'		=> '$1', '{DESCRIPTION}'	=> '$2'),
 			'email'					=> array('{EMAIL}'		=> '$1', '{DESCRIPTION}'	=> '$2')
 		);
@@ -669,39 +650,5 @@ class bbcode
 		$code = $this->bbcode_tpl('code_open') . $code . $this->bbcode_tpl('code_close');
 
 		return $code;
-	}
-
-	/**
-	* Function to perform custom bbcode second pass by extensions
-	* can be used to assign bbcode pattern replacement
-	* Example: '#\[list=([^\[]+):$uid\]#e'	=> "\$this->bbcode_second_pass_by_extension('\$1')"
-	*
-	* Accepts variable number of parameters
-	*
-	* @return mixed Second pass result
-	*
-	* @deprecated 3.2.10 (To be removed 4.0.0)
-	*/
-	function bbcode_second_pass_by_extension()
-	{
-		global $phpbb_dispatcher;
-
-		$return = false;
-		$params_array = func_get_args();
-
-		/**
-		* Event to perform bbcode second pass with
-		* the custom validating methods provided by extensions
-		*
-		* @event core.bbcode_second_pass_by_extension
-		* @var array	params_array	Array with the function parameters
-		* @var mixed	return			Second pass result to return
-		*
-		* @since 3.1.5-RC1
-		*/
-		$vars = array('params_array', 'return');
-		extract($phpbb_dispatcher->trigger_event('core.bbcode_second_pass_by_extension', compact($vars)));
-
-		return $return;
 	}
 }

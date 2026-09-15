@@ -22,6 +22,8 @@ if (!defined('IN_PHPBB'))
 class acp_groups
 {
 	var $u_action;
+	var $tpl_name;
+	var $page_title;
 
 	function main($id, $mode)
 	{
@@ -396,7 +398,7 @@ class acp_groups
 					$allow_desc_urls	= $request->variable('desc_parse_urls', false);
 					$allow_desc_smilies	= $request->variable('desc_parse_smilies', false);
 
-					$submit_ary = array(
+					$submit_ary = [
 						'colour'			=> $request->variable('group_colour', ''),
 						'rank'				=> $request->variable('group_rank', 0),
 						'receive_pm'		=> isset($_REQUEST['group_receive_pm']) ? 1 : 0,
@@ -406,7 +408,13 @@ class acp_groups
 						'max_recipients'	=> $request->variable('group_max_recipients', 0),
 						'founder_manage'	=> 0,
 						'skip_auth'			=> $request->variable('group_skip_auth', 0),
-					);
+
+						// Initialize avatar data
+						'avatar'			=> $avatar_data['avatar'] ?? '',
+						'avatar_type'		=> $avatar_data['avatar_type'] ?? '',
+						'avatar_height'		=> $avatar_data['avatar_height'] ?? 0,
+						'avatar_width'		=> $avatar_data['avatar_width'] ?? 0,
+					];
 
 					if ($user->data['user_type'] == USER_FOUNDER)
 					{
@@ -452,7 +460,7 @@ class acp_groups
 					* Validate the length of "Maximum number of allowed recipients per
 					* private message" setting. We use 16777215 as a maximum because it matches
 					* MySQL unsigned mediumint maximum value which is the lowest amongst DBMSes
-					* supported by phpBB3. Also validate the submitted colour value.
+					* supported by phpBB. Also validate the submitted colour value.
 					*/
 					$validation_checks = array(
 						'max_recipients' => array('num', false, 0, 16777215),

@@ -38,6 +38,7 @@ class phpbb_console_user_activate_test extends phpbb_console_user_base
 			$this->config,
 			$this->language,
 			$this->log,
+			$this->email,
 			$this->notifications,
 			$this->user_loader,
 			$this->phpbb_root_path,
@@ -45,12 +46,11 @@ class phpbb_console_user_activate_test extends phpbb_console_user_base
 		));
 
 		$command = $application->find('user:activate');
-		$this->command_name = $command->getName();
 
 		return new CommandTester($command);
 	}
 
-	public function activate_test_data()
+	public static function activate_test_data()
 	{
 		return array(
 			// Test an inactive user
@@ -75,7 +75,6 @@ class phpbb_console_user_activate_test extends phpbb_console_user_base
 		$command_tester = $this->get_command_tester();
 
 		$command_tester->execute(array(
-			'command'		=> $this->command_name,
 			'username'		=> $username,
 			'--deactivate'	=> $deactivate,
 		));

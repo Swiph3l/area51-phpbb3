@@ -12,6 +12,7 @@
 */
 
 require_once __DIR__ . '/driver/foobar.php';
+require_once __DIR__ . '/driver/barfoo.php';
 
 class phpbb_avatar_manager_test extends \phpbb_database_test_case
 {
@@ -30,7 +31,7 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 
 	protected function setUp(): void
 	{
-		global $phpbb_root_path, $phpEx;
+		global $phpbb_dispatcher, $phpbb_root_path, $phpEx;
 
 		// Mock phpbb_container
 		$phpbb_container = $this->createMock('Symfony\Component\DependencyInjection\ContainerInterface');
@@ -52,21 +53,29 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 			$phpEx
 		);
 
-		$imagesize = new \FastImageSize\FastImageSize();
+		$imagesize = $this->getMockBuilder('\FastImageSize\FastImageSize')
+			->onlyMethods(['getImageSize'])
+			->getMock();
+		$imagesize->method('getImageSize')
+			->willReturn(['width' => 80, 'height' => 80, 'mime' => 'image/jpeg']);
 
 		$dispatcher = new phpbb_mock_event_dispatcher();
+		$phpbb_dispatcher = $dispatcher;
+
+		$controller_helper = $this->createMock('\phpbb\controller\helper');
+		$routing_helper = $this->createMock('\phpbb\routing\helper');
 
 		// $this->avatar_foobar will be needed later on
 		$this->avatar_foobar = $this->getMockBuilder('\phpbb\avatar\driver\foobar')
-			->setMethods(array('get_name'))
+			->onlyMethods(array('get_name'))
 			->setConstructorArgs(array($this->config, $imagesize, $phpbb_root_path, $phpEx, $path_helper, $cache))
 			->getMock();
 		$this->avatar_foobar->expects($this->any())
 			->method('get_name')
 			->will($this->returnValue('avatar.driver.foobar'));
-		// barfoo driver can't be mocked with constructor arguments
 		$this->avatar_barfoo = $this->getMockBuilder('\phpbb\avatar\driver\barfoo')
-			->setMethods(array('get_name', 'get_config_name'))
+			->onlyMethods(array('get_name', 'get_config_name'))
+			->setConstructorArgs(array($this->config, $imagesize, $phpbb_root_path, $phpEx, $path_helper, $cache))
 			->getMock();
 		$this->avatar_barfoo->expects($this->any())
 			->method('get_name')
@@ -85,15 +94,15 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 			if ($driver !== 'upload')
 			{
 				$cur_avatar = $this->getMockBuilder('\phpbb\avatar\driver\\' . $driver)
-					->setMethods(array('get_name'))
+					->onlyMethods(array('get_name'))
 					->setConstructorArgs(array($this->config, $imagesize, $phpbb_root_path, $phpEx, $path_helper, $cache))
 					->getMock();
 			}
 			else
 			{
 				$cur_avatar = $this->getMockBuilder('\phpbb\avatar\driver\\' . $driver)
-				->setMethods(array('get_name'))
-				->setConstructorArgs(array($this->config, $phpbb_root_path, $phpEx, $storage, $path_helper, $dispatcher, $files_factory, $php_ini))
+				->onlyMethods(array('get_name'))
+				->setConstructorArgs(array($this->config, $phpbb_root_path, $phpEx, $storage, $path_helper, $routing_helper, $dispatcher, $files_factory, $php_ini))
 				->getMock();
 			}
 			$cur_avatar->expects($this->any())
@@ -119,7 +128,6 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 		return array(
 			'local',
 			'upload',
-			'remote',
 			'gravatar',
 		);
 	}
@@ -131,7 +139,6 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 			'avatar.driver.barfoo' => 'avatar.driver.barfoo',
 			'avatar.driver.foobar' => 'avatar.driver.foobar',
 			'avatar.driver.local' => 'avatar.driver.local',
-			'avatar.driver.remote' => 'avatar.driver.remote',
 			'avatar.driver.upload' => 'avatar.driver.upload',
 			'avatar.driver.gravatar' => 'avatar.driver.gravatar',
 		), $drivers);
@@ -145,7 +152,7 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 		$this->assertEquals('avatar.driver.foobar', $drivers['avatar.driver.foobar']);
 	}
 
-	public function get_driver_data_enabled()
+	public static function get_driver_data_enabled()
 	{
 		return array(
 			array('avatar.driver.foobar', 'avatar.driver.foobar'),
@@ -154,7 +161,6 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 			array('avatar.driver.local', null),
 			array(AVATAR_GALLERY, null),
 			array(AVATAR_UPLOAD, null),
-			array(AVATAR_REMOTE, null),
 		);
 	}
 
@@ -167,7 +173,7 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 		$this->assertEquals($expected, ($driver === null) ? null : $driver->get_name());
 	}
 
-	public function get_driver_data_all()
+	public static function get_driver_data_all()
 	{
 		return array(
 			array('avatar.driver.foobar', 'avatar.driver.foobar'),
@@ -175,7 +181,6 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 			array('avatar.driver.local', 'avatar.driver.local'),
 			array(AVATAR_GALLERY, 'avatar.driver.local'),
 			array(AVATAR_UPLOAD, 'avatar.driver.upload'),
-			array(AVATAR_REMOTE, 'avatar.driver.remote'),
 		);
 	}
 
@@ -192,14 +197,19 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 	{
 		$avatar_settings = $this->manager->get_avatar_settings($this->avatar_foobar);
 
-		$expected_settings = array(
-			'allow_avatar_' . get_class($this->avatar_foobar)	=> array('lang' => 'ALLOW_' . strtoupper(get_class($this->avatar_foobar)), 'validate' => 'bool', 'type' => 'radio:yes_no', 'explain' => true),
-		);
+		$expected_settings = [
+			'allow_avatar_' . get_class($this->avatar_foobar)	=> [
+				'lang' => 'ALLOW_' . strtoupper(get_class($this->avatar_foobar)),
+				'validate' => 'bool',
+				'type' => 'radio:yes_no',
+				'explain' => true
+			],
+		];
 
 		$this->assertEquals($expected_settings, $avatar_settings);
 	}
 
-	public function database_row_data()
+	public static function database_row_data()
 	{
 		return array(
 			array(
@@ -210,13 +220,7 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 					'user_avatar_height'	=> '',
 					'group_avatar'		=> '',
 				),
-				array(
-					'user_avatar'		=> '',
-					'user_avatar_type'	=> '',
-					'user_avatar_width'	=> '',
-					'user_avatar_height'	=> '',
-					'group_avatar'		=> '',
-				),
+				array(),
 				'foobar',
 			),
 			array(
@@ -235,7 +239,6 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 					'group_id'	=> 4,
 				),
 				array(
-					'user_avatar'	=> '',
 					'user_id'	=> 5,
 					'group_id'	=> 4,
 				),
@@ -280,6 +283,11 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 			$this->assertArrayHasKey($key, $cleaned_row);
 			$this->assertEquals($cleaned_row[$key], $value);
 		}
+
+		if (empty($output))
+		{
+			$this->assertEquals($output, $cleaned_row);
+		}
 	}
 
 	public function test_clean_driver_name()
@@ -297,7 +305,7 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 		global $phpbb_root_path, $phpEx;
 
 		$user = $this->getMockBuilder('\phpbb\user')
-			->setMethods(array())
+			->onlyMethods(['lang'])
 			->setConstructorArgs(array(new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx)), '\phpbb\datetime'))
 			->getMock();
 		$lang_array = array(
@@ -321,7 +329,7 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 		)));
 	}
 
-	public function data_handle_avatar_delete()
+	public static function data_handle_avatar_delete()
 	{
 		return array(
 			array(
@@ -395,59 +403,5 @@ class phpbb_avatar_manager_test extends \phpbb_database_test_case
 			'avatar_width'	=> 0,
 			'avatar_height'	=> 0,
 		), $row);
-	}
-
-	public function data_remote_avatar_url()
-	{
-		return array(
-			array('127.0.0.1:91?foo.jpg', 80, 80, array('AVATAR_URL_INVALID')),
-			array(gethostbyname('secure.gravatar.com') . '/avatar/55502f40dc8b7c769880b10874abc9d0.jpg', 80, 80, array('AVATAR_URL_INVALID')),
-			array('secure.gravatar.com/avatar/55502f40dc8b7c769880b10874abc9d0.jpg', 80, 80),
-			array(gethostbyname('secure.gravatar.com') . ':120/avatar/55502f40dc8b7c769880b10874abc9d0.jpg', 80, 80, array('AVATAR_URL_INVALID')),
-			array('secure.gravatar.com:80/avatar/55502f40dc8b7c769880b10874abc9d0.jpg', 80, 80, array('AVATAR_URL_INVALID')),
-			array('secure.gravatar.com:80?55502f40dc8b7c769880b10874abc9d0.jpg', 80, 80, array('AVATAR_URL_INVALID')),
-			array('secure.gravatar.com?55502f40dc8b7c769880b10874abc9d0.jpg', 80, 80, array('AVATAR_URL_INVALID')), // should be a 404
-			array('2001:db8:0:0:0:0:2:1/avatar/55502f40dc8b7c769880b10874abc9d0.jpg', 80, 80, array('AVATAR_URL_INVALID')),
-			array('secure.gravatar.com/2001:db8:0:0:0:0:2:1/avatar/55502f40dc8b7c769880b10874abc9d0.jpg', 80, 80, array('AVATAR_URL_INVALID')),
-			array('secure.gravatar.com/127.0.0.1:80/avatar/55502f40dc8b7c769880b10874abc9d0.jpg', 80, 80, array('AVATAR_URL_INVALID')),
-		);
-	}
-
-	/**
-	 * @dataProvider data_remote_avatar_url
-	 */
-	public function test_remote_avatar_url($url, $width, $height, $expected_error = array())
-	{
-		global $phpbb_root_path, $phpEx;
-
-		if (!function_exists('get_preg_expression'))
-		{
-			require($phpbb_root_path . 'includes/functions.' . $phpEx);
-		}
-
-		$this->config['server_name'] = 'foobar.com';
-
-		/** @var \phpbb\avatar\driver\remote $remote_avatar */
-		$remote_avatar = $this->manager->get_driver('avatar.driver.remote', false);
-
-		$request = new phpbb_mock_request(array(), array(
-			'avatar_remote_url'		=> $url,
-			'avatar_remote_width'	=> $width,
-			'avatar_remote_height'	=> $height,
-		));
-
-		$row = array();
-		$error = array();
-
-		$return = $remote_avatar->process_form($request, null, $this->user, $row, $error);
-		if (count($expected_error) > 0)
-		{
-			$this->assertFalse($return);
-		}
-		else
-		{
-			$this->assertNotEquals(false, $return);
-		}
-		$this->assertSame($expected_error, $error);
 	}
 }

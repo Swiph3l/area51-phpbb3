@@ -102,8 +102,8 @@ class helper
 
 		if ($dss_seeded !== true && ($this->config['rand_seed_last_update'] < time() - rand(1,10)))
 		{
-			$this->config->set('rand_seed_last_update', time(), true);
-			$this->config->set('rand_seed', $this->config['rand_seed'], true);
+			$this->config->set('rand_seed_last_update', time());
+			$this->config->set('rand_seed', $this->config['rand_seed']);
 			$dss_seeded = true;
 		}
 
@@ -140,6 +140,9 @@ class helper
 			}
 			$random = substr($random, 0, $length);
 		}
+		/**
+		 * @psalm-suppress FalsableReturnStatement
+		 */
 		return $random;
 	}
 

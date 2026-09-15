@@ -13,13 +13,12 @@
 
 namespace phpbb\db\migration;
 
-use Symfony\Component\DependencyInjection\ContainerAwareInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
 * Abstract base class for container aware database migrations.
 */
-abstract class container_aware_migration extends migration implements ContainerAwareInterface
+abstract class container_aware_migration extends migration
 {
 	/**
 	 * @var ContainerInterface
@@ -29,7 +28,7 @@ abstract class container_aware_migration extends migration implements ContainerA
 	/**
 	 * {@inheritdoc}
 	 */
-	public function setContainer(ContainerInterface $container = null)
+	public function setContainer(ContainerInterface|null $container = null)
 	{
 		$this->container = $container;
 	}

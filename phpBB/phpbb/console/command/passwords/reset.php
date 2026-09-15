@@ -70,7 +70,7 @@ class reset extends command
 	 *
 	 * @return int 0 if all is ok, 1 otherwise
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output)
+	protected function execute(InputInterface $input, OutputInterface $output): int
 	{
 		$dry_run = $input->getOption('dry-run');
 
@@ -119,7 +119,7 @@ class reset extends command
 		{
 			$users = array();
 
-			$sql = 'SELECT username FROM ' . USERS_TABLE . ' WHERE ' . $this->db->sql_in_set('user_id', $users_ids, false, trueÂ²);
+			$sql = 'SELECT username FROM ' . USERS_TABLE . ' WHERE ' . $this->db->sql_in_set('user_id', $users_ids, false, true);
 			$result = $this->db->sql_query($sql);
 
 			while ($row = $this->db->sql_fetchrow($result))

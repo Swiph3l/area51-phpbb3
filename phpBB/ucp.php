@@ -47,6 +47,9 @@ $template->assign_var('S_IN_UCP', true);
 $module = new p_master();
 $default = false;
 
+/** @var \phpbb\controller\helper $controller_helper */
+$controller_helper = $phpbb_container->get('controller.helper');
+
 // Basic "global" modes
 switch ($mode)
 {
@@ -54,7 +57,7 @@ switch ($mode)
 		$module->load('ucp', 'activate');
 		$module->display($user->lang['UCP_ACTIVATE']);
 
-		redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
+		redirect($controller_helper->route('phpbb_index_controller'));
 	break;
 
 	case 'resend_act':
@@ -63,16 +66,13 @@ switch ($mode)
 	break;
 
 	case 'sendpassword':
-		/** @var \phpbb\controller\helper $controller_helper */
-		$controller_helper = $phpbb_container->get('controller.helper');
-
 		redirect($controller_helper->route('phpbb_ucp_forgot_password_controller'));
 	break;
 
 	case 'register':
 		if ($user->data['is_registered'] || isset($_REQUEST['not_agreed']))
 		{
-			redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
+			redirect($controller_helper->route('phpbb_index_controller'));
 		}
 
 		$module->load('ucp', 'register');
@@ -86,7 +86,7 @@ switch ($mode)
 	case 'login':
 		if ($user->data['is_registered'])
 		{
-			redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
+			redirect($controller_helper->route('phpbb_index_controller'));
 		}
 
 		login_box($request->variable('redirect', "index.$phpEx"));
@@ -95,27 +95,27 @@ switch ($mode)
 	case 'login_link':
 		if ($user->data['is_registered'])
 		{
-			redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
+			redirect($controller_helper->route('phpbb_index_controller'));
 		}
 
-		$module->load('ucp', 'login_link');
-		$module->display($user->lang['UCP_LOGIN_LINK']);
+		$get_params_array = $request->get_super_global(\phpbb\request\request_interface::GET);
+		phpbb_redirect_to_controller('phpbb_ucp_oauth_link_account_controller', $get_params_array);
 	break;
 
 	case 'logout':
-		if ($user->data['user_id'] != ANONYMOUS && $request->is_set('sid') && $request->variable('sid', '') === $user->session_id)
+		if ($user->data['user_id'] != ANONYMOUS && check_link_hash($request->variable('hash', ''), 'ucp_logout'))
 		{
 			$user->session_kill();
 		}
 		else if ($user->data['user_id'] != ANONYMOUS)
 		{
-			meta_refresh(3, append_sid("{$phpbb_root_path}index.$phpEx"));
+			meta_refresh(3, $controller_helper->route('phpbb_index_controller'));
 
-			$message = $user->lang['LOGOUT_FAILED'] . '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . append_sid("{$phpbb_root_path}index.$phpEx") . '">', '</a> ');
+			$message = $user->lang['LOGOUT_FAILED'] . '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . $controller_helper->route('phpbb_index_controller') . '">', '</a> ');
 			trigger_error($message);
 		}
 
-		redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
+		redirect($controller_helper->route('phpbb_index_controller'));
 	break;
 
 	case 'terms':
@@ -128,7 +128,7 @@ switch ($mode)
 		{
 			if ($user->data['is_registered'])
 			{
-				redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
+				redirect($controller_helper->route('phpbb_index_controller'));
 			}
 
 			login_box();
@@ -154,72 +154,11 @@ switch ($mode)
 	break;
 
 	case 'delete_cookies':
-
-		// Delete Cookies with dynamic names (do NOT delete poll cookies)
-		if (confirm_box(true))
-		{
-			$set_time = time() - 31536000;
-
-			foreach ($request->variable_names(\phpbb\request\request_interface::COOKIE) as $cookie_name)
-			{
-				$cookie_data = $request->variable($cookie_name, '', true, \phpbb\request\request_interface::COOKIE);
-
-				// Only delete board cookies, no other ones...
-				if (strpos($cookie_name, $config['cookie_name'] . '_') !== 0)
-				{
-					continue;
-				}
-
-				$cookie_name = str_replace($config['cookie_name'] . '_', '', $cookie_name);
-
-				/**
-				* Event to save custom cookies from deletion
-				*
-				* @event core.ucp_delete_cookies
-				* @var	string	cookie_name		Cookie name to checking
-				* @var	bool	retain_cookie	Do we retain our cookie or not, true if retain
-				* @since 3.1.3-RC1
-				*/
-				$retain_cookie = false;
-				$vars = array('cookie_name', 'retain_cookie');
-				extract($phpbb_dispatcher->trigger_event('core.ucp_delete_cookies', compact($vars)));
-				if ($retain_cookie)
-				{
-					continue;
-				}
-
-				// Polls are stored as {cookie_name}_poll_{topic_id}, cookie_name_ got removed, therefore checking for poll_
-				if (strpos($cookie_name, 'poll_') !== 0)
-				{
-					$user->set_cookie($cookie_name, '', $set_time);
-				}
-			}
-
-			$user->set_cookie('track', '', $set_time);
-			$user->set_cookie('u', '', $set_time);
-			$user->set_cookie('k', '', $set_time);
-			$user->set_cookie('sid', '', $set_time);
-
-			// We destroy the session here, the user will be logged out nevertheless
-			$user->session_kill();
-			$user->session_begin();
-
-			meta_refresh(3, append_sid("{$phpbb_root_path}index.$phpEx"));
-
-			$message = $user->lang['COOKIES_DELETED'] . '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . append_sid("{$phpbb_root_path}index.$phpEx") . '">', '</a>');
-			trigger_error($message);
-		}
-		else
-		{
-			confirm_box(false, 'DELETE_COOKIES', '');
-		}
-
-		redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
-
+		// Redirect to controller
+		redirect($controller_helper->route('phpbb_ucp_delete_cookies_controller'));
 	break;
 
 	case 'switch_perm':
-
 		$user_id = $request->variable('u', 0);
 
 		$sql = 'SELECT *
@@ -231,7 +170,7 @@ switch ($mode)
 
 		if (!$auth->acl_get('a_switchperm') || !$user_row || $user_id == $user->data['user_id'] || !check_link_hash($request->variable('hash', ''), 'switchperm'))
 		{
-			redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
+			redirect($controller_helper->route('phpbb_index_controller'));
 		}
 
 		include($phpbb_root_path . 'includes/acp/auth.' . $phpEx);
@@ -239,12 +178,12 @@ switch ($mode)
 		$auth_admin = new auth_admin();
 		if (!$auth_admin->ghost_permissions($user_id, $user->data['user_id']))
 		{
-			redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
+			redirect($controller_helper->route('phpbb_index_controller'));
 		}
 
 		$phpbb_log->add('admin', $user->data['user_id'], $user->ip, 'LOG_ACL_TRANSFER_PERMISSIONS', false, array($user_row['username']));
 
-		$message = sprintf($user->lang['PERMISSIONS_TRANSFERRED'], $user_row['username']) . '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . append_sid("{$phpbb_root_path}index.$phpEx") . '">', '</a>');
+		$message = sprintf($user->lang['PERMISSIONS_TRANSFERRED'], $user_row['username']) . '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . $controller_helper->route('phpbb_index_controller') . '">', '</a>');
 
 		/**
 		* Event to run code after permissions are switched
@@ -263,10 +202,9 @@ switch ($mode)
 	break;
 
 	case 'restore_perm':
-
 		if (!$user->data['user_perm_from'] || !$auth->acl_get('a_switchperm'))
 		{
-			redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
+			redirect($controller_helper->route('phpbb_index_controller'));
 		}
 
 		$auth->acl_cache($user->data);
@@ -280,7 +218,7 @@ switch ($mode)
 
 		$phpbb_log->add('admin', $user->data['user_id'], $user->ip, 'LOG_ACL_RESTORE_PERMISSIONS', false, array($username));
 
-		$message = $user->lang['PERMISSIONS_RESTORED'] . '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . append_sid("{$phpbb_root_path}index.$phpEx") . '">', '</a>');
+		$message = $user->lang['PERMISSIONS_RESTORED'] . '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . $controller_helper->route('phpbb_index_controller') . '">', '</a>');
 
 		/**
 		* Event to run code after permissions are restored
@@ -313,7 +251,7 @@ if (!$user->data['is_registered'])
 {
 	if ($user->data['is_bot'])
 	{
-		redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
+		redirect($controller_helper->route('phpbb_index_controller'));
 	}
 
 	if ($id == 'pm' && $mode == 'view' && isset($_GET['p']))

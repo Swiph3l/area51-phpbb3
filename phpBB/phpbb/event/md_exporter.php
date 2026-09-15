@@ -169,7 +169,7 @@ class md_exporter
 
 			list($file_details, $details) = explode("\n* Since: ", $details, 2);
 
-			$changed_versions = array();
+			$changed_versions = [];
 			if (strpos($details, "\n* Changed: ") !== false)
 			{
 				list($since, $details) = explode("\n* Changed: ", $details, 2);
@@ -184,7 +184,11 @@ class md_exporter
 			else
 			{
 				list($since, $description) = explode("\n* Purpose: ", $details, 2);
-				$changed_versions = array();
+			}
+
+			if (str_contains($since, "\n* Deprecated: "))
+			{
+				list($since, $deprecated) = explode("\n* Deprecated: ", $since, 2);
 			}
 
 			$files = $this->validate_file_list($file_details);
@@ -225,6 +229,7 @@ class md_exporter
 				'event'			=> $this->current_event,
 				'files'			=> $files,
 				'since'			=> $since,
+				'deprecated'	=> $deprecated ?? '',
 				'changed'		=> $changes,
 				'description'	=> $description,
 			);
@@ -368,10 +373,68 @@ class md_exporter
 	}
 
 	/**
+	 * Format the md events as BBCode list
+	 *
+	 * @param string $action
+	 * @return string		Events BBCode
+	 */
+	public function export_events_for_bbcode(string $action = ''): string
+	{
+		if ($this->filter === 'adm')
+		{
+			if ($action === 'diff')
+			{
+				$bbcode_text = "[size=150]ACP Template Events[/size]\n";
+			}
+			else
+			{
+				$bbcode_text = "[size=200]ACP Template Events[/size]\n";
+			}
+		}
+		else
+		{
+			if ($action === 'diff')
+			{
+				$bbcode_text = "[size=150]Template Events[/size]\n";
+			}
+			else
+			{
+				$bbcode_text = "[size=200]Template Events[/size]\n";
+			}
+		}
+
+		if (!count($this->events))
+		{
+			return $bbcode_text . "[list][*][i]None[/i][/list]\n";
+		}
+
+		foreach ($this->events as $event_name => $event)
+		{
+			$bbcode_text .= "[list]\n";
+			$bbcode_text .= "[*][b]{$event_name}[/b]\n";
+
+			if ($this->filter === 'adm')
+			{
+				$bbcode_text .= "Placement: " . implode(', ', $event['files']['adm']) . "\n";
+			}
+			else
+			{
+				$bbcode_text .= "Prosilver Placement: " . implode(', ', $event['files']['prosilver']) . "\n";
+			}
+
+			$bbcode_text .= "Added in Release: {$event['since']}\n";
+			$bbcode_text .= "Explanation: {$event['description']}\n";
+			$bbcode_text .= "[/list]\n";
+		}
+
+		return $bbcode_text;
+	}
+
+	/**
 	* Validates a template event name
 	*
 	* @param $event_name
-	* @return null
+	* @return void
 	* @throws \LogicException
 	*/
 	public function validate_event_name($event_name)
@@ -393,7 +456,7 @@ class md_exporter
 	{
 		if (!$this->validate_version($since))
 		{
-			throw new \LogicException("Invalid since information found for event '{$this->current_event}'");
+			throw new \LogicException("Invalid since information found for event '{$this->current_event}': {$since}");
 		}
 
 		return $since;
@@ -403,7 +466,8 @@ class md_exporter
 	* Validate "Changed" Information
 	*
 	* @param string $changed
-	* @return string
+	* @return array<string, string> Changed information containing version and description in respective order
+	* @psalm-return array{string, string}
 	* @throws \LogicException
 	*/
 	public function validate_changed($changed)
@@ -423,7 +487,7 @@ class md_exporter
 			throw new \LogicException("Invalid changed information found for event '{$this->current_event}'");
 		}
 
-		return array($version, $description);
+		return [$version, $description];
 	}
 
 	/**
@@ -434,7 +498,7 @@ class md_exporter
 	*/
 	public function validate_version($version)
 	{
-		return preg_match('#^\d+\.\d+\.\d+(?:-(?:a|b|RC|pl)\d+)?$#', $version);
+		return (bool) preg_match('#^\d+\.\d+\.\d+(?:-(?:a|b|RC|pl)\d+)?$#', $version);
 	}
 
 	/**
@@ -600,13 +664,8 @@ class md_exporter
 	{
 		try
 		{
-			$iterator = new \RecursiveIteratorIterator(
-				new \phpbb\recursive_dot_prefix_filter_iterator(
-					new \RecursiveDirectoryIterator(
-						$dir,
-						\FilesystemIterator::SKIP_DOTS
-					)
-				),
+			$iterator = new \phpbb\finder\recursive_path_iterator(
+				$dir,
 				\RecursiveIteratorIterator::SELF_FIRST
 			);
 		}

@@ -1,7 +1,9 @@
 /* global phpbb */
+/* eslint no-var: 0 */
+/* eslint no-unused-vars: 0 */
 
 /**
-* phpBB3 ACP functions
+* phpBB ACP functions
 */
 
 /**
@@ -10,7 +12,7 @@
 function parse_document(container)
 {
 	var test = document.createElement('div'),
-		oldBrowser = (typeof test.style.borderRadius == 'undefined');
+		oldBrowser = (typeof test.style.borderRadius === 'undefined');
 
 	test.remove();
 
@@ -79,7 +81,7 @@ function parse_document(container)
 					dfn = cell.attr('data-dfn'),
 					text = dfn ? dfn : $.trim(cell.text());
 
-				if (text == '&nbsp;') text = '';
+				if (text === '&nbsp;') text = '';
 				colspan = isNaN(colspan) || colspan < 1 ? 1 : colspan;
 
 				for (i=0; i<colspan; i++) {
@@ -108,7 +110,7 @@ function parse_document(container)
 				cells = row.children('td'),
 				column = 0;
 
-			if (cells.length == 1) {
+			if (cells.length === 1) {
 				row.addClass('big-column');
 				return;
 			}
@@ -123,8 +125,8 @@ function parse_document(container)
 				}
 
 				if ((text.length && text !== '-') || cell.children().length) {
-					if (headers[column] != '') {
-						cell.prepend('<dfn style="display: none;">' + headers[column] + '</dfn>');
+					if (headers[column].length) {
+						cell.prepend($('<dfn>').css('display', 'none').text(headers[column]));
 					}
 				}
 				else {
@@ -145,7 +147,7 @@ function parse_document(container)
 	*/
 	container.find('table.responsive > tbody').each(function() {
 		var items = $(this).children('tr');
-		if (items.length == 0)
+		if (!items.length)
 		{
 			$(this).parent('table:first').addClass('responsive-hide');
 		}
@@ -156,10 +158,24 @@ function parse_document(container)
 	*/
 	container.find('fieldset dt > span:last-child').each(function() {
 		var $this = $(this);
-		if ($this.html() == '&nbsp;') {
+		if ($this.html() === '&nbsp;') {
 			$this.addClass('responsive-hide');
 		}
+	});
 
+	/**
+	 * Dynamically control a text field's maxlength (allows emoji to be counted as 1 character)
+	 */
+	container.find('#sitename_short').each(function() {
+		const $this = this;
+		const maxLength = $this.maxLength;
+		$this.maxLength = maxLength * 2;
+		$this.addEventListener('input', () => {
+			const inputChars = Array.from($this.value);
+			if (inputChars.length > maxLength) {
+				$this.value = inputChars.slice(0, maxLength).join('');
+			}
+		});
 	});
 
 	/**
@@ -180,13 +196,13 @@ function parse_document(container)
 		links.each(function() {
 			var link = $(this);
 			maxHeight = Math.max(maxHeight, Math.max(link.outerHeight(true), link.parent().outerHeight(true)));
-		})
+		});
 
 		function check() {
 			var width = $body.width(),
 				height = $this.height();
 
-			if (arguments.length == 0 && (!responsive || width <= lastWidth) && height <= maxHeight) {
+			if (!arguments.length && (!responsive || width <= lastWidth) && height <= maxHeight) {
 				return;
 			}
 
@@ -223,7 +239,7 @@ function parse_document(container)
 			menu.find('a').click(function() { check(true); });
 		}
 
-		phpbb.registerDropdown(item.find('a.responsive-tab-link'), item.find('.dropdown'), {visibleClass: 'activetab', verticalDirection: 'down'});
+		phpbb.registerDropdown(item.find('a.responsive-tab-link'), item.find('.dropdown'), { visibleClass: 'activetab', verticalDirection: 'down' });
 
 		check(true);
 		$(window).resize(check);
@@ -248,7 +264,7 @@ function parse_document(container)
 		$('#questionnaire-form').css('display', 'none');
 		var $triggerConfiglist = $('#trigger-configlist');
 
-		$triggerConfiglist.on('click', function () {
+		$triggerConfiglist.on('click', function() {
 			var $configlist = $('#configlist');
 			$configlist.closest('.send-stats-data-row').toggleClass('send-stats-data-hidden');
 			$configlist.closest('.send-stats-row').find('.send-stats-data-row:first-child').toggleClass('send-stats-data-only-row');
@@ -258,8 +274,37 @@ function parse_document(container)
 		$('#configlist').closest('.send-stats-data-row').addClass('send-stats-data-hidden');
 
 		// Do not underline actions icons on hover (could not be done via CSS)
-		$('.actions a:has(i.acp-icon)').mouseover(function () {
-			$(this).css("text-decoration", "none");
+		$('.actions a:has(i.acp-icon)').mouseover(function() {
+			$(this).css('text-decoration', 'none');
 		});
+
+		// Live update BBCode font icon preview
+		const updateIconClass = (element, newClass) => {
+			// Ignore invalid class names
+			const faIconRegex = /^(?!-)(?!.*--)[a-z0-9-]+(?<!-)$/;
+			if (!faIconRegex.test(newClass)) {
+				return;
+			}
+
+			element.classList.forEach(className => {
+				if (className.startsWith('fa-') && className !== 'fa-fw') {
+					element.classList.remove(className);
+				}
+			});
+
+			element.classList.add(`fa-${newClass}`);
+		};
+
+		const pageIconFont = document.getElementById('bbcode_font_icon');
+
+		if (pageIconFont) {
+			pageIconFont.addEventListener('keyup', function() {
+				updateIconClass(this.nextElementSibling, this.value);
+			});
+
+			pageIconFont.addEventListener('blur', function() {
+				updateIconClass(this.nextElementSibling, this.value);
+			});
+		}
 	});
 })(jQuery);

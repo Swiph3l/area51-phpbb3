@@ -68,7 +68,7 @@ class phpbb_functions_user_delete_user_test extends phpbb_database_test_case
 		$phpbb_container->setParameter('tables.user_notifications', 'phpbb_user_notifications');
 	}
 
-	 public function first_last_post_data()
+	 public static function first_last_post_data()
 	{
 		return array(
 			array(
@@ -227,7 +227,7 @@ class phpbb_functions_user_delete_user_test extends phpbb_database_test_case
 		$this->db->sql_freeresult($result);
 	}
 
-	 public function report_attachment_data()
+	 public static function report_attachment_data()
 	{
 		return array(
 			array(
@@ -311,7 +311,7 @@ class phpbb_functions_user_delete_user_test extends phpbb_database_test_case
 		$this->db->sql_freeresult($result);
 	}
 
-	 public function delete_data()
+	 public static function delete_data()
 	{
 		return array(
 			array(
@@ -369,7 +369,7 @@ class phpbb_functions_user_delete_user_test extends phpbb_database_test_case
 		$this->db->sql_freeresult($result);
 
 		$sql = 'SELECT ban_id
-			FROM ' . BANLIST_TABLE . '
+			FROM ' . BANS_TABLE . '
 			ORDER BY ban_id ASC';
 		$result = $this->db->sql_query($sql);
 		$this->assertEquals($expected_ban, $this->db->sql_fetchrowset($result), 'Ban table content is mismatching after deleting a user.');
@@ -397,7 +397,7 @@ class phpbb_functions_user_delete_user_test extends phpbb_database_test_case
 		$this->db->sql_freeresult($result);
 	}
 
-	 public function delete_user_id_data()
+	 public static function delete_user_id_data()
 	{
 		return array(
 			array(

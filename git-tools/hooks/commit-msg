@@ -1,7 +1,7 @@
 #!/bin/sh
 #
-# A hook to check syntax of a phpBB3 commit message, per:
-# * <http://wiki.phpbb.com/display/DEV/Git>
+# A hook to check syntax of a phpBB commit message, per:
+# * <https://area51.phpbb.com/docs/dev/master/development/git.html>
 # * <http://area51.phpbb.com/phpBB/viewtopic.php?p=209919#p209919>
 #
 # This is a commit-msg hook.
@@ -224,7 +224,7 @@ do
 			"footer")
 				err=$ERR_FOOTER;
 				# Each ticket is on its own line
-				echo "$line" | grep -Eq "^PHPBB3-[0-9]+$";
+				echo "$line" | grep -Eq "^PHPBB3?-[0-9]+$";
 			;;
 			"eof")
 				err=$ERR_EOF;
@@ -337,7 +337,7 @@ done
 # If EOF is expected exit cleanly
 echo "$expecting" | grep -q "eof" || (
 	# Unexpected EOF, error
-	complain "Unexpected EOF encountered" >&2;
+	complain "Expected to see footer (e.g. PHPBB-12345) or description line, but reached end of file." >&2;
 	quit $ERR_EOF;
 ) && (
 	# Do post scan checks
@@ -356,7 +356,7 @@ echo "$expecting" | grep -q "eof" || (
 	# Check the branch ticket is mentioned, doesn't make sense otherwise
 	if [ $ticket -gt 0 ]
 	then
-		echo "$tickets" | grep -Eq "\bPHPBB3-$ticket\b" || (
+		echo "$tickets" | grep -Eq "\bPHPBB3?-$ticket\b" || (
 			complain "Ticket ID [$ticket] of branch missing from list of tickets:" >&2;
 			complain "$tickets" | sed 's/ /\n/g;s/^/* /g' >&2;
 			quit $ERR_FOOTER;

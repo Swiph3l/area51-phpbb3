@@ -15,6 +15,16 @@ require_once __DIR__ . '/../../test_framework/phpbb_database_test_case.php';
 
 class phpbb_textformatter_s9e_factory_test extends phpbb_database_test_case
 {
+	/**
+	 * @var phpbb_mock_cache
+	 */
+	private $cache;
+
+	/**
+	 * @var phpbb_mock_event_dispatcher
+	 */
+	private $dispatcher;
+
 	protected function setUp(): void
 	{
 		$this->cache = new phpbb_mock_cache;
@@ -87,7 +97,6 @@ class phpbb_textformatter_s9e_factory_test extends phpbb_database_test_case
 		$this->assertTrue(isset($configurator->BBCodes['CODE']));
 		$this->assertTrue(isset($configurator->BBCodes['COLOR']));
 		$this->assertTrue(isset($configurator->BBCodes['EMAIL']));
-		$this->assertTrue(isset($configurator->BBCodes['FLASH']));
 		$this->assertTrue(isset($configurator->BBCodes['I']));
 		$this->assertTrue(isset($configurator->BBCodes['IMG']));
 		$this->assertTrue(isset($configurator->BBCodes['LIST']));
@@ -147,7 +156,7 @@ class phpbb_textformatter_s9e_factory_test extends phpbb_database_test_case
 		$factory->tidy();
 
 		$this->assertFileExists($new_file, 'The current renderer has been deleted');
-		$this->assertFileNotExists($old_file, 'The old renderer has not been deleted');
+		$this->assertFileDoesNotExist($old_file, 'The old renderer has not been deleted');
 
 		unlink($new_file);
 	}
@@ -272,7 +281,7 @@ class phpbb_textformatter_s9e_factory_test extends phpbb_database_test_case
 		$log = $this->getMockBuilder('phpbb\\log\\log_interface')->getMock();
 		$log->expects($this->once())
 			->method('add')
-			->with('critical', null, null, 'LOG_BBCODE_CONFIGURATION_ERROR', false, ['[x !x]{TEXT}[/x]', 'Cannot interpret the BBCode definition']);
+			->with('critical', ANONYMOUS, '', 'LOG_BBCODE_CONFIGURATION_ERROR', false, ['[x !x]{TEXT}[/x]', 'Cannot interpret the BBCode definition']);
 
 		$container = new phpbb_mock_container_builder;
 		$container->set('log', $log);
@@ -287,14 +296,19 @@ class phpbb_textformatter_s9e_factory_test extends phpbb_database_test_case
 	public function test_configure_events()
 	{
 		$this->dispatcher = $this->createMock('phpbb\\event\\dispatcher_interface');
+		$matcher = $this->exactly(2);
 		$this->dispatcher
-			->expects($this->exactly(2))
+			->expects($matcher)
 			->method('trigger_event')
-			->withConsecutive(
-				['core.text_formatter_s9e_configure_before', $this->callback(array($this, 'configure_event_callback'))],
-				['core.text_formatter_s9e_configure_after', $this->callback(array($this, 'configure_event_callback'))]
-			)
-			->will($this->returnArgument(1));
+			->willReturnCallback(function($event, $vars) use ($matcher) {
+				$callNr = $matcher->numberOfInvocations();
+				match($callNr) {
+					1 => $this->assertEquals('core.text_formatter_s9e_configure_before', $event),
+					2 => $this->assertEquals('core.text_formatter_s9e_configure_after', $event),
+				};
+				$this->assertTrue($this->configure_event_callback($vars));
+				return $vars;
+			});
 		$this->get_factory()->get_configurator();
 	}
 

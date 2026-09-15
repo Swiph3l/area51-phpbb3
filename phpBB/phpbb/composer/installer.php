@@ -16,13 +16,19 @@ namespace phpbb\composer;
 use Composer\Composer;
 use Composer\DependencyResolver\Request as composer_request;
 use Composer\Factory;
+use Composer\Filter\PlatformRequirementFilter\PlatformRequirementFilterFactory;
 use Composer\IO\IOInterface;
 use Composer\IO\NullIO;
 use Composer\Json\JsonFile;
+use Composer\Json\JsonValidationException;
 use Composer\Package\BasePackage;
+use Composer\Package\CompleteAliasPackage;
 use Composer\Package\CompletePackage;
+use Composer\Package\PackageInterface;
+use Composer\PartialComposer;
 use Composer\Repository\ComposerRepository;
 use Composer\Semver\Constraint\ConstraintInterface;
+use Composer\Semver\VersionParser;
 use Composer\Util\HttpDownloader;
 use phpbb\composer\io\null_io;
 use phpbb\config\config;
@@ -95,7 +101,7 @@ class installer
 	 * @param request		$request	phpBB request object
 	 * @param config|null		$config		Config object
 	 */
-	public function __construct($root_path, filesystem $filesystem, request $request, config $config = null)
+	public function __construct($root_path, filesystem $filesystem, request $request, config|null $config = null)
 	{
 		if ($config)
 		{
@@ -129,7 +135,7 @@ class installer
 	 *
 	 * @throws runtime_exception
 	 */
-	public function install(array $packages, $whitelist, IOInterface $io = null)
+	public function install(array $packages, $whitelist, IOInterface|null $io = null)
 	{
 		$this->wrap(function() use ($packages, $whitelist, $io) {
 			$this->do_install($packages, $whitelist, $io);
@@ -144,20 +150,24 @@ class installer
 	 * @param array $packages Packages to install.
 	 *        Each entry may be a name or an array associating a version constraint to a name
 	 * @param array $whitelist White-listed packages (packages that can be installed/updated/removed)
-	 * @param IOInterface|null $io IO object used for the output
+	 * @param io\io_interface|null $io IO object used for the output
 	 *
 	 * @throws runtime_exception
+	 * @throws JsonValidationException
 	 */
-	protected function do_install(array $packages, $whitelist, IOInterface $io = null)
+	protected function do_install(array $packages, $whitelist, io\io_interface|null $io = null)
 	{
 		if (!$io)
 		{
+			$this->restore_cwd();
 			$io = new null_io();
+			$this->move_to_root();
 		}
 
 		$this->generate_ext_json_file($packages);
 
-		$composer = Factory::create($io, $this->get_composer_ext_json_filename(), false);
+		$composer = $this->get_composer($this->get_composer_ext_json_filename());
+
 		$install = \Composer\Installer::create($io, $composer);
 
 		$composer->getInstallationManager()->setOutputProgress(false);
@@ -170,7 +180,7 @@ class installer
 			->setUpdate(true)
 			->setUpdateAllowList($whitelist)
 			->setUpdateAllowTransitiveDependencies(composer_request::UPDATE_ONLY_LISTED)
-			->setIgnorePlatformRequirements(false)
+			->setPlatformRequirementFilter(PlatformRequirementFilterFactory::fromBoolOrList(false))
 			->setOptimizeAutoloader(true)
 			->setDumpAutoloader(true)
 			->setPreferStable(true)
@@ -184,6 +194,7 @@ class installer
 		catch (\Exception $e)
 		{
 			$this->restore_ext_json_file();
+			$this->restore_cwd();
 
 			throw new runtime_exception('COMPOSER_CANNOT_INSTALL', [], $e);
 		}
@@ -191,6 +202,7 @@ class installer
 		if ($result !== 0)
 		{
 			$this->restore_ext_json_file();
+			$this->restore_cwd();
 
 			throw new runtime_exception($io->get_composer_error(), []);
 		}
@@ -213,6 +225,32 @@ class installer
 	}
 
 	/**
+	 * Create instance of composer for supplied config file
+	 *
+	 * @param string|null $config_file Path to config file relative to phpBB root dir or null
+	 *
+	 * @return Composer|PartialComposer
+	 * @throws JsonValidationException
+	 */
+	protected function get_composer(string|null $config_file): PartialComposer
+	{
+		static $composer_factory;
+		if (!$composer_factory)
+		{
+			$composer_factory = new Factory();
+		}
+
+		$io = new NullIO();
+
+		return $composer_factory->createComposer(
+			$io,
+			$config_file,
+			false,
+			filesystem_helper::realpath('')
+		);
+	}
+
+	/**
 	 * Returns the list of currently installed packages
 	 *
 	 * /!\ Doesn't change the current working directory
@@ -227,8 +265,7 @@ class installer
 
 		try
 		{
-			$io = new NullIO();
-			$composer = Factory::create($io, $this->get_composer_ext_json_filename(), false);
+			$composer = $this->get_composer($this->get_composer_ext_json_filename());
 
 			$installed = [];
 
@@ -286,7 +323,7 @@ class installer
 			$this->generate_ext_json_file($this->do_get_installed_packages(explode(',', self::PHPBB_TYPES)));
 
 			$io = new NullIO();
-			$composer = Factory::create($io, $this->get_composer_ext_json_filename(), false);
+			$composer = $this->get_composer($this->get_composer_ext_json_filename());
 
 			/** @var ConstraintInterface $core_constraint */
 			$core_constraint = $composer->getPackage()->getRequires()['phpbb/phpbb']->getConstraint();
@@ -314,11 +351,11 @@ class installer
 						if ($repo_url->getValue($repository) === 'https://repo.packagist.org')
 						{
 							$url = 'https://packagist.org/packages/list.json?type=' . $type;
-							$composer_config = new \Composer\Config([]);
+							$composer_config = new \Composer\Config();
 							$downloader = new HttpDownloader($io, $composer_config);
 							$json = $downloader->get($url)->getBody();
 
-							/** @var \Composer\Package\PackageInterface $package */
+							/** @var PackageInterface $package */
 							foreach (JsonFile::parseJson($json, $url)['packageNames'] as $package)
 							{
 								$versions            = $repository->findPackages($package);
@@ -330,7 +367,7 @@ class installer
 					{
 						// Pre-filter repo packages by their type
 						$packages = [];
-						/** @var \Composer\Package\PackageInterface $package */
+						/** @var PackageInterface $package */
 						foreach ($repository->getPackages() as $package)
 						{
 							if ($package->getType() === $type)
@@ -353,39 +390,49 @@ class installer
 				}
 			}
 
-			foreach ($compatible_packages as $name => $versions)
+			foreach ($compatible_packages as $package_name => $package_versions)
 			{
 				// Determine the highest version of the package
-				/** @var CompletePackage $highest_version */
+				/** @var CompletePackage|CompleteAliasPackage $highest_version */
 				$highest_version = null;
 
-				/** @var CompletePackage $version */
-				foreach ($versions as $version)
+				// Sort the versions array in descending order
+				usort($package_versions, function ($a, $b)
 				{
-					if (!$highest_version || version_compare($version->getVersion(), $highest_version->getVersion(), '>'))
+					return version_compare($b->getVersion(), $a->getVersion());
+				});
+
+				// The first element in the sorted array is the highest version
+				if (!empty($package_versions))
+				{
+					$highest_version = $package_versions[0];
+
+					// If highest version is a non-numeric dev branch, it's an instance of CompleteAliasPackage,
+					// so we need to get the package being aliased in order to show the true non-numeric version.
+					if ($highest_version instanceof CompleteAliasPackage)
 					{
-						$highest_version = $version;
+						$highest_version = $highest_version->getAliasOf();
 					}
 				}
 
 				// Generates the entry
-				$available[$name] = [];
-				$available[$name]['name'] = $highest_version->getPrettyName();
-				$available[$name]['display_name'] = $highest_version->getExtra()['display-name'];
-				$available[$name]['composer_name'] = $highest_version->getName();
-				$available[$name]['version'] = $highest_version->getPrettyVersion();
+				$available[$package_name] = [];
+				$available[$package_name]['name'] = $highest_version->getPrettyName();
+				$available[$package_name]['display_name'] = $highest_version->getExtra()['display-name'];
+				$available[$package_name]['composer_name'] = $highest_version->getName();
+				$available[$package_name]['version'] = $highest_version->getPrettyVersion();
 
-				if ($version instanceof CompletePackage)
+				if ($highest_version instanceof CompletePackage)
 				{
-					$available[$name]['description'] = $highest_version->getDescription();
-					$available[$name]['url'] = $highest_version->getHomepage();
-					$available[$name]['authors'] = $highest_version->getAuthors();
+					$available[$package_name]['description'] = $highest_version->getDescription();
+					$available[$package_name]['url'] = $highest_version->getHomepage();
+					$available[$package_name]['authors'] = $highest_version->getAuthors();
 				}
 				else
 				{
-					$available[$name]['description'] = '';
-					$available[$name]['url'] = '';
-					$available[$name]['authors'] = [];
+					$available[$package_name]['description'] = '';
+					$available[$package_name]['url'] = '';
+					$available[$package_name]['authors'] = [];
 				}
 			}
 
@@ -419,37 +466,78 @@ class installer
 	/**
 	 * Updates $compatible_packages with the versions of $versions compatibles with the $core_constraint
 	 *
-	 * @param array						$compatible_packages	List of compatibles versions
-	 * @param ConstraintInterface	$core_constraint		Constraint against the phpBB version
+	 * @param array $compatible_packages List of compatibles versions
+	 * @param ConstraintInterface $core_constraint Constraint against the phpBB version
 	 * @param string $core_stability Core stability
-	 * @param string					$package_name			Considered package
-	 * @param array						$versions				List of available versions
+	 * @param string $package_name Considered package
+	 * @param array $versions List of available versions
 	 *
 	 * @return array
 	 */
 	private function get_compatible_versions(array $compatible_packages, ConstraintInterface $core_constraint, $core_stability, $package_name, array $versions)
 	{
+		$version_parser = new VersionParser();
+
 		$core_stability_value = BasePackage::$stabilities[$core_stability];
 
-		/** @var \Composer\Package\PackageInterface $version */
+		/** @var PackageInterface $version */
 		foreach ($versions as $version)
 		{
 			try
 			{
+				// Check stability first to avoid unnecessary operations
 				if (BasePackage::$stabilities[$version->getStability()] > $core_stability_value)
 				{
 					continue;
 				}
 
-				if (array_key_exists('phpbb/phpbb', $version->getRequires()))
-				{
-					/** @var ConstraintInterface $package_constraint */
-					$package_constraint = $version->getRequires()['phpbb/phpbb']->getConstraint();
+				$requires = $version->getRequires();
+				$extra = $version->getExtra();
 
+				// Check for compatibility with phpBB if 'phpbb/phpbb' exists in 'requires'
+				if (isset($requires['phpbb/phpbb']))
+				{
+					$package_constraint = $requires['phpbb/phpbb']->getConstraint();
 					if (!$package_constraint->matches($core_constraint))
 					{
 						continue;
 					}
+				}
+
+				// Check for compatibility with phpBB if 'phpbb/phpbb' exists in 'soft-require'
+				if (isset($extra['soft-require']['phpbb/phpbb']))
+				{
+					$package_constraint = $version_parser->parseConstraints($extra['soft-require']['phpbb/phpbb']);
+					if (!$package_constraint->matches($core_constraint))
+					{
+						continue;
+					}
+				}
+
+				// Check for compatibility with php if 'php' exists in 'requires'
+				if (isset($requires['php']))
+				{
+					$php_constraint = $version_parser->parseConstraints(PHP_VERSION);
+					$package_constraint = $requires['php']->getConstraint();
+					if (!$package_constraint->matches($php_constraint))
+					{
+						continue;
+					}
+				}
+
+				// Check for composer/installers requirement - must support version 2.0 or later
+				if (isset($requires['composer/installers']))
+				{
+					$installers_constraint = $requires['composer/installers']->getConstraint();
+					$min_version_constraint = $version_parser->parseConstraints('>=2.0');
+					if (!$min_version_constraint->matches($installers_constraint))
+					{
+						continue;
+					}
+				}
+				else
+				{
+					continue;
 				}
 
 				$compatible_packages[$package_name][] = $version;
@@ -468,12 +556,11 @@ class installer
 	 *
 	 * @param array $packages Packages to update.
 	 *        Each entry may be a name or an array associating a version constraint to a name
+	 * @throws JsonValidationException
 	 */
 	protected function generate_ext_json_file(array $packages)
 	{
-		$io = new NullIO();
-
-		$composer = Factory::create($io, null, false);
+		$composer = $this->get_composer(null);
 
 		$core_packages = $this->get_core_packages($composer);
 
@@ -490,7 +577,10 @@ class installer
 			'replace' => $core_replace,
 			'repositories' => $this->get_composer_repositories(),
 			'config' => [
-				'vendor-dir'=> $this->packages_vendor_dir,
+				'vendor-dir'	=> $this->packages_vendor_dir,
+				'allow-plugins'	=> [
+					'composer/installers' => true,
+				]
 			],
 			'minimum-stability' => $this->minimum_stability,
 		];
@@ -510,8 +600,148 @@ class installer
 			$lockFile->write([]);
 		}
 
+		// First pass write: base file with requested packages as provided
 		$json_file->write($ext_json_data);
 		$this->ext_json_file_backup = $ext_json_file_backup;
+
+		// Second pass: resolve and pin the highest compatible versions for unconstrained requested packages
+		try
+		{
+			// Build a list of requested packages without explicit constraints
+			$unconstrained = [];
+			foreach ($packages as $name => $constraint)
+			{
+				// The $packages array can be either ['vendor/package' => '^1.2'] or ['vendor/package'] (numeric keys).
+				if (is_int($name))
+				{
+					// Numeric key means just a name
+					$package_name = $constraint;
+					$unconstrained[$package_name] = true;
+				}
+				else
+				{
+					// If constraint is empty or '*' treat as unconstrained
+					if ($constraint === '' || $constraint === '*' || $constraint === null)
+					{
+						$unconstrained[$name] = true;
+					}
+				}
+			}
+
+			if (!empty($unconstrained))
+			{
+				// Load composer on the just-written file so repositories and core constraints are available
+				$ext_composer = $this->get_composer($this->get_composer_ext_json_filename());
+
+				/** @var ConstraintInterface $core_constraint */
+				$core_constraint = $ext_composer->getPackage()->getRequires()['phpbb/phpbb']->getConstraint();
+				$core_stability = $ext_composer->getPackage()->getMinimumStability();
+
+				// Resolve highest compatible versions for each unconstrained package
+				$pins = $this->resolve_highest_versions(array_keys($unconstrained), $ext_composer, $core_constraint, $core_stability);
+
+				if (!empty($pins))
+				{
+					// Merge pins into require section, overwriting unconstrained entries
+					foreach ($pins as $pkg => $version)
+					{
+						$ext_json_data['require'][$pkg] = $version;
+					}
+
+					// Rewrite composer-ext.json with pinned versions
+					$json_file->write($ext_json_data);
+				}
+			}
+		}
+		catch (\Exception $e)
+		{
+			// If resolution fails for any reason, keep the first-pass file intact (Composer will still resolve).
+			// Intentionally swallow to avoid breaking installation flow.
+		}
+	}
+
+	/**
+	 * Resolve the highest compatible versions for the given package names
+	 * based on repositories and phpBB/PHP constraints from the provided Composer instance.
+	 *
+	 * @param array $package_names list of package names to resolve
+	 * @param Composer|PartialComposer $composer Composer instance configured with repositories
+	 * @param ConstraintInterface $core_constraint phpBB version constraint
+	 * @param string $core_stability minimum stability
+	 * @return array [packageName => prettyVersion]
+	 */
+	protected function resolve_highest_versions(array $package_names, $composer, ConstraintInterface $core_constraint, $core_stability): array
+	{
+		$compatible_packages = [];
+		$repositories = $composer->getRepositoryManager()->getRepositories();
+
+		foreach ($repositories as $repository)
+		{
+			try
+			{
+				if ($repository instanceof ComposerRepository)
+				{
+					foreach ($package_names as $name)
+					{
+						$versions = $repository->findPackages($name);
+						if (!empty($versions))
+						{
+							$compatible_packages = $this->get_compatible_versions($compatible_packages, $core_constraint, $core_stability, $name, $versions);
+						}
+					}
+				}
+				else
+				{
+					// Preload and filter by name for non-composer repositories
+					$package_name = [];
+					foreach ($repository->getPackages() as $package)
+					{
+						$name = $package->getName();
+						if (in_array($name, $package_names, true))
+						{
+							$package_name[$name][] = $package;
+						}
+					}
+
+					foreach ($package_name as $name => $versions)
+					{
+						$compatible_packages = $this->get_compatible_versions($compatible_packages, $core_constraint, $core_stability, $name, $versions);
+					}
+				}
+			}
+			catch (\Exception $e)
+			{
+				// If a repo fails, just skip it.
+				continue;
+			}
+		}
+
+		$pins = [];
+		foreach ($package_names as $name)
+		{
+			if (empty($compatible_packages[$name]))
+			{
+				continue;
+			}
+
+			$package_versions = $compatible_packages[$name];
+
+			// Sort descending by normalized version
+			usort($package_versions, function ($a, $b) {
+				return version_compare($b->getVersion(), $a->getVersion());
+			});
+
+			$highest = $package_versions[0];
+			if ($highest instanceof CompleteAliasPackage)
+			{
+				$highest = $highest->getAliasOf();
+			}
+
+			// Pin to the resolved highest compatible version using its pretty version
+			$pins[$name] = $highest->getPrettyVersion();
+		}
+
+		return $pins;
 	}
 
 	/**
@@ -587,6 +817,7 @@ class installer
 				$repositories[] = [
 					'type' => 'composer',
 					'url' => $repository,
+					'canonical' => $this->packagist ? false : true,
 				];
 			}
 		}

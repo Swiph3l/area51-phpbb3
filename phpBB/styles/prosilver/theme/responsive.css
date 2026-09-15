@@ -18,6 +18,10 @@
 	.dropdown-extended .dropdown-contents {
 		width: auto;
 	}
+
+	.dropdown-extended .dropdown-contents .webpush-subscribe .notification-subscribe-toggle > span {
+		display: none;
+	}
 }
 
 @media (max-width: 430px) {
@@ -27,18 +31,6 @@
 
 	.section-viewtopic .search-box .inputbox {
 		width: 57px;
-	}
-
-	.action-bar .search-box .inputbox ::-moz-placeholder {
-		content: "Search...";
-	}
-
-	.action-bar .search-box .inputbox :-ms-input-placeholder {
-		content: "Search...";
-	}
-
-	.action-bar .search-box .inputbox ::-webkit-input-placeholder {
-		content: "Search...";
 	}
 }
 
@@ -160,7 +152,7 @@
 	}
 }
 
-@media (max-width: 700px) {
+@media (max-width: 750px) {
 	.responsive-hide {
 		display: none !important;
 	}
@@ -190,8 +182,7 @@
 	.wrap {
 		border: none;
 		border-radius: 0;
-		min-width: 290px;
-		margin: 0;
+		box-sizing: border-box;
 		padding: 0 5px;
 	}
 
@@ -336,7 +327,6 @@
 		vertical-align: bottom;
 		text-overflow: ellipsis;
 		overflow: hidden;
-		max-width: 100px;
 	}
 
 	/* Pagination
@@ -506,6 +496,10 @@
 		width: auto;
 	}
 
+	.avatar-rank-container {
+		max-width: 100%;
+	}
+
 	/* Polls
 	---------------------------------------------------------------- */
 	fieldset.polls dt {
@@ -578,6 +572,12 @@
 		width: auto !important;
 		height: auto !important;
 		max-height: 32px;
+	}
+
+	.postprofile .avatar-placeholder {
+		font-size: 1rem;
+		width: 32px;
+		height: 32px;
 	}
 
 	.has-profile .postbody h3 {
@@ -786,7 +786,6 @@
 		display: block !important;
 	}
 
-	.nav-footer.linklist .responsive-menu,
 	.nav-main.linklist .responsive-menu .in-menu {
 		display: none !important;
 	}
@@ -868,7 +867,7 @@
 	}
 }
 
-@media (max-width: 1220px) {
+@media (min-width: 751px) and (max-width: 1200px) {
 	.wrap {
 		margin: 0 12px;
 	}

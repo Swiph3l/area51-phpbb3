@@ -30,7 +30,8 @@ class language_file_helper
 	/**
 	 * Constructor
 	 *
-	 * @param string $phpbb_root_path Path to phpBB's root
+	 * @param string $phpbb_root_path 		Path to phpBB's root
+	 *
 	 */
 	public function __construct(string $phpbb_root_path)
 	{
@@ -64,6 +65,8 @@ class language_file_helper
 			$available_languages[] = $this->get_language_data_from_json($data);
 		}
 
+		usort($available_languages, [$this, 'sort_by_local_name']);
+
 		return $available_languages;
 	}
 
@@ -91,7 +94,7 @@ class language_file_helper
 	 */
 	protected function get_language_data_from_json(array $data) : array
 	{
-		if (!isset($data['extra']['language-iso']) || !isset($data['extra']['english-name']) || !isset($data['extra']['local-name']))
+		if (!isset($data['extra']['language-iso']) || !isset($data['extra']['english-name']) || !isset($data['extra']['local-name']) || !isset($data['extra']['direction']) || !isset($data['extra']['user-lang']) || !isset($data['extra']['plural-rule']) || !isset($data['extra']['recaptcha-lang']))
 		{
 			throw new DomainException('INVALID_LANGUAGE_PACK');
 		}
@@ -109,12 +112,29 @@ class language_file_helper
 		}
 
 		return [
-			'iso'			=> $data['extra']['language-iso'],
-			'name'			=> $data['extra']['english-name'],
-			'local_name'	=> $data['extra']['local-name'],
-			'author'		=> implode(', ', $authors),
-			'version'		=> $data['version'],
-			'phpbb_version'	=> $data['extra']['phpbb-version'],
+			'iso'				=> $data['extra']['language-iso'],
+			'name'				=> $data['extra']['english-name'],
+			'local_name'		=> $data['extra']['local-name'],
+			'author'			=> implode(', ', $authors),
+			'version'			=> $data['version'],
+			'phpbb_version'		=> $data['extra']['phpbb-version'],
+			'direction'			=> $data['extra']['direction'],
+			'user_lang'			=> $data['extra']['user-lang'],
+			'plural_rule'		=> $data['extra']['plural-rule'],
+			'recaptcha_lang'	=> $data['extra']['recaptcha-lang'],
+			'turnstile_lang'	=> $data['extra']['turnstile-lang'] ?? '',
 		];
+	}
+
+	/**
+	 * Sorts the languages by their name instead of iso code
+	 *
+	 * @param mixed $a First language data
+	 * @param mixed $b Second language data
+	 * @return int
+	 */
+	private static function sort_by_local_name(mixed $a, mixed $b): int
+	{
+		return $a['local_name'] <=> $b['local_name'];
 	}
 }

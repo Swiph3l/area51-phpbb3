@@ -13,7 +13,10 @@
 
 namespace phpbb\report\controller;
 
+use phpbb\captcha\plugins\confirm_type;
+use phpbb\captcha\plugins\plugin_interface;
 use phpbb\exception\http_exception;
+use phpbb\report\report_handler_interface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 
 class report
@@ -39,6 +42,11 @@ class report
 	protected $helper;
 
 	/**
+	 * @var \phpbb\language\language $language
+	 */
+	protected $language;
+
+	/**
 	 * @var \phpbb\request\request_interface
 	 */
 	protected $request;
@@ -61,6 +69,9 @@ class report
 	/**
 	 * @var \phpbb\report\handler_factory
 	 */
+	protected $report_factory;
+
+	/** @var report_handler_interface */
 	protected $report_handler;
 
 	/**
@@ -68,17 +79,18 @@ class report
 	 */
 	protected $report_reason_provider;
 
-	public function __construct(\phpbb\config\config $config, \phpbb\user $user, \phpbb\template\template $template, \phpbb\controller\helper $helper, \phpbb\request\request_interface $request, \phpbb\captcha\factory $captcha_factory, \phpbb\report\handler_factory $report_factory, \phpbb\report\report_reason_list_provider $ui_provider, $phpbb_root_path, $php_ext)
+	public function __construct(\phpbb\config\config $config, \phpbb\user $user, \phpbb\template\template $template, \phpbb\controller\helper $helper, \phpbb\language\language $language, \phpbb\request\request_interface $request, \phpbb\captcha\factory $captcha_factory, \phpbb\report\handler_factory $report_factory, \phpbb\report\report_reason_list_provider $ui_provider, $phpbb_root_path, $php_ext)
 	{
 		$this->config			= $config;
 		$this->user				= $user;
 		$this->template			= $template;
 		$this->helper			= $helper;
 		$this->request			= $request;
+		$this->language			= $language;
 		$this->phpbb_root_path	= $phpbb_root_path;
 		$this->php_ext			= $php_ext;
 		$this->captcha_factory	= $captcha_factory;
-		$this->report_handler	= $report_factory;
+		$this->report_factory	= $report_factory;
 
 		// User interface factory
 		$this->report_reason_provider = $ui_provider;
@@ -97,7 +109,7 @@ class report
 	public function handle($id, $mode)
 	{
 		// Get report handler
-		$this->report_handler = $this->report_handler->get_instance($mode);
+		$this->report_handler = $this->report_factory->get_instance($mode);
 
 		$this->user->add_lang('mcp');
 
@@ -127,7 +139,7 @@ class report
 		if ($this->config['enable_post_confirm'] && !$this->user->data['is_registered'])
 		{
 			$captcha = $this->captcha_factory->get_instance($this->config['captcha_plugin']);
-			$captcha->init(CONFIRM_REPORT);
+			$captcha->init(confirm_type::REPORT);
 		}
 
 		//Has the report been cancelled?
@@ -136,12 +148,19 @@ class report
 			return new RedirectResponse($redirect_url, 302);
 		}
 
-		// Check CAPTCHA, if the form was submited
+		add_form_key('report');
+
+		// Check CAPTCHA, if the form was submitted
 		if (!empty($submit) && isset($captcha))
 		{
 			$captcha_template_array = $this->check_captcha($captcha);
 			$error = $captcha_template_array['error'];
 			$s_hidden_fields = $captcha_template_array['hidden_fields'];
+		}
+
+		if (!empty($submit) && !check_form_key('report'))
+		{
+			$error[] = $this->language->lang('FORM_INVALID');
 		}
 
 		// Handle request
@@ -246,7 +265,7 @@ class report
 	/**
 	 * Assigns template variables
 	 *
-	 * @param	int		$mode
+	 * @param	string	$mode
 	 * @param	int		$id
 	 * @param	int		$reason_id
 	 * @param	string	$report_text
@@ -254,7 +273,7 @@ class report
 	 * @param 	array	$error
 	 * @param	string	$s_hidden_fields
 	 * @param	mixed	$captcha
-	 * @return	null
+	 * @return	void
 	 */
 	protected function assign_template_data($mode, $id, $reason_id, $report_text, $user_notify, $error = array(), $s_hidden_fields = '', $captcha = false)
 	{
@@ -294,18 +313,17 @@ class report
 	/**
 	 * Check CAPTCHA
 	 *
-	 * @param	object	$captcha	A phpBB CAPTCHA object
+	 * @param	plugin_interface	$captcha	A phpBB CAPTCHA object
 	 * @return	array	template variables which ensures that CAPTCHA's work correctly
 	 */
-	protected function check_captcha($captcha)
+	protected function check_captcha(plugin_interface $captcha)
 	{
 		$error = array();
 		$captcha_hidden_fields = '';
 
-		$visual_confirmation_response = $captcha->validate();
-		if ($visual_confirmation_response)
+		if ($captcha->validate() !== true)
 		{
-			$error[] = $visual_confirmation_response;
+			$error[] = $captcha->get_error();
 		}
 
 		if (count($error) === 0)

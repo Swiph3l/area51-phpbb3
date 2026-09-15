@@ -103,7 +103,7 @@ class filespec
 	 * @param \phpbb\mimetype\guesser|null	$mimetype_guesser Mime type guesser
 	 * @param \phpbb\plupload\plupload|null	$plupload Plupload
 	 */
-	public function __construct(\phpbb\filesystem\filesystem_interface $phpbb_filesystem, language $language, \bantu\IniGetWrapper\IniGetWrapper $php_ini, \FastImageSize\FastImageSize $imagesize, $phpbb_root_path, \phpbb\mimetype\guesser $mimetype_guesser = null, \phpbb\plupload\plupload $plupload = null)
+	public function __construct(\phpbb\filesystem\filesystem_interface $phpbb_filesystem, language $language, \bantu\IniGetWrapper\IniGetWrapper $php_ini, \FastImageSize\FastImageSize $imagesize, $phpbb_root_path, \phpbb\mimetype\guesser|null $mimetype_guesser = null, \phpbb\plupload\plupload|null $plupload = null)
 	{
 		$this->filesystem = $phpbb_filesystem;
 		$this->language = $language;
@@ -137,7 +137,7 @@ class filespec
 		$this->mimetype = $upload_ary['type'];
 
 		// Opera adds the name to the mime type
-		$this->mimetype	= (strpos($this->mimetype, '; name') !== false) ? str_replace(strstr($this->mimetype, '; name'), '', $this->mimetype) : $this->mimetype;
+		$this->mimetype	= ($this->mimetype && str_contains($this->mimetype, '; name')) ? str_replace(strstr($this->mimetype, '; name'), '', $this->mimetype) : $this->mimetype;
 
 		if (!$this->mimetype)
 		{
@@ -329,7 +329,7 @@ class filespec
 	 * Get mime type
 	 *
 	 * @param string $filename Filename that needs to be checked
-	 * @return string Mime type of supplied filename
+	 * @return string Mime type of supplied filename or empty string if mimetype could not be guessed
 	 */
 	public function get_mimetype($filename)
 	{
@@ -343,7 +343,7 @@ class filespec
 			}
 		}
 
-		return $this->mimetype;
+		return $this->mimetype ?: '';
 	}
 
 	/**
@@ -355,7 +355,7 @@ class filespec
 	 */
 	public function get_filesize($filename)
 	{
-		return @filesize($filename);
+		return @filesize($filename) ?: 0;
 	}
 
 
@@ -398,7 +398,7 @@ class filespec
 	 * @param bool $overwrite If set to true, an already existing file will be overwritten
 	 * @param bool $skip_image_check If set to true, the check for the file to be a valid image is skipped
 	 * @param string|bool $chmod Permission mask for chmodding the file after a successful move.
-	 *				The mode entered here reflects the mode defined by {@link phpbb_chmod()}
+	 *				The mode entered here reflects the mode defined by {@link \phpbb\filesystem\filesystem::phpbb_chmod()}
 	 *
 	 * @return bool True if file was moved, false if not
 	 * @access public
@@ -478,7 +478,10 @@ class filespec
 			}
 
 			// Remove temporary filename
-			@unlink($this->filename);
+			if (file_exists($this->filename))
+			{
+				@unlink($this->filename);
+			}
 
 			if (count($this->error))
 			{

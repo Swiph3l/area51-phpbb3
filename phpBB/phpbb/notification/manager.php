@@ -13,6 +13,7 @@
 
 namespace phpbb\notification;
 
+use phpbb\exception\runtime_exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -222,7 +223,7 @@ class manager
 	* Mark notifications read or unread for a given method
 	*
 	* @param string $method_name
-	* @param int|array $notification_id Notification id or array of notification ids.
+	* @param array $notification_id Notification id or array of notification ids.
 	* @param bool|int $time Time at which to mark all notifications prior to as read. False to mark all as read. (Default: False)
 	* @param bool $mark_read Define if the notification as to be set to True or False. (Default: True)
 	*/
@@ -232,7 +233,7 @@ class manager
 
 		if ($method instanceof \phpbb\notification\method\method_interface && $method->is_available())
 		{
-			$method->mark_notifications_by_id($notification_id, $time, $mark_read);
+			$method->mark_notifications_by_id($notification_id, $this->user->id(), $time, $mark_read);
 		}
 	}
 
@@ -253,9 +254,36 @@ class manager
 			'ignore_users'		=> array(),
 		), $options);
 
+		$notified_users = [];
+		$add_notifications_override = false;
+
+		/**
+		* Get notification data before find_users_for_notification() execute
+		*
+		* @event core.notification_manager_add_notifications_before
+		* @var	bool			add_notifications_override	Flag indicating whether function should return after event
+		* @var	array|string	notification_type_name		Type identifier or array of item types
+		* @var	string			data						Data specific for this notification type that will be inserted
+		* @var	array 			notified_users				Array of notified users
+		* @var	string			options						Optional options to control what notifications are loaded
+		* @since 3.3.6-RC1
+		*/
+		$vars = [
+			'add_notifications_override',
+			'notification_type_name',
+			'data',
+			'notified_users',
+			'options',
+		];
+		extract($this->phpbb_dispatcher->trigger_event('core.notification_manager_add_notifications_before', compact($vars)));
+
+		if ($add_notifications_override)
+		{
+			return $notified_users;
+		}
+
 		if (is_array($notification_type_name))
 		{
-			$notified_users = array();
 			$temp_options = $options;
 
 			foreach ($notification_type_name as $type)
@@ -382,12 +410,17 @@ class manager
 
 			foreach ($methods as $method)
 			{
-				// setup the notification methods and add the notification to the queue
+				// Do not load non-existent notification methods
+				if (!isset($this->notification_methods[$method]))
+				{
+					continue;
+				}
+
+				// Setup the notification methods and add the notification to the queue
 				if (!isset($notification_methods[$method]))
 				{
 					$notification_methods[$method] = $this->get_method_class($method);
 				}
-
 				$notification_methods[$method]->add_to_queue($notification);
 			}
 		}
@@ -446,31 +479,41 @@ class manager
 	}
 
 	/**
-	* Delete a notification
-	*
-	* @param string|array $notification_type_name Type identifier or array of item types (only acceptable if the $item_id is identical for the specified types)
-	* @param int|array $item_id Identifier within the type (or array of ids)
-	* @param mixed $parent_id Parent identifier within the type (or array of ids), used in combination with item_id if specified (Default: false; not checked)
-	* @param mixed $user_id User id (Default: false; not checked)
+	 * Delete notifications of specified type
+	 *
+	 * @param string $notification_type_name Type identifier
+	 * @param int|array $item_id Identifier within the type (or array of ids)
+	 * @param mixed $parent_id Parent identifier within the type (or array of ids), used in combination with item_id if specified (Default: false; not checked)
+	 * @param mixed $user_id User id (Default: false; not checked)
+	 *
+	 * @return void
 	*/
-	public function delete_notifications($notification_type_name, $item_id, $parent_id = false, $user_id = false)
+	public function delete_notifications(string $notification_type_name, $item_id, $parent_id = false, $user_id = false): void
 	{
-		if (is_array($notification_type_name))
-		{
-			foreach ($notification_type_name as $type)
-			{
-				$this->delete_notifications($type, $item_id, $parent_id, $user_id);
-			}
-
-			return;
-		}
-
 		$notification_type_id = $this->get_notification_type_id($notification_type_name);
 
 		/** @var method\method_interface $method */
 		foreach ($this->get_available_subscription_methods() as $method)
 		{
 			$method->delete_notifications($notification_type_id, $item_id, $parent_id, $user_id);
+		}
+	}
+
+	/**
+	 * Delete notifications specified by multiple types
+	 *
+	 * @param array $notification_type_names Array of item types (only acceptable if the $item_id is identical for the specified types)
+	 * @param int|array $item_id Identifier within the type (or array of ids)
+	 * @param mixed $parent_id Parent identifier within the type (or array of ids), used in combination with item_id if specified (Default: false; not checked)
+	 * @param mixed $user_id User id (Default: false; not checked)
+	 *
+	 * @return void
+	 */
+	public function delete_notifications_by_types(array $notification_type_names, $item_id, $parent_id = false, $user_id = false): void
+	{
+		foreach ($notification_type_names as $type)
+		{
+			$this->delete_notifications($type, $item_id, $parent_id, $user_id);
 		}
 	}
 
@@ -665,7 +708,7 @@ class manager
 	*
 	* @param string $item_type Type identifier of the subscription
 	* @param int $item_id The id of the item
-	* @param string $method The method of the notification e.g. 'board', 'email', or 'jabber'
+	* @param string $method The method of the notification e.g. 'board', 'email'
 	*                       (if null a subscription will be added for all the defaults methods)
 	* @param bool|int $user_id The user_id to add the subscription for (bool false for current user)
 	*/
@@ -722,7 +765,7 @@ class manager
 	*
 	* @param string $item_type Type identifier of the subscription
 	* @param int $item_id The id of the item
-	* @param string $method The method of the notification e.g. 'board', 'email', or 'jabber'
+	* @param string $method The method of the notification e.g. 'board', 'email'
 	* @param bool|int $user_id The user_id to add the subscription for (bool false for current user)
 	*/
 	public function delete_subscription($item_type, $item_id = 0, $method = null, $user_id = false)
@@ -846,9 +889,9 @@ class manager
 	/**
 	 * Helper to get the list of methods enabled by default
 	 *
-	 * @return method\method_interface[]
+	 * @return string[] Default method types
 	 */
-	public function get_default_methods()
+	public function get_default_methods(): array
 	{
 		$default_methods = array();
 
@@ -867,12 +910,19 @@ class manager
 	 * Helper to get the notifications item type class and set it up
 	 *
 	 * @param string $notification_type_name
-	 * @param array  $data
+	 * @param array $data
+	 *
 	 * @return type\type_interface
+	 * @throws runtime_exception When type name is not o notification type
 	 */
 	public function get_item_type_class($notification_type_name, $data = array())
 	{
 		$item = $this->load_object($notification_type_name);
+
+		if (!$item instanceof type\type_interface)
+		{
+			throw new runtime_exception('Supplied type name returned invalid service: ' . $notification_type_name);
+		}
 
 		$item->set_initial_data($data);
 
@@ -883,18 +933,30 @@ class manager
 	 * Helper to get the notifications method class and set it up
 	 *
 	 * @param string $method_name
+	 *
 	 * @return method\method_interface
+	 * @throws runtime_exception When object name is not o notification method
 	 */
 	public function get_method_class($method_name)
 	{
-		return $this->load_object($method_name);
+		$object = $this->load_object($method_name);
+
+		if (!$object instanceof method\method_interface)
+		{
+			throw new runtime_exception('Supplied method name returned invalid service: ' . $method_name);
+		}
+
+		return $object;
 	}
 
 	/**
 	 * Helper to load objects (notification types/methods)
 	 *
 	 * @param string $object_name
+	 *
 	 * @return method\method_interface|type\type_interface
+	 * @psalm-suppress NullableReturnStatement Invalid service will result in exception
+	 * @throws runtime_exception When object name is not o notification method or type
 	 */
 	protected function load_object($object_name)
 	{
@@ -903,6 +965,11 @@ class manager
 		if (method_exists($object, 'set_notification_manager'))
 		{
 			$object->set_notification_manager($this);
+		}
+
+		if (!$object instanceof method\method_interface && !$object instanceof type\type_interface)
+		{
+			throw new runtime_exception('Supplied object name returned invalid service: ' . $object_name);
 		}
 
 		return $object;

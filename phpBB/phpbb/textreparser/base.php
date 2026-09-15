@@ -40,8 +40,11 @@ abstract class base implements reparser_interface
 	abstract protected function get_records_by_range($min_id, $max_id);
 
 	/**
-	* {@inheritdoc}
-	*/
+	 * Save record
+	 *
+	 * @param array $record
+	 * @return void
+	 */
 	abstract protected function save_record(array $record);
 
 	/**
@@ -77,7 +80,7 @@ abstract class base implements reparser_interface
 
 		// Those BBCodes are disabled based on context and user permissions and that value is never
 		// stored in the database. Here we test whether they were used in the original text.
-		$bbcodes = array('flash', 'img', 'quote', 'url');
+		$bbcodes = array('img', 'quote', 'url');
 		foreach ($bbcodes as $bbcode)
 		{
 			$field_name = 'enable_' . $bbcode . '_bbcode';
@@ -198,8 +201,8 @@ abstract class base implements reparser_interface
 	*/
 	protected function guess_magic_url(array $record)
 	{
-		// Look for <!-- m --> or for a URL tag that's not immediately followed by <s>
-		return (strpos($record['text'], '<!-- m -->') !== false || preg_match('(<URL [^>]++>(?!<s>))', $record['text']));
+		// Look for magic URL markers or for a URL tag that's not immediately followed by <s>
+		return preg_match('#<!-- ([lmwe]) -->.*?<!-- \1 -->#', $record['text']) || preg_match('(<URL [^>]++>(?!<s>))', $record['text']);
 	}
 
 	/**
@@ -216,11 +219,11 @@ abstract class base implements reparser_interface
 	/**
 	* {@inheritdoc}
 	*/
-	public function reparse_range($min_id, $max_id)
+	public function reparse_range($min_id, $max_id, bool $force_bbcode_reparsing = false)
 	{
 		foreach ($this->get_records_by_range($min_id, $max_id) as $record)
 		{
-			$this->reparse_record($record);
+			$this->reparse_record($record, $force_bbcode_reparsing);
 		}
 	}
 
@@ -228,13 +231,17 @@ abstract class base implements reparser_interface
 	* Reparse given record
 	*
 	* @param array $record Associative array containing the record's data
+	* @param bool $force_bbcode_reparsing Flag indicating if BBCode should be reparsed unconditionally
 	*/
-	protected function reparse_record(array $record)
+	protected function reparse_record(array $record, bool $force_bbcode_reparsing = false)
 	{
+		// Guess magic URL state based on actual record content before adding fields
+		$record['enable_magic_url'] = $this->guess_magic_url($record);
 		$record = $this->add_missing_fields($record);
-		$flags = ($record['enable_bbcode']) ? OPTION_FLAG_BBCODE : 0;
-		$flags |= ($record['enable_smilies']) ? OPTION_FLAG_SMILIES : 0;
-		$flags |= ($record['enable_magic_url']) ? OPTION_FLAG_LINKS : 0;
+
+		$flags = ($record['enable_bbcode'] || $force_bbcode_reparsing) ? OPTION_FLAG_BBCODE : 0;
+		$flags |= ($record['enable_smilies'] || $force_bbcode_reparsing) ? OPTION_FLAG_SMILIES : 0;
+		$flags |= ($record['enable_magic_url'] || $force_bbcode_reparsing) ? OPTION_FLAG_LINKS : 0;
 		$unparsed = array_merge(
 			$record,
 			generate_text_for_edit($record['text'], $record['bbcode_uid'], $flags)
@@ -243,19 +250,19 @@ abstract class base implements reparser_interface
 		// generate_text_for_edit() and decode_message() actually return the text as HTML. It has to
 		// be decoded to plain text before it can be reparsed
 		$text = html_entity_decode($unparsed['text'], ENT_QUOTES, 'UTF-8');
-		$bitfield = $flags = null;
+		$bitfield = '';
+		$flags = 0;
 		generate_text_for_storage(
 			$text,
 			$unparsed['bbcode_uid'],
 			$bitfield,
 			$flags,
-			$unparsed['enable_bbcode'],
-			$unparsed['enable_magic_url'],
-			$unparsed['enable_smilies'],
-			$unparsed['enable_img_bbcode'],
-			$unparsed['enable_flash_bbcode'],
-			$unparsed['enable_quote_bbcode'],
-			$unparsed['enable_url_bbcode'],
+			$unparsed['enable_bbcode'] || $force_bbcode_reparsing,
+			$unparsed['enable_magic_url'] || $force_bbcode_reparsing,
+			$unparsed['enable_smilies'] || $force_bbcode_reparsing,
+			$unparsed['enable_img_bbcode'] || $force_bbcode_reparsing,
+			$unparsed['enable_quote_bbcode'] || $force_bbcode_reparsing,
+			$unparsed['enable_url_bbcode'] || $force_bbcode_reparsing,
 			'text_reparser.' . $this->get_name()
 		);
 

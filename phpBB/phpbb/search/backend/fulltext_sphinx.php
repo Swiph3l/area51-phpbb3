@@ -57,8 +57,8 @@ class fulltext_sphinx implements search_backend_interface
 	protected $indexes;
 
 	/**
-	 * Sphinx searchd client object
-	 * @var SphinxClient
+	 * Sphinx search client object
+	 * @var \SphinxClient
 	 */
 	protected $sphinx;
 
@@ -629,9 +629,9 @@ class fulltext_sphinx implements search_backend_interface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function create_index(int &$post_counter = 0): ?array
+	public function create_index(int &$post_counter = 0): array|null
 	{
-		if ($this->index_created())
+		if (!$this->index_created())
 		{
 			$table_data = array(
 				'COLUMNS'	=> array(
@@ -641,9 +641,6 @@ class fulltext_sphinx implements search_backend_interface
 				'PRIMARY_KEY'	=> 'counter_id',
 			);
 			$this->db_tools->sql_create_table(SPHINX_TABLE, $table_data);
-
-			$sql = 'TRUNCATE TABLE ' . SPHINX_TABLE;
-			$this->db->sql_query($sql);
 
 			$data = array(
 				'counter_id'	=> '1',
@@ -659,7 +656,7 @@ class fulltext_sphinx implements search_backend_interface
 	/**
 	 * {@inheritdoc}
 	*/
-	public function delete_index(int &$post_counter = null): ?array
+	public function delete_index(int|null &$post_counter = null): array|null
 	{
 		if ($this->index_created())
 		{
@@ -777,7 +774,7 @@ class fulltext_sphinx implements search_backend_interface
 		 */
 		// $search_string = preg_replace('#[0-9]{1,3}\K,(?=[0-9]{3})#', '', $search_string);
 
-		return $search_string;
+		return $search_string ?: '';
 	}
 
 	/**
@@ -857,7 +854,8 @@ class fulltext_sphinx implements search_backend_interface
 		/* Now that we're sure everything was entered correctly,
 		generate a config for the index. We use a config value
 		fulltext_sphinx_id for this, as it should be unique. */
-		$config_object = new \phpbb\search\sphinx\config($this->config_file_data);
+		$config_object = new \phpbb\search\backend\sphinx\config();
+		/** @psalm-suppress UndefinedVariable */
 		$config_data = array(
 			'source source_phpbb_' . $this->id . '_main' => array(
 				array('type',						$this->dbtype . ' # mysql or pgsql'),
@@ -954,7 +952,7 @@ class fulltext_sphinx implements search_backend_interface
 				array('read_timeout',				'5'),
 				array('max_children',				'30'),
 				array('pid_file',					$this->config['fulltext_sphinx_data_path'] . 'searchd.pid'),
-				array('binlog_path',				$this->config['fulltext_sphinx_data_path']),
+				array('binlog_path',				rtrim($this->config['fulltext_sphinx_data_path'], '/\\')), // Trim trailing slash
 			),
 		);
 

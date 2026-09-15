@@ -22,6 +22,8 @@ if (!defined('IN_PHPBB'))
 class acp_profile
 {
 	var $u_action;
+	var $tpl_name;
+	var $page_title;
 
 	var $edit_lang_id;
 	var $lang_defs;
@@ -344,10 +346,10 @@ class acp_profile
 
 					$s_hidden_fields = '<input type="hidden" name="field_id" value="' . $field_id . '" />';
 				}
-				else
+				else // action = create
 				{
 					// We are adding a new field, define basic params
-					$lang_options = $field_row = array();
+					$lang_options = array();
 
 					$field_type = $request->variable('field_type', '');
 
@@ -486,7 +488,7 @@ class acp_profile
 						ORDER BY option_id ASC";
 					$result = $db->sql_query($sql);
 
-					$l_lang_options = array();
+					$l_lang_options = [];
 					while ($row = $db->sql_fetchrow($result))
 					{
 						$l_lang_options[$row['lang_id']][$row['option_id']] = $row['lang_value'];
@@ -500,7 +502,7 @@ class acp_profile
 						ORDER BY lang_id ASC";
 					$result = $db->sql_query($sql);
 
-					$l_lang_name = $l_lang_explain = $l_lang_default_value = array();
+					$l_lang_name = $l_lang_explain = $l_lang_default_value = [];
 					while ($row = $db->sql_fetchrow($result))
 					{
 						$l_lang_name[$row['lang_id']] = $row['lang_name'];
@@ -670,7 +672,7 @@ class acp_profile
 						// Build options based on profile type
 						$options = $profile_field->get_options($this->lang_defs['iso'][$config['default_lang']], $cp->vars);
 
-						foreach ($options as $num => $option_ary)
+						foreach ($options as $option_ary)
 						{
 							$template->assign_block_vars('option', $option_ary);
 						}

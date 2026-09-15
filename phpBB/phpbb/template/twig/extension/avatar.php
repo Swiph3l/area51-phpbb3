@@ -13,16 +13,35 @@
 
 namespace phpbb\template\twig\extension;
 
+use phpbb\avatar\helper;
+use phpbb\template\twig\environment;
+use Twig\Error\Error;
 use Twig\Extension\AbstractExtension;
+use Twig\TwigFunction;
 
 class avatar extends AbstractExtension
 {
+	/**
+	 * @var helper
+	 */
+	private $avatar_helper;
+
+	/**
+	 * Constructor for avatar extension
+	 *
+	 * @param helper $avatar_helper
+	 */
+	public function __construct(helper $avatar_helper)
+	{
+		$this->avatar_helper = $avatar_helper;
+	}
+
 	/**
 	 * Get the name of this extension
 	 *
 	 * @return string
 	 */
-	public function getName()
+	public function getName(): string
 	{
 		return 'avatar';
 	}
@@ -30,53 +49,48 @@ class avatar extends AbstractExtension
 	/**
 	 * Returns a list of global functions to add to the existing list.
 	 *
-	 * @return array An array of global functions
+	 * @return TwigFunction[] An array of global functions
 	 */
-	public function getFunctions()
+	public function getFunctions(): array
 	{
-		return array(
-			new \Twig\TwigFunction('avatar', array($this, 'get_avatar')),
-		);
+		return [
+			new TwigFunction('avatar', [$this, 'get_avatar'], ['needs_environment' => true]),
+		];
 	}
 
 	/**
 	 * Get avatar for placing into templates.
 	 *
 	 * How to use in a template:
-	 * - {{ avatar('mode', row, alt, ignore_config, lazy) }}
+	 * - {{ avatar(row, alt, ignore_config, lazy) }}
 	 *
 	 * The mode and row (group_row or user_row) are required.
 	 * The other fields (alt|ignore_config|lazy) are optional.
 	 *
-	 * @uses \phpbb_get_group_avatar()
-	 * @uses \phpbb_get_user_avatar()
-	 *
 	 * @return string	The avatar HTML for the specified mode
 	 */
-	public function get_avatar()
+	public function get_avatar(environment $environment, array $row): string
 	{
-		$args = func_get_args();
-
-		$mode = (string) $args[0];
-		$row = (array) $args[1];
-		$alt = isset($args[2]) ? (string) $args[2] : false;
-		$ignore_config = isset($args[3]) ? (bool) $args[3] : false;
-		$lazy = isset($args[4]) ? (bool) $args[4] : false;
-
-		// To prevent having to redefine alt attribute ('USER_AVATAR'|'GROUP_AVATAR'), we check if an alternative has been provided
-		switch ($mode)
+		try
 		{
-			case 'group':
-				return $alt ? phpbb_get_group_avatar($row, $alt, $ignore_config, $lazy) : phpbb_get_group_avatar($row);
-			break;
-
-			case 'user':
-				return $alt ? phpbb_get_user_avatar($row, $alt, $ignore_config, $lazy) : phpbb_get_user_avatar($row);
-			break;
-
-			default:
+			// Quickly return if required data is missing
+			if (!isset($row['src'], $row['width'], $row['height'], $row['title']))
+			{
 				return '';
-			break;
+			}
+
+			return $environment->render('macros/avatar.twig', [
+				'SRC'		=> !empty($row['lazy']) ? $this->avatar_helper->get_no_avatar_source() : $row['src'],
+				'DATA_SRC'	=> !empty($row['lazy']) ? $row['src'] : '',
+				'WIDTH'		=> $row['width'],
+				'HEIGHT'	=> $row['height'],
+				'TITLE'		=> $row['title'],
+				'LAZY'		=> $row['lazy'] ?? false,
+			]);
+		}
+		catch (Error $e)
+		{
+			return '';
 		}
 	}
 }

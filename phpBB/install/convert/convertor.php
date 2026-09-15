@@ -445,9 +445,9 @@ class convertor
 			// Now process queries and execute functions that have to be executed prior to the conversion
 			if (!empty($convert->convertor['execute_first']))
 			{
-				// @codingStandardsIgnoreStart
+				// phpcs:disable Squiz.PHP.Eval
 				eval($convert->convertor['execute_first']);
-				// @codingStandardsIgnoreEnd
+				// phpcs:enable Squiz.PHP.Eval
 			}
 
 			if (!empty($convert->convertor['query_first']))
@@ -517,9 +517,9 @@ class convertor
 				// process execute_first and query_first for this table...
 				if (!empty($schema['execute_first']))
 				{
-					// @codingStandardsIgnoreStart
+					// phpcs:disable Squiz.PHP.Eval
 					eval($schema['execute_first']);
-					// @codingStandardsIgnoreEnd
+					// phpcs:enable Squiz.PHP.Eval
 				}
 
 				if (!empty($schema['query_first']))
@@ -584,9 +584,9 @@ class convertor
 			// it gets split because of time restrictions
 			if (!empty($schema['execute_always']))
 			{
-				// @codingStandardsIgnoreStart
+				// phpcs:disable Squiz.PHP.Eval
 				eval($schema['execute_always']);
-				// @codingStandardsIgnoreEnd
+				// phpcs:enable Squiz.PHP.Eval
 			}
 
 			//
@@ -755,7 +755,7 @@ class convertor
 										{
 											if (!$db->sql_query($insert_query . $waiting_sql))
 											{
-												$this->db_error($user->lang['DB_ERR_INSERT'], htmlspecialchars($insert_query . $waiting_sql, ENT_COMPAT) . '<br /><br />' . htmlspecialchars(print_r($db->_sql_error(), true), ENT_COMPAT), __LINE__, __FILE__, true);
+												$this->db_error($user->lang['DB_ERR_INSERT'], htmlspecialchars($insert_query . $waiting_sql, ENT_COMPAT) . '<br /><br />' . htmlspecialchars(print_r($db->sql_error(), true), ENT_COMPAT), __LINE__, __FILE__, true);
 											}
 										}
 
@@ -774,7 +774,7 @@ class convertor
 
 								if (!$db->sql_query($insert_sql))
 								{
-									$this->db_error($user->lang['DB_ERR_INSERT'], htmlspecialchars($insert_sql, ENT_COMPAT) . '<br /><br />' . htmlspecialchars(print_r($db->_sql_error(), true), ENT_COMPAT), __LINE__, __FILE__, true);
+									$this->db_error($user->lang['DB_ERR_INSERT'], htmlspecialchars($insert_sql, ENT_COMPAT) . '<br /><br />' . htmlspecialchars(print_r($db->sql_error(), true), ENT_COMPAT), __LINE__, __FILE__, true);
 								}
 								$db->sql_return_on_error(false);
 
@@ -809,7 +809,7 @@ class convertor
 						foreach ($waiting_rows as $waiting_sql)
 						{
 							$db->sql_query($insert_query . $waiting_sql);
-							$this->db_error($user->lang['DB_ERR_INSERT'], htmlspecialchars($insert_query . $waiting_sql, ENT_COMPAT) . '<br /><br />' . htmlspecialchars(print_r($db->_sql_error(), true), ENT_COMPAT), __LINE__, __FILE__, true);
+							$this->db_error($user->lang['DB_ERR_INSERT'], htmlspecialchars($insert_query . $waiting_sql, ENT_COMPAT) . '<br /><br />' . htmlspecialchars(print_r($db->sql_error(), true), ENT_COMPAT), __LINE__, __FILE__, true);
 						}
 
 						$db->sql_return_on_error(false);
@@ -1022,7 +1022,7 @@ class convertor
 		$db->sql_query('DELETE FROM ' . SESSIONS_TABLE);
 
 		@unlink($phpbb_container->getParameter('core.cache_dir') . 'data_global.' . $phpEx);
-		phpbb_cache_moderators($db, $cache, $auth);
+		phpbb_cache_moderators($db, $phpbb_container->get('dbal.tools'), $cache, $auth);
 
 		// And finally, add a note to the log
 		$phpbb_log->add('admin', $user->data['user_id'], $user->ip, 'LOG_INSTALL_CONVERTED', false, array($convert->convertor_data['forum_name'], $config['version']));
@@ -1101,17 +1101,17 @@ class convertor
 			{
 				if (!is_array($convert->convertor['execute_last']))
 				{
-					// @codingStandardsIgnoreStart
+					// phpcs:disable Squiz.PHP.Eval
 					eval($convert->convertor['execute_last']);
-					// @codingStandardsIgnoreEnd
+					// phpcs:enable Squiz.PHP.Eval
 				}
 				else
 				{
 					while ($last_statement < count($convert->convertor['execute_last']))
 					{
-						// @codingStandardsIgnoreStart
+						// phpcs:disable Squiz.PHP.Eval
 						eval($convert->convertor['execute_last'][$last_statement]);
-						// @codingStandardsIgnoreEnd
+						// phpcs:enable Squiz.PHP.Eval
 
 						$this->template->assign_block_vars('checks', array(
 							'TITLE'		=> $convert->convertor['execute_last'][$last_statement],
@@ -1477,9 +1477,9 @@ class convertor
 
 								$execution = str_replace('{RESULT}', '$value', $execution);
 								$execution = str_replace('{VALUE}', '$value', $execution);
-								// @codingStandardsIgnoreStart
+								// phpcs:disable Squiz.PHP.Eval
 								eval($execution);
-								// @codingStandardsIgnoreEnd
+								// phpcs:enable Squiz.PHP.Eval
 							}
 						}
 					}
@@ -1532,9 +1532,9 @@ class convertor
 
 								$execution = str_replace('{RESULT}', '$value', $execution);
 								$execution = str_replace('{VALUE}', '$value', $execution);
-								// @codingStandardsIgnoreStart
+								// phpcs:disable Squiz.PHP.Eval
 								eval($execution);
-								// @codingStandardsIgnoreEnd
+								// phpcs:enable Squiz.PHP.Eval
 							}
 						}
 					}

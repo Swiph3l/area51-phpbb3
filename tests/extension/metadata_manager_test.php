@@ -19,6 +19,7 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 	protected $cache;
 	protected $config;
 	protected $db;
+	protected $db_doctrine;
 	protected $db_tools;
 	protected $table_prefix;
 	protected $phpbb_root_path;
@@ -36,18 +37,22 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 	{
 		parent::setUp();
 
+		$this->table_prefix = 'phpbb_';
 		$this->config = new \phpbb\config\config(array(
 			'version'		=> '3.1.0',
 		));
 		$this->db = $this->new_dbal();
+		$this->db_doctrine = $this->new_doctrine_dbal();
+		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 		$factory = new \phpbb\db\tools\factory();
-		$this->db_tools = $factory->get($this->db);
+		$this->db_tools = $factory->get($this->db_doctrine);
+		$this->db_tools->set_table_prefix($this->table_prefix);
+		$finder_factory = $this->createMock('\phpbb\finder\factory');
 		$this->phpbb_root_path = __DIR__ . '/';
 		$this->phpEx = 'php';
 
-		$this->cache =  new \phpbb\cache\service(new phpbb_mock_cache(), $this->config, $this->db, $this->phpbb_root_path, $this->phpEx);
+		$this->cache =  new \phpbb\cache\service(new phpbb_mock_cache(), $this->config, $this->db, $phpbb_dispatcher, $this->phpbb_root_path, $this->phpEx);
 
-		$this->table_prefix = 'phpbb_';
 
 		$container = new phpbb_mock_container_builder();
 		$cache_path = $this->phpbb_root_path . 'cache/twig';
@@ -62,14 +67,17 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 			$this->phpbb_root_path,
 			$this->phpEx
 		);
+		$log = new \phpbb\log\dummy();
+		$assets_bag = new \phpbb\template\assets_bag();
 		$twig = new \phpbb\template\twig\environment(
+			$assets_bag,
 			$this->config,
 			$filesystem,
 			$phpbb_path_helper,
 			$cache_path,
 			null,
 			$loader,
-			new \phpbb\event\dispatcher(),
+			$phpbb_dispatcher,
 			array(
 				'cache'			=> false,
 				'debug'			=> false,
@@ -97,9 +105,9 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 			$container,
 			$this->db,
 			$this->config,
+			$finder_factory,
 			'phpbb_ext',
 			$this->phpbb_root_path,
-			$this->phpEx,
 			$this->cache
 		);
 
@@ -155,7 +163,7 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 		$this->assertEquals($metadata, $json);
 	}
 
-	public function validator_non_existing_data()
+	public static function validator_non_existing_data()
 	{
 		return array(
 			array('name'),
@@ -215,7 +223,7 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 		}
 	}
 
-	public function validator_invalid_data()
+	public static function validator_invalid_data()
 	{
 		return array(
 			array('name', 'asdf'),
@@ -273,7 +281,7 @@ class phpbb_extension_metadata_manager_test extends phpbb_database_test_case
 		}
 	}
 
-	public function validator_requirements_data()
+	public static function validator_requirements_data()
 	{
 		return array(
 			array(

@@ -20,7 +20,6 @@ class phpbb_text_processing_generate_text_for_storage_test extends phpbb_test_ca
 		parent::setUp();
 
 		$config = new \phpbb\config\config(array());
-		set_config(null, null, null, $config);
 
 		$phpbb_container = new phpbb_mock_container_builder;
 		$phpbb_container->set('config', $config);
@@ -32,7 +31,7 @@ class phpbb_text_processing_generate_text_for_storage_test extends phpbb_test_ca
 	/**
 	* @dataProvider get_text_formatter_tests
 	*/
-	public function test_text_formatter($original, $expected, $allow_bbcode, $allow_urls, $allow_smilies, $allow_img_bbcode, $allow_flash_bbcode, $allow_quote_bbcode, $allow_url_bbcode, $setup = null)
+	public function test_text_formatter($original, $expected, $allow_bbcode, $allow_urls, $allow_smilies, $allow_img_bbcode, $allow_quote_bbcode, $allow_url_bbcode, $setup = null)
 	{
 		$actual   = $original;
 		$uid      = '';
@@ -44,18 +43,17 @@ class phpbb_text_processing_generate_text_for_storage_test extends phpbb_test_ca
 			$setup();
 		}
 
-		generate_text_for_storage($actual, $uid, $bitfield, $flags, $allow_bbcode, $allow_urls, $allow_smilies, $allow_img_bbcode, $allow_flash_bbcode, $allow_quote_bbcode, $allow_url_bbcode);
+		generate_text_for_storage($actual, $uid, $bitfield, $flags, $allow_bbcode, $allow_urls, $allow_smilies, $allow_img_bbcode, $allow_quote_bbcode, $allow_url_bbcode);
 
 		$this->assertSame($expected, $actual);
 	}
 
-	public function get_text_formatter_tests()
+	public static function get_text_formatter_tests()
 	{
 		return array(
 			array(
 				'Hello world',
 				'<t>Hello world</t>',
-				true,
 				true,
 				true,
 				true,
@@ -72,12 +70,10 @@ class phpbb_text_processing_generate_text_for_storage_test extends phpbb_test_ca
 				true,
 				true,
 				true,
-				true,
 			),
 			array(
 				'&<>"\'',
 				'<t>&amp;&lt;&gt;"\'</t>',
-				true,
 				true,
 				true,
 				true,
@@ -94,13 +90,11 @@ class phpbb_text_processing_generate_text_for_storage_test extends phpbb_test_ca
 				false,
 				false,
 				false,
-				false,
 			),
 			array(
 				'[b]..[/b] http://example.org :) [img]http://example.org/img.png[/img] [flash=123,123]http://example.org/flash.swf[/flash] [quote]...[/quote] [url]http://example.org[/url]',
 				'<r><B><s>[b]</s>..<e>[/b]</e></B> http://example.org :) [img]http://example.org/img.png[/img] [flash=123,123]http://example.org/flash.swf[/flash] [quote]...[/quote] [url]http://example.org[/url]</r>',
 				true,
-				false,
 				false,
 				false,
 				false,
@@ -115,7 +109,6 @@ class phpbb_text_processing_generate_text_for_storage_test extends phpbb_test_ca
 				false,
 				false,
 				false,
-				false,
 				true,
 			),
 			array(
@@ -124,7 +117,6 @@ class phpbb_text_processing_generate_text_for_storage_test extends phpbb_test_ca
 				false,
 				false,
 				true,
-				false,
 				false,
 				false,
 				false,
@@ -138,16 +130,14 @@ class phpbb_text_processing_generate_text_for_storage_test extends phpbb_test_ca
 				true,
 				false,
 				false,
-				false,
 			),
 			array(
 				'[b]..[/b] http://example.org :) [img]http://example.org/img.png[/img] [flash=123,123]http://example.org/flash.swf[/flash] [quote]...[/quote] [url]http://example.org[/url]',
-				'<r><B><s>[b]</s>..<e>[/b]</e></B> http://example.org :) [img]http://example.org/img.png[/img] <FLASH height="123" url="http://example.org/flash.swf" width="123"><s>[flash=123,123]</s>http://example.org/flash.swf<e>[/flash]</e></FLASH> [quote]...[/quote] [url]http://example.org[/url]</r>',
+				'<r><B><s>[b]</s>..<e>[/b]</e></B> http://example.org :) [img]http://example.org/img.png[/img] [flash=123,123]http://example.org/flash.swf[/flash] [quote]...[/quote] [url]http://example.org[/url]</r>',
 				true,
 				false,
 				false,
 				false,
-				true,
 				false,
 				false,
 			),
@@ -158,7 +148,6 @@ class phpbb_text_processing_generate_text_for_storage_test extends phpbb_test_ca
 				false,
 				false,
 				false,
-				false,
 				true,
 				false,
 			),
@@ -166,7 +155,6 @@ class phpbb_text_processing_generate_text_for_storage_test extends phpbb_test_ca
 				'[b]..[/b] http://example.org :) [img]http://example.org/img.png[/img] [flash=123,123]http://example.org/flash.swf[/flash] [quote]...[/quote] [url]http://example.org[/url]',
 				'<r><B><s>[b]</s>..<e>[/b]</e></B> http://example.org :) [img]http://example.org/img.png[/img] [flash=123,123]http://example.org/flash.swf[/flash] [quote]...[/quote] <URL url="http://example.org"><s>[url]</s>http://example.org<e>[/url]</e></URL></r>',
 				true,
-				false,
 				false,
 				false,
 				false,

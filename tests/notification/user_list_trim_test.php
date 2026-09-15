@@ -35,6 +35,7 @@ class phpbb_notification_user_list_trim_test extends phpbb_database_test_case
 			new \phpbb\cache\driver\dummy(),
 			$config,
 			$db,
+			$phpbb_dispatcher,
 			$phpbb_root_path,
 			$phpEx
 		);
@@ -65,11 +66,11 @@ class phpbb_notification_user_list_trim_test extends phpbb_database_test_case
 		$user_loader->load_users(array(2, 3, 4, 5, 6));
 
 		$this->notification = new phpbb_mock_notification_type_post(
-			$user_loader, null, null, $lang, $user, null, null, $phpbb_root_path, $phpEx, null, null
+			$user_loader, null, null, null, $lang, $user, null, null, $phpbb_root_path, $phpEx, null, null
 		);
 	}
 
-	public function user_list_trim_data()
+	public static function user_list_trim_data()
 	{
 		return array(
 			array(

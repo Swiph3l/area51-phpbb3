@@ -4,6 +4,9 @@
 <meta charset="utf-8" />
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="{{ SITE_SHORTNAME }}">
+<meta name="mobile-web-app-capable" content="yes">
 {META}
 <title><!-- IF UNREAD_NOTIFICATIONS_COUNT -->({UNREAD_NOTIFICATIONS_COUNT}) <!-- ENDIF --><!-- IF not S_VIEWTOPIC and not S_VIEWFORUM -->{SITENAME} - <!-- ENDIF --><!-- IF S_IN_MCP -->{L_MCP} - <!-- ELSEIF S_IN_UCP -->{L_UCP} - <!-- ENDIF -->{PAGE_TITLE}<!-- IF S_VIEWTOPIC or S_VIEWFORUM --> - {SITENAME}<!-- ENDIF --></title>
 
@@ -24,7 +27,7 @@
 
 <!--
 	phpBB style name: prosilver
-	Based on style:   prosilver (this is the default phpBB3 style)
+	Based on style:   prosilver (this is the default phpBB style)
 	Original author:  Tom Beddard ( http://www.subBlue.com/ )
 	Modified by:
 -->
@@ -39,12 +42,13 @@
 
 	(function(d) {
 		var wf = d.createElement('script'), s = d.scripts[0];
-		wf.src = 'https://ajax.googleapis.com/ajax/libs/webfont/1.5.18/webfont.js';
+		wf.src = 'https://cdn.jsdelivr.net/npm/webfontloader@1.6.28/webfontloader.min.js';
 		wf.async = true;
 		s.parentNode.insertBefore(wf, s);
 	})(document);
 </script>
 <!-- ENDIF -->
+<link href="{T_FONT_AWESOME_LINK}" rel="stylesheet">
 <link href="{T_STYLESHEET_LINK}" rel="stylesheet">
 <link href="{T_STYLESHEET_LANG_LINK}" rel="stylesheet">
 
@@ -59,11 +63,17 @@
 	<link href="{T_ASSETS_PATH}/cookieconsent/cookieconsent.min.css?assets_version={T_ASSETS_VERSION}" rel="stylesheet">
 <!-- ENDIF -->
 
+<link rel="manifest" href="{{ U_MANIFEST }}" crossorigin="use-credentials">
+
 <!-- EVENT overall_header_head_append -->
 
 {$STYLESHEETS}
 
 <!-- EVENT overall_header_stylesheets_after -->
+
+{% if NOTIFICATIONS_WEBPUSH_ENABLE %}
+	{% include 'ucp_notifications_webpush.html' %}
+{% endif %}
 
 </head>
 <body id="phpbb" class="nojs notouch section-{SCRIPT_NAME} {S_CONTENT_DIRECTION} {BODY_CLASS}">
@@ -76,7 +86,6 @@
 		<li><a href="//area51.phpbb.com">Home</a></li>
 		<li><a href="http://tracker.phpbb.com/secure/Dashboard.jspa">Tracker</a></li>
 		<li><a href="//area51.phpbb.com/docs/dev/">Dev Docs</a></li>
-		<li><a href="//wiki.phpbb.com/">Wiki</a></li>
 		<li><a href="//bamboo.phpbb.com/">Builds</a></li>
 		<li><a href="//area51.phpbb.com/projects/">Projects</a></li>
 		<li class="active"><a href="/phpBB/">Discussion</a></li>
@@ -94,10 +103,10 @@
 				        <fieldset>
 					        <input name="keywords" id="keywords" type="search" maxlength="128" title="{L_SEARCH_KEYWORDS}" class="inputbox search tiny" size="20" value="{SEARCH_WORDS}" placeholder="{L_SEARCH_MINI}" />
 							<button class="button button-search" type="submit" title="{L_SEARCH}">
-								{{ Icon('iconify', 'fa:search', lang('SEARCH'), true, 'c-button-icon') }}
+								{{ Icon('font', 'search', lang('SEARCH'), true, 'fas c-button-icon') }}
 					        </button>
 							<a href="{U_SEARCH}" class="button button-search-end" title="{L_SEARCH_ADV}">
-								{{ Icon('iconify', 'fa:cog', lang('SEARCH_ADV'), true, 'c-button-icon') }}
+								{{ Icon('font', 'gear', lang('SEARCH_ADV'), true, 'fas c-button-icon') }}
 					        </a>
 					        {S_SEARCH_HIDDEN_FIELDS}
 				        </fieldset>
@@ -106,11 +115,15 @@
                 <!-- ENDIF -->
 
 </div>
-<div id="wrap" style="clear:both;margin-top:20px;" class="wrap">
+<div id="wrap" class="wrap">
 	<a id="top" class="anchor" accesskey="t"></a>
 	<div id="page-header">
-<!--
+		<!-- EVENT overall_header_navbar_before -->
+
 		<div class="headerbar" role="banner">
+
+			{% include 'navbar_header.html' %}
+			<!--
 		<!-- EVENT overall_header_headerbar_before -->
 			<div class="inner">
 
@@ -133,10 +146,10 @@
 				<fieldset>
 					<input name="keywords" id="keywords" type="search" maxlength="128" title="{L_SEARCH_KEYWORDS}" class="inputbox search tiny" size="20" value="{SEARCH_WORDS}" placeholder="{L_SEARCH_MINI}" />
 					<button class="button button-search" type="submit" title="{L_SEARCH}">
-						{{ Icon('iconify', 'fa:search', lang('SEARCH'), true, 'c-button-icon') }}
+						{{ Icon('font', 'search', lang('SEARCH'), true, 'fas c-button-icon') }}
 					</button>
 					<a href="{U_SEARCH}" class="button button-search-end" title="{L_SEARCH_ADV}">
-						{{ Icon('iconify', 'fa:cog', lang('SEARCH_ADV'), true, 'c-button-icon') }}
+						{{ Icon('font', 'gear', lang('SEARCH_ADV'), true, 'fas c-button-icon') }}
 					</a>
 					{S_SEARCH_HIDDEN_FIELDS}
 				</fieldset>
@@ -147,12 +160,12 @@
 
 			</div>
 			<!-- EVENT overall_header_headerbar_after -->
+			-->
 		</div>
--->
 
-		<!-- EVENT overall_header_navbar_before -->
-		<!-- INCLUDE navbar_header.html -->
 	</div>
+
+	{% include 'breadcrumbs.html' %}
 
 	<!-- EVENT overall_header_page_body_before -->
 

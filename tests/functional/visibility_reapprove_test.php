@@ -167,7 +167,7 @@ class phpbb_functional_visibility_reapprove_test extends phpbb_functional_test_c
 
 		$link = $crawler->selectLink($this->lang('RETURN_PAGE', '', ''))->link();
 		$link_url = $link->getUri();
-		$this->assertStringContainsString('viewtopic.php?f=' . $this->data['forums']['Reapprove Test #1'] . '&t=' . $this->data['topics']['Reapprove Test Topic #1'], $link_url);
+		$this->assertStringContainsString('viewtopic.php?t=' . $this->data['topics']['Reapprove Test Topic #1'], $link_url);
 
 		$crawler = self::request('GET', "viewtopic.php?t={$this->data['topics']['Reapprove Test Topic #1']}&sid={$this->sid}");
 		$this->assertStringContainsString('Reapprove Test Topic #1', $crawler->filter('h2')->text());
@@ -226,7 +226,7 @@ class phpbb_functional_visibility_reapprove_test extends phpbb_functional_test_c
 
 		$link = $crawler->selectLink($this->lang('RETURN_PAGE', '', ''))->link();
 		$link_url = $link->getUri();
-		$this->assertStringContainsString('viewtopic.php?f=' . $this->data['forums']['Reapprove Test #1'], $link_url);
+		$this->assertStringContainsString('viewtopic.php?t=' . $this->data['topics']['Reapprove Test Topic #2'], $link_url);
 
 		$crawler = self::request('GET', "viewtopic.php?t={$this->data['topics']['Reapprove Test Topic #2']}&sid={$this->sid}");
 		$this->assertStringContainsString('Reapprove Test Topic #2', $crawler->filter('h2')->text());
@@ -264,7 +264,7 @@ class phpbb_functional_visibility_reapprove_test extends phpbb_functional_test_c
 		$this->add_user_group('NEWLY_REGISTERED', array('reapprove_testuser'));
 
 		// Test editing a post
-		$posting_url = "posting.php?mode=edit&f={$this->data['forums']['Reapprove Test #1']}&p={$this->data['posts']['Re: Reapprove Test Topic #1-#2']}&sid={$this->sid}";
+		$posting_url = "posting.php?mode=edit&p={$this->data['posts']['Re: Reapprove Test Topic #1-#2']}&sid={$this->sid}";
 		$form_data = array(
 			'message'	=> 'Post edited by testing framework',
 			'subject'	=> 'Re: Reapprove Test Topic #1-#2',
@@ -287,7 +287,7 @@ class phpbb_functional_visibility_reapprove_test extends phpbb_functional_test_c
 		), 'after editing post');
 
 		// Test editing a topic
-		$posting_url = "posting.php?mode=edit&f={$this->data['forums']['Reapprove Test #1']}&p={$this->data['posts']['Reapprove Test Topic #2']}&sid={$this->sid}";
+		$posting_url = "posting.php?mode=edit&p={$this->data['posts']['Reapprove Test Topic #2']}&sid={$this->sid}";
 		$form_data = array(
 			'message'	=> 'Post edited by testing framework',
 			'subject'	=> 'Reapprove Test Topic #2',
@@ -339,8 +339,6 @@ class phpbb_functional_visibility_reapprove_test extends phpbb_functional_test_c
 
 	protected function assert_forum_details($forum_id, $details, $additional_error_message = '')
 	{
-		$this->db = $this->get_db();
-
 		$sql = 'SELECT ' . implode(', ', array_keys($details)) . '
 			FROM phpbb_forums
 			WHERE forum_id = ' . (int) $forum_id;
@@ -351,23 +349,8 @@ class phpbb_functional_visibility_reapprove_test extends phpbb_functional_test_c
 		$this->assertEquals($details, $data, "Forum {$forum_id} does not match expected {$additional_error_message}");
 	}
 
-	protected function set_flood_interval($flood_interval)
-	{
-		$crawler = self::request('GET', 'adm/index.php?sid=' . $this->sid . '&i=acp_board&mode=post');
-
-		$form = $crawler->selectButton('Submit')->form();
-		$values = $form->getValues();
-
-		$values["config[flood_interval]"] = $flood_interval;
-		$form->setValues($values);
-		$crawler = self::submit($form);
-		$this->assertGreaterThan(0, $crawler->filter('.successbox')->count());
-	}
-
 	protected function load_ids($data)
 	{
-		$this->db = $this->get_db();
-
 		if (!empty($data['forums']))
 		{
 			$sql = 'SELECT *

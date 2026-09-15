@@ -15,10 +15,8 @@ require_once __DIR__ . '/template_test_case_with_tree.php';
 
 class phpbb_template_template_includejs_test extends phpbb_template_template_test_case_with_tree
 {
-	public function template_data()
+	public static function template_data()
 	{
-		$this->setup_engine();
-
 		return array(
 			/*
 			array(
@@ -105,5 +103,19 @@ class phpbb_template_template_includejs_test extends phpbb_template_template_tes
 
 		// Run test
 		$this->run_template('includejs.html', array_merge(array('PARENT' => 'parent_only.js', 'SUBDIR' => 'subdir', 'EXT' => 'js'), $vars), array(), array(), $expected);
+	}
+
+	/**
+	 * @dataProvider template_data
+	 */
+	public function test_include_js_compilation($vars, $expected)
+	{
+		// Reset the engine state
+		$this->setup_engine(array('assets_version' => 1));
+
+		$this->template->assign_vars($vars);
+
+		// Run test
+		$this->run_template('includejs_twig.html', array_merge(array('PARENT' => 'parent_only.js', 'SUBDIR' => 'subdir', 'EXT' => 'js'), $vars), array(), array(), $expected);
 	}
 }

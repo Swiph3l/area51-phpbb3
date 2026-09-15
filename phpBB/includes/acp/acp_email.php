@@ -11,6 +11,8 @@
 *
 */
 
+use phpbb\messenger\method\messenger_interface;
+
 /**
 * @ignore
 */
@@ -22,11 +24,13 @@ if (!defined('IN_PHPBB'))
 class acp_email
 {
 	var $u_action;
+	var $tpl_name;
+	var $page_title;
 
 	function main($id, $mode)
 	{
 		global $config, $db, $user, $template, $phpbb_log, $request;
-		global $phpbb_root_path, $phpbb_admin_path, $phpEx, $phpbb_dispatcher;
+		global $phpbb_root_path, $phpbb_admin_path, $phpEx, $phpbb_dispatcher, $phpbb_container;
 
 		$user->add_lang('acp/email');
 		$this->tpl_name = 'acp_email';
@@ -74,13 +78,13 @@ class acp_email
 				{
 					// If giving usernames the admin is able to email inactive users too...
 					$sql_ary = array(
-						'SELECT'	=> 'username, user_email, user_jabber, user_notify_type, user_lang',
+						'SELECT'	=> 'user_id, username, user_email, user_lang',
 						'FROM'		=> array(
 							USERS_TABLE		=> '',
 						),
 						'WHERE'		=> $db->sql_in_set('username_clean', array_map('utf8_clean_string', $usernames)) . '
 							AND user_allow_massemail = 1',
-						'ORDER_BY'	=> 'user_lang, user_notify_type',
+						'ORDER_BY'	=> 'user_lang',
 					);
 				}
 				else
@@ -88,7 +92,7 @@ class acp_email
 					if ($group_id)
 					{
 						$sql_ary = array(
-							'SELECT'	=> 'u.user_email, u.username, u.username_clean, u.user_lang, u.user_jabber, u.user_notify_type',
+							'SELECT'	=> 'u.user_id, u.user_email, u.username, u.username_clean, u.user_lang',
 							'FROM'		=> array(
 								USERS_TABLE			=> 'u',
 								USER_GROUP_TABLE	=> 'ug',
@@ -98,34 +102,19 @@ class acp_email
 								AND u.user_id = ug.user_id
 								AND u.user_allow_massemail = 1
 								AND u.user_type IN (' . USER_NORMAL . ', ' . USER_FOUNDER . ')',
-							'ORDER_BY'	=> 'u.user_lang, u.user_notify_type',
+							'ORDER_BY'	=> 'u.user_lang',
 						);
 					}
 					else
 					{
 						$sql_ary = array(
-							'SELECT'	=> 'u.username, u.username_clean, u.user_email, u.user_jabber, u.user_lang, u.user_notify_type',
+							'SELECT'	=> 'u.user_id, u.username, u.username_clean, u.user_email, u.user_lang',
 							'FROM'		=> array(
 								USERS_TABLE	=> 'u',
 							),
 							'WHERE'		=> 'u.user_allow_massemail = 1
 								AND u.user_type IN (' . USER_NORMAL . ', ' . USER_FOUNDER . ')',
-							'ORDER_BY'	=> 'u.user_lang, u.user_notify_type',
-						);
-					}
-
-					// Mail banned or not
-					if (!isset($_REQUEST['mail_banned_flag']))
-					{
-						$sql_ary['WHERE'] .= ' AND (b.ban_id IS NULL
-						        OR b.ban_exclude = 1)';
-						$sql_ary['LEFT_JOIN'] = array(
-							array(
-								'FROM'	=> array(
-									BANLIST_TABLE	=> 'b',
-								),
-								'ON'	=> 'u.user_id = b.ban_userid',
-							),
+							'ORDER_BY'	=> 'u.user_lang',
 						);
 					}
 				}
@@ -141,11 +130,22 @@ class acp_email
 
 				$sql = $db->sql_build_query('SELECT', $sql_ary);
 				$result = $db->sql_query($sql);
-				$row = $db->sql_fetchrow($result);
+				$rows = $db->sql_fetchrowset($result);
+				$db->sql_freeresult($result);
 
-				if (!$row)
+				if (!empty($rows) && !$request->is_set('mail_banned_flag'))
 				{
-					$db->sql_freeresult($result);
+					/** @var \phpbb\ban\manager $ban_manager */
+					$ban_manager = $phpbb_container->get('ban.manager');
+					$banned_users = $ban_manager->get_banned_users();
+
+					$rows = array_filter($rows, function ($row) use ($banned_users) {
+						return !isset($banned_users[(int) $row['user_id']]);
+					});
+				}
+
+				if (empty($rows))
+				{
 					trigger_error($user->lang['NO_USER'] . adm_back_link($this->u_action), E_USER_WARNING);
 				}
 
@@ -155,16 +155,13 @@ class acp_email
 				// Maximum number of bcc recipients
 				$max_chunk_size = (int) $config['email_max_chunk_size'];
 				$email_list = array();
-				$old_lang = $row['user_lang'];
-				$old_notify_type = $row['user_notify_type'];
+				$old_lang = $rows[0]['user_lang'];
 
-				do
+				foreach ($rows as $row)
 				{
-					if (($row['user_notify_type'] == NOTIFY_EMAIL && $row['user_email']) ||
-						($row['user_notify_type'] == NOTIFY_IM && $row['user_jabber']) ||
-						($row['user_notify_type'] == NOTIFY_BOTH && ($row['user_email'] || $row['user_jabber'])))
+					if ($row['user_email'])
 					{
-						if ($i == $max_chunk_size || $row['user_lang'] != $old_lang || $row['user_notify_type'] != $old_notify_type)
+						if ($i == $max_chunk_size || $row['user_lang'] != $old_lang)
 						{
 							$i = 0;
 
@@ -174,39 +171,22 @@ class acp_email
 							}
 
 							$old_lang = $row['user_lang'];
-							$old_notify_type = $row['user_notify_type'];
 						}
 
 						$email_list[$j][$i]['lang']		= $row['user_lang'];
-						$email_list[$j][$i]['method']	= $row['user_notify_type'];
 						$email_list[$j][$i]['email']	= $row['user_email'];
 						$email_list[$j][$i]['name']		= $row['username'];
-						$email_list[$j][$i]['jabber']	= $row['user_jabber'];
 						$i++;
 					}
 				}
-				while ($row = $db->sql_fetchrow($result));
-				$db->sql_freeresult($result);
-
-				// Send the messages
-				if (!class_exists('messenger'))
-				{
-					include($phpbb_root_path . 'includes/functions_messenger.' . $phpEx);
-				}
-
-				if (!function_exists('get_group_name'))
-				{
-					include($phpbb_root_path . 'includes/functions_user.' . $phpEx);
-				}
-				$messenger = new messenger($use_queue);
 
 				$errored = false;
 
 				$email_template = 'admin_send_email';
-				$template_data = array(
+				$template_data = [
 					'CONTACT_EMAIL' => phpbb_get_board_contact($config, $phpEx),
-					'MESSAGE'		=> htmlspecialchars_decode($message, ENT_COMPAT),
-				);
+					'MESSAGE'		=> html_entity_decode($message, ENT_COMPAT),
+				];
 				$generate_log_entry = true;
 
 				/**
@@ -235,36 +215,40 @@ class acp_email
 				);
 				extract($phpbb_dispatcher->trigger_event('core.acp_email_send_before', compact($vars)));
 
+				/** @var \phpbb\di\service_collection $messenger_collection */
+				$messenger_collection = $phpbb_container->get('messenger.method_collection');
+				/** @var \phpbb\messenger\method\messenger_interface $messenger_method */
+				$messenger_method = $messenger_collection->offsetGet('messenger.method.email');
+
 				for ($i = 0, $size = count($email_list); $i < $size; $i++)
 				{
 					$used_lang = $email_list[$i][0]['lang'];
-					$used_method = $email_list[$i][0]['method'];
+
+					$messenger_method->set_use_queue($use_queue);
+					$messenger_method->template($email_template, $used_lang);
+					$messenger_method->subject(html_entity_decode($subject, ENT_COMPAT));
+					$messenger_method->assign_vars($template_data);
 
 					for ($j = 0, $list_size = count($email_list[$i]); $j < $list_size; $j++)
 					{
 						$email_row = $email_list[$i][$j];
-
-						$messenger->{((count($email_list[$i]) == 1) ? 'to' : 'bcc')}($email_row['email'], $email_row['name']);
-						$messenger->im($email_row['jabber'], $email_row['name']);
+						if (count($email_list[$i]) == 1)
+						{
+							$messenger_method->to($email_row['email'], $email_row['name']);
+						}
+						else
+						{
+							$messenger_method->bcc($email_row['email'], $email_row['name']);
+						}
 					}
 
-					$messenger->template($email_template, $used_lang);
+					$messenger_method->anti_abuse_headers($config, $user);
+					$messenger_method->set_mail_priority($priority);
 
-					$messenger->anti_abuse_headers($config, $user);
-
-					$messenger->subject(htmlspecialchars_decode($subject, ENT_COMPAT));
-					$messenger->set_mail_priority($priority);
-
-					$messenger->assign_vars($template_data);
-
-					if (!($messenger->send($used_method)))
-					{
-						$errored = true;
-					}
+					$errored = !$messenger_method->send() || $errored;
+					$messenger_method->save_queue();
 				}
 				unset($email_list);
-
-				$messenger->save_queue();
 
 				if ($generate_log_entry)
 				{

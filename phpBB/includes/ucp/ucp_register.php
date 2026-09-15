@@ -26,11 +26,16 @@ if (!defined('IN_PHPBB'))
 class ucp_register
 {
 	var $u_action;
+	var $page_title;
+	var $tpl_name;
 
 	function main($id, $mode)
 	{
 		global $config, $db, $user, $template, $phpbb_root_path, $phpEx;
 		global $request, $phpbb_container, $phpbb_dispatcher;
+
+		/** @var \phpbb\controller\helper $controller_helper */
+		$controller_helper = $phpbb_container->get('controller.helper');
 
 		//
 		if ($config['require_activation'] == USER_ACTIVATION_DISABLE ||
@@ -106,7 +111,7 @@ class ucp_register
 		/* @var $cp \phpbb\profilefields\manager */
 		$cp = $phpbb_container->get('profilefields.manager');
 
-		$error = $cp_data = $cp_error = array();
+		$error = $cp_data = array();
 		$s_hidden_fields = array();
 
 		// Handle login_link data added to $_hidden_fields
@@ -150,16 +155,14 @@ class ucp_register
 			}
 
 			// Checking amount of available languages
-			$sql = 'SELECT lang_id
-				FROM ' . LANG_TABLE;
+			$sql = 'SELECT lang_iso, lang_local_name
+				FROM ' . LANG_TABLE . '
+				ORDER BY lang_english_name';
 			$result = $db->sql_query($sql);
-
-			$lang_row = array();
-			while ($row = $db->sql_fetchrow($result))
-			{
-				$lang_row[] = $row;
-			}
+			$lang_row = (array) $db->sql_fetchrowset($result);
 			$db->sql_freeresult($result);
+
+			$lang_options = phpbb_language_select($db, $user_lang, $lang_row);
 
 			if ($coppa === false && $config['coppa_enable'])
 			{
@@ -171,7 +174,11 @@ class ucp_register
 				unset($now);
 
 				$template_vars = array(
-					'S_LANG_OPTIONS'	=> (count($lang_row) > 1) ? language_select($user_lang) : '',
+					'LANG_OPTIONS'		=> [
+						'id'		=> 'lang',
+						'name'		=> 'lang',
+						'options'	=> $lang_options,
+					],
 					'L_COPPA_NO'		=> $user->lang('UCP_COPPA_BEFORE', $coppa_birthday),
 					'L_COPPA_YES'		=> $user->lang('UCP_COPPA_ON_AFTER', $coppa_birthday),
 
@@ -186,7 +193,11 @@ class ucp_register
 			else
 			{
 				$template_vars = array(
-					'S_LANG_OPTIONS'	=> (count($lang_row) > 1) ? language_select($user_lang) : '',
+					'LANG_OPTIONS'		=> [
+						'id'		=> 'lang',
+						'name'		=> 'lang',
+						'options'	=> $lang_options,
+					],
 					'L_TERMS_OF_USE'	=> sprintf($user->lang['TERMS_OF_USE_CONTENT'], $config['sitename'], generate_board_url()),
 
 					'S_SHOW_COPPA'		=> false,
@@ -229,8 +240,10 @@ class ucp_register
 		// The CAPTCHA kicks in here. We can't help that the information gets lost on language change.
 		if ($config['enable_confirm'])
 		{
-			$captcha = $phpbb_container->get('captcha.factory')->get_instance($config['captcha_plugin']);
-			$captcha->init(CONFIRM_REG);
+			/** @var \phpbb\captcha\factory $captcha_factory */
+			$captcha_factory = $phpbb_container->get('captcha.factory');
+			$captcha = $captcha_factory->get_instance($config['captcha_plugin']);
+			$captcha->init(\phpbb\captcha\plugins\confirm_type::REGISTRATION);
 		}
 
 		$timezone = $config['board_timezone'];
@@ -285,15 +298,14 @@ class ucp_register
 
 			if ($config['enable_confirm'])
 			{
-				$vc_response = $captcha->validate($data);
-				if ($vc_response !== false)
+				if ($captcha->validate() !== true)
 				{
-					$error[] = $vc_response;
+					$error[] = $captcha->get_error();
 				}
 
 				if ($config['max_reg_attempts'] && $captcha->get_attempt_count() > $config['max_reg_attempts'])
 				{
-					$error[] = $user->lang['TOO_MANY_REGISTERS'];
+					trigger_error('TOO_MANY_REGISTERS');
 				}
 			}
 
@@ -356,7 +368,7 @@ class ucp_register
 					$config['require_activation'] == USER_ACTIVATION_SELF ||
 					$config['require_activation'] == USER_ACTIVATION_ADMIN) && $config['email_enable'])
 				{
-					$user_actkey = gen_rand_string(mt_rand(6, 10));
+					$user_actkey = strtolower(gen_rand_string(32));
 					$user_type = USER_INACTIVE;
 					$user_inactive_reason = INACTIVE_REGISTER;
 					$user_inactive_time = time();
@@ -374,18 +386,19 @@ class ucp_register
 				$passwords_manager = $phpbb_container->get('passwords.manager');
 
 				$user_row = array(
-					'username'				=> $data['username'],
-					'user_password'			=> $passwords_manager->hash($data['new_password']),
-					'user_email'			=> $data['email'],
-					'group_id'				=> (int) $group_id,
-					'user_timezone'			=> $data['tz'],
-					'user_lang'				=> $data['lang'],
-					'user_type'				=> $user_type,
-					'user_actkey'			=> $user_actkey,
-					'user_ip'				=> $user->ip,
-					'user_regdate'			=> time(),
-					'user_inactive_reason'	=> $user_inactive_reason,
-					'user_inactive_time'	=> $user_inactive_time,
+					'username'					=> $data['username'],
+					'user_password'				=> $passwords_manager->hash($data['new_password']),
+					'user_email'				=> $data['email'],
+					'group_id'					=> (int) $group_id,
+					'user_timezone'				=> $data['tz'],
+					'user_lang'					=> $data['lang'],
+					'user_type'					=> $user_type,
+					'user_actkey'				=> $user_actkey,
+					'user_actkey_expiration'	=> $user::get_token_expiration(),
+					'user_ip'					=> $user->ip,
+					'user_regdate'				=> time(),
+					'user_inactive_reason'		=> $user_inactive_reason,
+					'user_inactive_time'		=> $user_inactive_time,
 				);
 
 				if ($config['new_member_post_limit'])
@@ -419,7 +432,7 @@ class ucp_register
 				}
 
 				// Okay, captcha, your job is done.
-				if ($config['enable_confirm'] && isset($captcha))
+				if ($config['enable_confirm'])
 				{
 					$captcha->reset();
 				}
@@ -450,30 +463,26 @@ class ucp_register
 
 				if ($config['email_enable'])
 				{
-					include_once($phpbb_root_path . 'includes/functions_messenger.' . $phpEx);
-
-					$messenger = new messenger(false);
-
-					$messenger->template($email_template, $data['lang']);
-
-					$messenger->to($data['email'], $data['username']);
-
-					$messenger->anti_abuse_headers($config, $user);
-
-					$messenger->assign_vars(array(
-						'WELCOME_MSG'	=> htmlspecialchars_decode(sprintf($user->lang['WELCOME_SUBJECT'], $config['sitename']), ENT_COMPAT),
-						'USERNAME'		=> htmlspecialchars_decode($data['username'], ENT_COMPAT),
-						'PASSWORD'		=> htmlspecialchars_decode($data['new_password'], ENT_COMPAT),
-						'U_ACTIVATE'	=> "$server_url/ucp.$phpEx?mode=activate&u=$user_id&k=$user_actkey")
-					);
+					/** var \phpbb\messenger\method\email */
+					$email_method = $phpbb_container->get('messenger.method.email');
+					$email_method->set_use_queue(false);
+					$email_method->template($email_template, $data['lang']);
+					$email_method->to($data['email'], $data['username']);
+					$email_method->anti_abuse_headers($config, $user);
+					$email_method->assign_vars([
+						'WELCOME_MSG'	=> html_entity_decode(sprintf($user->lang['WELCOME_SUBJECT'], $config['sitename']), ENT_COMPAT),
+						'USERNAME'		=> html_entity_decode($data['username'], ENT_COMPAT),
+						'PASSWORD'		=> html_entity_decode($data['new_password'], ENT_COMPAT),
+						'U_ACTIVATE'	=> "$server_url/ucp.$phpEx?mode=activate&u=$user_id&k=$user_actkey",
+					]);
 
 					if ($coppa)
 					{
-						$messenger->assign_vars(array(
+						$email_method->assign_vars([
 							'FAX_INFO'		=> $config['coppa_fax'],
 							'MAIL_INFO'		=> $config['coppa_mail'],
-							'EMAIL_ADDRESS'	=> $data['email'])
-						);
+							'EMAIL_ADDRESS'	=> $data['email'],
+						]);
 					}
 
 					/**
@@ -487,8 +496,9 @@ class ucp_register
 					* @var	string		server_url	Server URL
 					* @var	int			user_id		New user ID
 					* @var	string		user_actkey	User activation key
-					* @var	messenger	messenger	phpBB Messenger
+					* @var	\phpbb\messenger\method\email	email_method	phpBB email notification method
 					* @since 3.2.4-RC1
+					* @changed 4.0.0-a1 Added vars: email_method. Removed vars: messenger.
 					*/
 					$vars = array(
 						'user_row',
@@ -498,11 +508,11 @@ class ucp_register
 						'server_url',
 						'user_id',
 						'user_actkey',
-						'messenger',
+						'email_method',
 					);
 					extract($phpbb_dispatcher->trigger_event('core.ucp_register_welcome_email_before', compact($vars)));
 
-					$messenger->send(NOTIFY_EMAIL);
+					$email_method->send();
 				}
 
 				if ($config['require_activation'] == USER_ACTIVATION_ADMIN)
@@ -553,7 +563,7 @@ class ucp_register
 				);
 				extract($phpbb_dispatcher->trigger_event('core.ucp_register_register_after', compact($vars)));
 
-				$message = $message . '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . append_sid("{$phpbb_root_path}index.$phpEx") . '">', '</a>');
+				$message = $message . '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . $controller_helper->route('phpbb_index_controller') . '">', '</a>');
 				trigger_error($message);
 			}
 		}
@@ -620,7 +630,17 @@ class ucp_register
 		}
 
 		// Assign template vars for timezone select
-		phpbb_timezone_select($template, $user, $data['tz'], true);
+		$timezone_select = phpbb_timezone_select($user, $data['tz'], true);
+
+		// Checking amount of available languages
+		$sql = 'SELECT lang_iso, lang_local_name
+			FROM ' . LANG_TABLE . '
+			ORDER BY lang_english_name';
+		$result = $db->sql_query($sql);
+		$lang_row = (array) $db->sql_fetchrowset($result);
+		$db->sql_freeresult($result);
+
+		$lang_options = phpbb_language_select($db, $data['lang'], $lang_row);
 
 		$template_vars = array(
 			'USERNAME'			=> $data['username'],
@@ -629,10 +649,19 @@ class ucp_register
 			'EMAIL'				=> $data['email'],
 
 			'L_REG_COND'				=> $l_reg_cond,
-			'L_USERNAME_EXPLAIN'		=> $user->lang($config['allow_name_chars'] . '_EXPLAIN', $user->lang('CHARACTERS', (int) $config['min_name_chars']), $user->lang('CHARACTERS', (int) $config['max_name_chars'])),
-			'L_PASSWORD_EXPLAIN'		=> $user->lang($config['pass_complex'] . '_EXPLAIN', $user->lang('CHARACTERS', (int) $config['min_pass_chars'])),
+			'L_USERNAME_EXPLAIN'		=> $user->lang($config['allow_name_chars'] . '_EXPLAIN', $user->lang('CHARACTERS_XY', (int) $config['min_name_chars']), $user->lang('CHARACTERS_XY', (int) $config['max_name_chars'])),
+			'L_PASSWORD_EXPLAIN'		=> $user->lang($config['pass_complex'] . '_EXPLAIN', $user->lang('CHARACTERS_XY', (int) $config['min_pass_chars'])),
 
-			'S_LANG_OPTIONS'	=> language_select($data['lang']),
+			'LANG_OPTIONS'		=> [
+				'id'		=> 'lang',
+				'name'		=> 'lang',
+				'options'	=> $lang_options,
+			],
+			'TIMEZONE_OPTIONS'	=> [
+				'tag'		=> 'select',
+				'name'		=> 'tz',
+				'options'	=> $timezone_select,
+			],
 			'S_TZ_PRESELECT'	=> !$submit,
 			'S_CONFIRM_REFRESH'	=> ($config['enable_confirm'] && $config['confirm_refresh']) ? true : false,
 			'S_REGISTRATION'	=> true,

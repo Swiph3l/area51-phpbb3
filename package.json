@@ -6,56 +6,6 @@
 	"directories": {
 		"doc": "docs"
 	},
-	"xo": {
-		"ignores": [
-			"./**/adm/style/admin.js",
-			"./**/adm/style/ajax.js",
-			"./**/adm/style/permissions.js",
-			"./**/adm/style/tooltip.js",
-			"./**/assets/javascript/core.js",
-			"./**/assets/javascript/editor.js",
-			"./**/assets/javascript/installer.js",
-			"./**/assets/javascript/plupload.js",
-			"./**/styles/prosilver/template/ajax.js",
-			"./**/styles/prosilver/template/forum_fn.js",
-			"./**/phpbb/**/*.js",
-			"./**/tests/**/*.js"
-		],
-		"rules": {
-			"quotes": [
-				"error",
-				"single"
-			],
-			"comma-dangle": [
-				"error",
-				"always-multiline"
-			],
-			"max-params": [
-				"error",
-				6
-			],
-			"block-spacing": "error",
-			"array-bracket-spacing": [
-				"error",
-				"always"
-			],
-			"object-curly-spacing": [
-				"error",
-				"always"
-			],
-			"multiline-comment-style": "off",
-			"computed-property-spacing": "off",
-			"space-in-parens": "off",
-			"capitalized-comments": "off",
-			"no-lonely-if": "off"
-		},
-		"env": [
-			"es6",
-			"browser",
-			"node",
-			"jquery"
-		]
-	},
 	"browserslist": [
 		"> 1%",
 		"not ie 11",
@@ -90,20 +40,10 @@
 	},
 	"homepage": "https://www.phpbb.com",
 	"devDependencies": {
-		"cssnano": "4.1.10",
-		"del": "5.1.0",
-		"gulp": "4.0.2",
-		"gulp-autoprefixer": "7.0.1",
-		"gulp-postcss": "8.0.0",
-		"gulp-rename": "2.0.0",
-		"gulp-sass": "4.0.2",
-		"gulp-sourcemaps": "2.6.5",
-		"postcss-import": "12.0.1",
-		"postcss-pxtorem": "5.1.1",
-		"postcss-sorting": "5.0.1",
-		"stylelint": "13.2.1",
-		"stylelint-order": "4.0.0",
-		"xo": "^0.33.1",
-		"yargs-parser": ">=13.1.2"
+		"eslint": "^9.28.0",
+		"globals": "^17.0.0",
+		"stylelint": "^14.7.0",
+		"stylelint-order": "^5.0.0",
+		"web-push-testing": "^1.1.1"
 	}
 }

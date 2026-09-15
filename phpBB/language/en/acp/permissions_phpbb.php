@@ -76,6 +76,7 @@ $lang = array_merge($lang, array(
 
 	'ACL_U_ATTACH'		=> 'Can attach files',
 	'ACL_U_DOWNLOAD'	=> 'Can download files',
+	'ACL_U_MENTION'		=> 'Can mention users and groups',
 	'ACL_U_SAVEDRAFTS'	=> 'Can save drafts',
 	'ACL_U_CHGCENSORS'	=> 'Can disable word censors',
 	'ACL_U_SIG'			=> 'Can use signature',
@@ -95,10 +96,8 @@ $lang = array_merge($lang, array(
 	'ACL_U_PM_BBCODE'	=> 'Can use BBCode in private messages',
 	'ACL_U_PM_SMILIES'	=> 'Can use smilies in private messages',
 	'ACL_U_PM_IMG'		=> 'Can use [img] BBCode tag in private messages',
-	'ACL_U_PM_FLASH'	=> 'Can use [flash] BBCode tag in private messages',
 
 	'ACL_U_SENDEMAIL'	=> 'Can send emails',
-	'ACL_U_SENDIM'		=> 'Can send instant messages',
 	'ACL_U_IGNOREFLOOD'	=> 'Can ignore flood limit',
 	'ACL_U_HIDEONLINE'	=> 'Can hide online status',
 	'ACL_U_VIEWONLINE'	=> 'Can view hidden online users',
@@ -123,6 +122,7 @@ $lang = array_merge($lang, array(
 	'ACL_F_STICKY'		=> 'Can post stickies',
 	'ACL_F_ANNOUNCE'	=> 'Can post announcements',
 	'ACL_F_ANNOUNCE_GLOBAL'	=> 'Can post global announcements',
+	'ACL_F_MENTION'		=> 'Can mention users and groups',
 	'ACL_F_REPLY'		=> 'Can reply to topics',
 	'ACL_F_EDIT'		=> 'Can edit own posts',
 	'ACL_F_DELETE'		=> 'Can permanently delete own posts',
@@ -134,7 +134,6 @@ $lang = array_merge($lang, array(
 	'ACL_F_ATTACH'		=> 'Can attach files',
 	'ACL_F_ICONS'		=> 'Can use topic/post icons',
 	'ACL_F_BBCODE'		=> 'Can use BBCode',
-	'ACL_F_FLASH'		=> 'Can use [flash] BBCode tag',
 	'ACL_F_IMG'			=> 'Can use [img] BBCode tag',
 	'ACL_F_SIGS'		=> 'Can use signatures',
 	'ACL_F_SMILIES'		=> 'Can use smilies',
@@ -159,16 +158,15 @@ $lang = array_merge($lang, array(
 	'ACL_M_MERGE'	=> 'Can merge topics',
 
 	'ACL_M_INFO'		=> 'Can view post details',
-	'ACL_M_WARN'		=> 'Can issue warnings<br /><em>This setting is only assigned globally. It is not forum based.</em>', // This moderator setting is only global (and not local)
-	'ACL_M_PM_REPORT'	=> 'Can close and delete reports of private messages<br /><em>This setting is only assigned globally. It is not forum based.</em>', // This moderator setting is only global (and not local)
-	'ACL_M_BAN'			=> 'Can manage bans<br /><em>This setting is only assigned globally. It is not forum based.</em>', // This moderator setting is only global (and not local)
+	'ACL_M_WARN'		=> 'Can issue warnings',
+	'ACL_M_PM_REPORT'	=> 'Can close and delete reports of private messages',
+	'ACL_M_BAN'			=> 'Can manage bans',
 ));
 
 // Admin Permissions
 $lang = array_merge($lang, array(
 	'ACL_A_BOARD'		=> 'Can alter board settings/check for updates',
 	'ACL_A_SERVER'		=> 'Can alter server/communication settings',
-	'ACL_A_JABBER'		=> 'Can alter Jabber settings',
 	'ACL_A_PHPINFO'		=> 'Can view php settings',
 
 	'ACL_A_FORUM'		=> 'Can manage forums',

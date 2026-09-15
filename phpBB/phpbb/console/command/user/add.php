@@ -18,9 +18,11 @@ use phpbb\console\command\command;
 use phpbb\db\driver\driver_interface;
 use phpbb\exception\runtime_exception;
 use phpbb\language\language;
+use phpbb\messenger\method\email;
 use phpbb\passwords\manager;
 use phpbb\user;
 use Symfony\Component\Console\Command\Command as symfony_command;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -37,6 +39,9 @@ class add extends command
 
 	/** @var config */
 	protected $config;
+
+	/** @var email */
+	protected $email_method;
 
 	/** @var language */
 	protected $language;
@@ -65,14 +70,16 @@ class add extends command
 	 * @param driver_interface $db
 	 * @param config           $config
 	 * @param language         $language
+	 * @param service_collection $messenger
 	 * @param manager          $password_manager
 	 * @param string           $phpbb_root_path
 	 * @param string           $php_ext
 	 */
-	public function __construct(user $user, driver_interface $db, config $config, language $language, manager $password_manager, $phpbb_root_path, $php_ext)
+	public function __construct(user $user, driver_interface $db, config $config, language $language, email $email_method, manager $password_manager, $phpbb_root_path, $php_ext)
 	{
-		$this->db = $db;
 		$this->config = $config;
+		$this->db = $db;
+		$this->email_method = $email_method;
 		$this->language = $language;
 		$this->password_manager = $password_manager;
 		$this->phpbb_root_path = $phpbb_root_path;
@@ -85,9 +92,9 @@ class add extends command
 	/**
 	 * Sets the command name and description
 	 *
-	 * @return null
+	 * @return void
 	 */
-	protected function configure()
+	protected function configure(): void
 	{
 		$this
 			->setName('user:add')
@@ -131,7 +138,7 @@ class add extends command
 	 *
 	 * @return int 0 if all is well, 1 if any errors occurred
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output)
+	protected function execute(InputInterface $input, OutputInterface $output): int
 	{
 		$io = new SymfonyStyle($input, $output);
 
@@ -181,9 +188,13 @@ class add extends command
 	 * @param InputInterface  $input  An InputInterface instance
 	 * @param OutputInterface $output An OutputInterface instance
 	 */
-	protected function interact(InputInterface $input, OutputInterface $output)
+	protected function interact(InputInterface $input, OutputInterface $output): void
 	{
 		$helper = $this->getHelper('question');
+		if (!$helper instanceof QuestionHelper)
+		{
+			return;
+		}
 
 		$this->data = array(
 			'username'     => $input->getOption('username'),
@@ -226,7 +237,7 @@ class add extends command
 	 * Validate the submitted user data
 	 *
 	 * @throws runtime_exception if any data fails validation
-	 * @return null
+	 * @return void
 	 */
 	protected function validate_user_data()
 	{
@@ -283,7 +294,7 @@ class add extends command
 	 * Send account activation email
 	 *
 	 * @param int   $user_id The new user's id
-	 * @return null
+	 * @return void
 	 */
 	protected function send_activation_email($user_id)
 	{
@@ -291,35 +302,57 @@ class add extends command
 		{
 			case USER_ACTIVATION_SELF:
 				$email_template = 'user_welcome_inactive';
-				$user_actkey = gen_rand_string(mt_rand(6, 10));
 			break;
 			case USER_ACTIVATION_ADMIN:
 				$email_template = 'admin_welcome_inactive';
-				$user_actkey = gen_rand_string(mt_rand(6, 10));
 			break;
 			default:
 				$email_template = 'user_welcome';
-				$user_actkey = '';
 			break;
 		}
 
-		if (!class_exists('messenger'))
+		$user_actkey = $this->get_activation_key($user_id);
+
+		$this->email_method->set_use_queue(false);
+		$this->email_method->template($email_template, $this->user->lang_name);
+		$this->email_method->to($this->data['email'], $this->data['username']);
+		$this->email_method->anti_abuse_headers($this->config, $this->user);
+		$this->email_method->assign_vars([
+			'WELCOME_MSG' => html_entity_decode($this->language->lang('WELCOME_SUBJECT', $this->config['sitename']), ENT_COMPAT),
+			'USERNAME'    => html_entity_decode($this->data['username'], ENT_COMPAT),
+			'PASSWORD'    => html_entity_decode($this->data['new_password'], ENT_COMPAT),
+			'U_ACTIVATE'  => generate_board_url() . "/ucp.{$this->php_ext}?mode=activate&u=$user_id&k=$user_actkey",
+		]);
+		$this->email_method->send();
+	}
+
+	/**
+	 * Get user activation key
+	 *
+	 * @param int $user_id User ID
+	 *
+	 * @return string User activation key for user
+	 */
+	protected function get_activation_key(int $user_id): string
+	{
+		$user_actkey = '';
+
+		if ($this->config['require_activation'] == USER_ACTIVATION_SELF || $this->config['require_activation'] == USER_ACTIVATION_ADMIN)
 		{
-			require($this->phpbb_root_path . 'includes/functions_messenger.' . $this->php_ext);
+			$user_actkey = gen_rand_string(mt_rand(6, 10));
+
+			$sql_ary = [
+				'user_actkey'				=> $user_actkey,
+				'user_actkey_expiration'	=> user::get_token_expiration(),
+			];
+
+			$sql = 'UPDATE ' . USERS_TABLE . '
+				SET ' . $this->db->sql_build_array('UPDATE', $sql_ary) . '
+				WHERE user_id = ' . (int) $user_id;
+			$this->db->sql_query($sql);
 		}
 
-		$messenger = new \messenger(false);
-		$messenger->template($email_template, $this->user->lang_name);
-		$messenger->to($this->data['email'], $this->data['username']);
-		$messenger->anti_abuse_headers($this->config, $this->user);
-		$messenger->assign_vars(array(
-			'WELCOME_MSG' => htmlspecialchars_decode($this->language->lang('WELCOME_SUBJECT', $this->config['sitename']), ENT_COMPAT),
-			'USERNAME'    => htmlspecialchars_decode($this->data['username'], ENT_COMPAT),
-			'PASSWORD'    => htmlspecialchars_decode($this->data['new_password'], ENT_COMPAT),
-			'U_ACTIVATE'  => generate_board_url() . "/ucp.{$this->php_ext}?mode=activate&u=$user_id&k=$user_actkey")
-		);
-
-		$messenger->send(NOTIFY_EMAIL);
+		return $user_actkey;
 	}
 
 	/**

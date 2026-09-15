@@ -83,7 +83,7 @@ class phpbb_functional_download_test extends phpbb_functional_test_case
 		));
 
 		// Download attachment as guest
-		$crawler = self::request('GET', "download/file.php?id={$this->data['attachments'][$this->data['posts']['Re: Download Topic #1-#2']]}", array(), false);
+		$crawler = self::request('GET', "index.php/download/attachment/{$this->data['attachments'][$this->data['posts']['Re: Download Topic #1-#2']]}", array(), false);
 		self::assert_response_status_code(200);
 		$content = self::$client->getResponse()->getContent();
 		$finfo = new finfo(FILEINFO_MIME_TYPE);
@@ -107,7 +107,7 @@ class phpbb_functional_download_test extends phpbb_functional_test_case
 		));
 		$this->add_lang('posting');
 
-		$crawler = self::request('GET', "posting.php?mode=delete&f={$this->data['forums']['Download #1']}&p={$this->data['posts']['Re: Download Topic #1-#2']}&sid={$this->sid}");
+		$crawler = self::request('GET', "posting.php?mode=delete&p={$this->data['posts']['Re: Download Topic #1-#2']}&sid={$this->sid}");
 		$this->assertContainsLang('DELETE_PERMANENTLY', $crawler->text());
 
 		$form = $crawler->selectButton('Yes')->form();
@@ -115,7 +115,7 @@ class phpbb_functional_download_test extends phpbb_functional_test_case
 		$this->assertContainsLang('POST_DELETED', $crawler->text());
 
 		$crawler = self::request('GET', "viewtopic.php?t={$this->data['topics']['Download Topic #1']}&sid={$this->sid}");
-		$this->assertStringContainsString($this->lang('POST_DISPLAY', '', ''), $crawler->text());
+		$this->assertStringContainsString($this->lang('POST_DISPLAY'), $crawler->text());
 	}
 
 	public function test_download_softdeleted_post()
@@ -141,7 +141,7 @@ class phpbb_functional_download_test extends phpbb_functional_test_case
 		$this->add_lang('viewtopic');
 
 		// No download attachment as guest
-		$crawler = self::request('GET', "download/file.php?id={$this->data['attachments'][$this->data['posts']['Re: Download Topic #1-#2']]}", array(), false);
+		$crawler = self::request('GET', "index.php/download/attachment/{$this->data['attachments'][$this->data['posts']['Re: Download Topic #1-#2']]}", array(), false);
 		self::assert_response_html(404);
 		$this->assertContainsLang('ERROR_NO_ATTACHMENT', $crawler->filter('#message')->text());
 
@@ -149,7 +149,7 @@ class phpbb_functional_download_test extends phpbb_functional_test_case
 		$this->login();
 
 		// Download attachment as admin
-		$crawler = self::request('GET', "download/file.php?id={$this->data['attachments'][$this->data['posts']['Re: Download Topic #1-#2']]}", array(), false);
+		$crawler = self::request('GET', "index.php/download/attachment/{$this->data['attachments'][$this->data['posts']['Re: Download Topic #1-#2']]}", array(), false);
 		self::assert_response_status_code(200);
 		$content = self::$client->getResponse()->getContent();
 		$finfo = new finfo(FILEINFO_MIME_TYPE);
@@ -208,7 +208,7 @@ class phpbb_functional_download_test extends phpbb_functional_test_case
 		$this->add_lang('viewtopic');
 
 		// No download attachment as guest
-		$crawler = self::request('GET', "download/file.php?id={$this->data['attachments'][$this->data['posts']['Re: Download Topic #1-#2']]}", array(), false);
+		$crawler = self::request('GET', "index.php/download/attachment/{$this->data['attachments'][$this->data['posts']['Re: Download Topic #1-#2']]}", array(), false);
 		self::assert_response_html(404);
 		$this->assertContainsLang('ERROR_NO_ATTACHMENT', $crawler->filter('#message')->text());
 
@@ -216,7 +216,7 @@ class phpbb_functional_download_test extends phpbb_functional_test_case
 		$this->login();
 
 		// Download attachment as admin
-		$crawler = self::request('GET', "download/file.php?id={$this->data['attachments'][$this->data['posts']['Re: Download Topic #1-#2']]}", array(), false);
+		$crawler = self::request('GET', "index.php/download/attachment/{$this->data['attachments'][$this->data['posts']['Re: Download Topic #1-#2']]}", array(), false);
 		self::assert_response_status_code(200);
 		$content = self::$client->getResponse()->getContent();
 		$finfo = new finfo(FILEINFO_MIME_TYPE);
@@ -225,10 +225,13 @@ class phpbb_functional_download_test extends phpbb_functional_test_case
 
 	public function load_ids($data)
 	{
-		$this->db = $this->get_db();
-
 		if (!empty($data['forums']))
 		{
+			array_walk($data['forums'], function(&$value, $key)
+				{
+					$value = $this->db->sql_escape($value);
+				}
+			);
 			$sql = 'SELECT *
 				FROM phpbb_forums
 				WHERE ' . $this->db->sql_in_set('forum_name', $data['forums']);
@@ -245,6 +248,11 @@ class phpbb_functional_download_test extends phpbb_functional_test_case
 
 		if (!empty($data['topics']))
 		{
+			array_walk($data['topics'], function(&$value, $key)
+				{
+					$value = $this->db->sql_escape($value);
+				}
+			);
 			$sql = 'SELECT *
 				FROM phpbb_topics
 				WHERE ' . $this->db->sql_in_set('topic_title', $data['topics']);
@@ -262,6 +270,11 @@ class phpbb_functional_download_test extends phpbb_functional_test_case
 		$post_ids = array();
 		if (!empty($data['posts']))
 		{
+			array_walk($data['posts'], function(&$value, $key)
+				{
+					$value = $this->db->sql_escape($value);
+				}
+			);
 			$sql = 'SELECT *
 				FROM phpbb_posts
 				WHERE ' . $this->db->sql_in_set('post_subject', $data['posts']);
@@ -276,7 +289,7 @@ class phpbb_functional_download_test extends phpbb_functional_test_case
 			}
 			$this->db->sql_freeresult($result);
 
-			if (isset($data['attachments']))
+			if (isset($data['attachments']) && !empty($post_ids))
 			{
 				$sql = 'SELECT *
 					FROM phpbb_attachments

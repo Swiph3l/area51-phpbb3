@@ -201,22 +201,20 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 		}
 	}
 
-	$u_pm = $u_jabber = '';
+	$u_pm = '';
 
 	if ($config['allow_privmsg'] && $auth->acl_get('u_sendpm') && ($user_info['user_allow_pm'] || $auth->acl_gets('a_', 'm_') || $auth->acl_getf_global('m_')))
 	{
 		$u_pm = append_sid("{$phpbb_root_path}ucp.$phpEx", 'i=pm&amp;mode=compose&amp;u=' . $author_id);
 	}
 
-	if ($config['jab_enable'] && $user_info['user_jabber'] && $auth->acl_get('u_sendim'))
-	{
-		$u_jabber = append_sid("{$phpbb_root_path}memberlist.$phpEx", 'mode=contact&amp;action=jabber&amp;u=' . $author_id);
-	}
+	$can_edit_pm = ($message_row['message_time'] > time() - ($config['pm_edit_time'] * 60) || !$config['pm_edit_time']) && $folder_id == PRIVMSGS_OUTBOX && $auth->acl_get('u_pm_edit');
 
 	$msg_data = array(
 		'MESSAGE_AUTHOR_FULL'		=> get_username_string('full', $author_id, $user_info['username'], $user_info['user_colour'], $user_info['username']),
 		'MESSAGE_AUTHOR_COLOUR'		=> get_username_string('colour', $author_id, $user_info['username'], $user_info['user_colour'], $user_info['username']),
 		'MESSAGE_AUTHOR'			=> get_username_string('username', $author_id, $user_info['username'], $user_info['user_colour'], $user_info['username']),
+		'MESSAGE_AUTHOR_ID'			=> $author_id,
 		'U_MESSAGE_AUTHOR'			=> get_username_string('profile', $author_id, $user_info['username'], $user_info['user_colour'], $user_info['username']),
 
 		'RANK_TITLE'		=> $user_info['rank_title'],
@@ -246,13 +244,12 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 		'MESSAGE_ID'		=> $message_row['msg_id'],
 
 		'U_PM'			=>  $u_pm,
-		'U_JABBER'		=>  $u_jabber,
 
 		'U_DELETE'			=> ($auth->acl_get('u_pm_delete')) ? "$url&amp;mode=compose&amp;action=delete&amp;f=$folder_id&amp;p=" . $message_row['msg_id'] : '',
 		'U_EMAIL'			=> $user_info['email'],
 		'U_REPORT'			=> ($config['allow_pm_report']) ? $phpbb_container->get('controller.helper')->route('phpbb_report_pm_controller', array('id' => $message_row['msg_id'])) : '',
 		'U_QUOTE'			=> ($auth->acl_get('u_sendpm') && $author_id != ANONYMOUS) ? "$url&amp;mode=compose&amp;action=quote&amp;f=$folder_id&amp;p=" . $message_row['msg_id'] : '',
-		'U_EDIT'			=> (($message_row['message_time'] > time() - ($config['pm_edit_time'] * 60) || !$config['pm_edit_time']) && $folder_id == PRIVMSGS_OUTBOX && $auth->acl_get('u_pm_edit')) ? "$url&amp;mode=compose&amp;action=edit&amp;f=$folder_id&amp;p=" . $message_row['msg_id'] : '',
+		'U_EDIT'			=> $can_edit_pm ? "$url&amp;mode=compose&amp;action=edit&amp;f=$folder_id&amp;p=" . $message_row['msg_id'] : '',
 		'U_POST_REPLY_PM'	=> ($auth->acl_get('u_sendpm') && $author_id != ANONYMOUS) ? "$url&amp;mode=compose&amp;action=reply&amp;f=$folder_id&amp;p=" . $message_row['msg_id'] : '',
 		'U_POST_REPLY_ALL'	=> ($auth->acl_get('u_sendpm') && $author_id != ANONYMOUS) ? "$url&amp;mode=compose&amp;action=reply&amp;f=$folder_id&amp;reply_to_all=1&amp;p=" . $message_row['msg_id'] : '',
 		'U_PREVIOUS_PM'		=> "$url&amp;f=$folder_id&amp;p=" . $message_row['msg_id'] . "&amp;view=previous",
@@ -355,11 +352,6 @@ function view_message($id, $mode, $folder_id, $msg_id, $folder, $message_row)
 			'ID'		=> 'email',
 			'NAME'		=> $user->lang['SEND_EMAIL'],
 			'U_CONTACT'	=> $user_info['email'],
-		),
-		array(
-			'ID'		=> 'jabber',
-			'NAME'		=> $user->lang['JABBER'],
-			'U_CONTACT'	=> $u_jabber,
 		),
 	);
 

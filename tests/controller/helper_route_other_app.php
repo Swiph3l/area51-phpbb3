@@ -22,15 +22,15 @@ class phpbb_controller_helper_route_other_app_test extends phpbb_controller_comm
 
 	protected function get_uri()
 	{
-		return '/foo/app.php';
+		return '/foo/index.php';
 	}
 
 	protected function get_script_name()
 	{
-		return 'app.php';
+		return 'index.php';
 	}
 
-	protected function path_to_app()
+	protected static function path_to_app()
 	{
 		return 'foo/';
 	}

@@ -6,7 +6,7 @@ services:
             - '@notification.method_collection'
             - '@service_container'
             - '@user_loader'
-            - '@dispatcher'
+            - '@event_dispatcher'
             - '@dbal.conn'
             - '@cache'
             - '@language'
@@ -26,6 +26,8 @@ services:
     notification.type.base:
         abstract: true
         arguments:
+            - '@avatar.helper'
+            - '@controller.helper'
             - '@dbal.conn'
             - '@language'
             - '@user'
@@ -92,6 +94,15 @@ services:
         class: phpbb\notification\type\group_request_approved
         shared: false
         parent: notification.type.base
+        tags:
+            - { name: notification.type }
+
+    notification.type.mention:
+        class: phpbb\notification\type\mention
+        shared: false
+        parent: notification.type.post
+        calls:
+            - [set_helper, ['@text_formatter.s9e.mention_helper']]
         tags:
             - { name: notification.type }
 
@@ -220,17 +231,33 @@ services:
             - '%core.root_path%'
             - '%core.php_ext%'
             - '%tables.notification_emails%'
+            - '@messenger.method_collection'
         tags:
             - { name: notification.method }
 
-    notification.method.jabber:
-        class: phpbb\notification\method\jabber
+    notification.method.webpush:
+        class: phpbb\notification\method\webpush
         shared: false
         arguments:
+            - '@config'
+            - '@dbal.conn'
+            - '@log'
             - '@user_loader'
             - '@user'
-            - '@config'
             - '%core.root_path%'
             - '%core.php_ext%'
+            - '%tables.notification_push%'
+            - '%tables.push_subscriptions%'
         tags:
             - { name: notification.method }
+
+# ----- Notification's controllers -----
+    notification.controller.mark_read:
+        class: phpbb\notification\controller\mark_read
+        arguments:
+            - '@event_dispatcher'
+            - '@language'
+            - '@notification_manager'
+            - '@request'
+            - '@user'
+            - '%core.root_path%'

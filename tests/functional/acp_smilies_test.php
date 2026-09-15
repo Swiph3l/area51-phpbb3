@@ -24,8 +24,8 @@ class phpbb_functional_acp_smilies_test extends phpbb_functional_test_case
 		// Create the BBCode
 		$crawler = self::request('GET', 'adm/index.php?i=acp_icons&sid=' . $this->sid . '&mode=smilies&action=edit&id=1');
 		$form = $crawler->selectButton('Submit')->form(array(
-			'code[icon_e_biggrin.gif]'    => '>:D',
-			'emotion[icon_e_biggrin.gif]' => '>:D'
+			'code[icon_e_biggrin.svg]'    => '>:D',
+			'emotion[icon_e_biggrin.svg]' => '>:D'
 		));
 		self::submit($form);
 
@@ -38,6 +38,15 @@ class phpbb_functional_acp_smilies_test extends phpbb_functional_test_case
 		$crawler = self::submit($form);
 
 		$html = $crawler->filter('#preview')->html();
-		$this->assertRegexp('(<img [^>]+ alt="&gt;:D" title="&gt;:D"[^>]*>)', $html);
+
+		// Native HTML5 parser (PHP 8.4+) will encode entities
+		if (\PHP_VERSION_ID >= 80400)
+		{
+			$this->assertMatchesRegularExpression('(<img [^>]+ alt="&gt;:D" title="&gt;:D"[^>]*>)', $html);
+		}
+		else
+		{
+			$this->assertMatchesRegularExpression('(<img [^>]+ alt=">:D" title=">:D"[^>]*>)', $html);
+		}
 	}
 }

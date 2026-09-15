@@ -4,7 +4,7 @@
 
 .button {
 	font-family: "Open Sans", "Droid Sans", Verdana, Arial, Helvetica;
-	font-size: 13px;
+	font-size: var(--ps-font-normal);
 	font-weight: 600;
 	line-height: 1.4;
 	text-align: center;
@@ -16,7 +16,7 @@
 	justify-content: center;
 	align-items: center;
 	box-sizing: border-box;
-	height: 24px;
+	height: calc(var(--ps-font-normal) * 1.875);
 	padding: 2px 8px;
 	cursor: pointer;
 	touch-action: manipulation;
@@ -32,6 +32,20 @@
 	outline: none;
 }
 
+.button[disabled],
+.button[disabled]:hover,
+.button.disabled,
+.button.disabled:hover {
+	background: #eeeeee;
+	border-color: #aaaaaa;
+	color: #aaaaaa;
+	cursor: default;
+}
+
+.button.hidden {
+	display: none;
+}
+
 .caret {
 	border-left: 1px solid;
 	position: relative;
@@ -40,6 +54,29 @@
 
 .caret i {
 	vertical-align: top;
+}
+
+/** Button groups */
+.button-group {
+	display: inline-block;
+}
+
+.button-group + .button-group {
+	margin-left: 8px;
+}
+
+.button-group > .button:first-child {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.button-group > .button:last-child {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+.button-group > .button:not(:first-child):not(:last-child) {
+	border-radius: 0;
 }
 
 /* Posting page styles
@@ -148,11 +185,11 @@
 
 /* Responsive buttons in post body */
 .post-buttons .dropdown {
-	top: 18px;
+	top: calc(var(--ps-font-normal) * 1.875);
 }
 
 .post-buttons .dropdown a {
-	font-size: 13px;
+	font-size: var(--ps-font-normal);
 	text-align: right;
 	display: block;
 	justify-content: start;
@@ -174,39 +211,18 @@ button::-moz-focus-inner {
 	padding: 0;
 }
 
-/* Deprecated as of version 3.2
-------------------------------------------------- */
-.small-icon {
-	background-image: none;
-	background-repeat: no-repeat;
-	background-position: 0 50%;
-}
-
-.dropdown .small-icon {
-	background-position: 5px 50%;
-	padding: 5px;
-}
-
-.small-icon > a {
-	padding: 0 0 0 18px;
-}
-
-
-/* stylelint-disable selector-no-qualifying-type */
-ul.linklist.bulletin > li.small-icon:before {
+/* UCP: Avatar cropper */
+.avatar-cropper-buttons {
+	text-align: center;
 	display: none;
 }
-/* stylelint-enable selector-no-qualifying-type */
 
-.dropdown .small-icon > a {
-	display: block;
+.avatar-cropper-buttons > .button-group {
+	margin: 4px;
 }
 
-.rtl .small-icon {
-	background-position: 100% 50%;
-}
-
-.rtl .small-icon > a {
-	padding-right: 19px;
-	padding-left: 0;
+/* Notification buttons
+--------------------------------------------- */
+.notification-subscribe-toggle:disabled {
+	opacity: 0.7;
 }

@@ -67,6 +67,9 @@ class phpbb_group_helper_test_case extends phpbb_test_case
 				array('u_viewprofile', true),
 			)));
 
+		// Set up database connection for testing
+		$db = $this->getMockBuilder('\phpbb\db\driver\driver_interface')->getMock();
+
 		// Set up cache service
 		$cache_service = $this->getMockBuilder('\phpbb\cache\service')->disableOriginalConstructor()->getMock();
 		$cache_service->expects($this->any())
@@ -87,12 +90,10 @@ class phpbb_group_helper_test_case extends phpbb_test_case
 
 		// Set default language files loaded flag to true
 		$loaded_flag = $reflection_class->getProperty('common_language_files_loaded');
-		$loaded_flag->setAccessible(true);
 		$loaded_flag->setValue($lang, true);
 
 		// Set up test language data
 		$lang_array = $reflection_class->getProperty('lang');
-		$lang_array->setAccessible(true);
 		$lang_array->setValue($lang, $this->get_test_language_data_set());
 
 		// Set up event dispatcher
@@ -101,7 +102,7 @@ class phpbb_group_helper_test_case extends phpbb_test_case
 		// Set up path helper
 		$path_helper = $this->getMockBuilder('\phpbb\path_helper')
 			->disableOriginalConstructor()
-			->setMethods(array())
+			->onlyMethods(['get_phpbb_root_path', 'get_php_ext', 'update_web_root_path'])
 			->getMock();
 		$path_helper->method('get_phpbb_root_path')
 			->willReturn($phpbb_root_path);
@@ -110,6 +111,8 @@ class phpbb_group_helper_test_case extends phpbb_test_case
 		$path_helper->method('update_web_root_path')
 			->will($this->returnArgument(0));
 
+		$template = $this->getMockBuilder('\phpbb\template\template')->disableOriginalConstructor()->getMock();
+
 		$user = new \phpbb\user($lang, '\phpbb\datetime');
 		$user->data['user_id'] = ANONYMOUS;
 
@@ -117,7 +120,7 @@ class phpbb_group_helper_test_case extends phpbb_test_case
 			->disableOriginalConstructor()
 			->getMock();
 
-		$this->group_helper = new \phpbb\group\helper($auth, $avatar_helper, $cache_service, $config, $lang, $phpbb_dispatcher, $path_helper, $user);
+		$this->group_helper = new \phpbb\group\helper($auth, $avatar_helper, $db, $cache_service, $config, $lang, $phpbb_dispatcher, $path_helper, $template, $user);
 	}
 
 	protected function setUp(): void

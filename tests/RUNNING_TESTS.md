@@ -145,7 +145,7 @@ Slow tests
 
 Certain tests, such as the DNS tests tend to be slow.
 Thus these tests are in the `slow` group, which is excluded by default. You can
-enable slow tests by copying the phpunit.xml.all file to phpunit.xml. If you
+enable slow tests by copying the phpunit.xml.dist file to phpunit.xml. If you
 only want the slow tests, run:
 
     $ phpBB/vendor/bin/phpunit --group slow
@@ -165,7 +165,7 @@ phpBB allows you to write such tests.
 Running
 -------
 
-Running the tests requires your phpBB3 repository to be accessible through a
+Running the tests requires your phpBB repository to be accessible through a
 local web server. You will need to supply the URL to the webserver in
 the 'tests/test_config.php' file. This is as simple as defining the
 '$phpbb_functional_url' variable, which contains the URL for the directory containing
@@ -173,7 +173,7 @@ the board. Make sure you include the trailing slash. Note that without extensive
 changes to the test framework, you cannot use a board outside of the repository
 on which to run tests.
 
-    $phpbb_functional_url = 'http://localhost/phpBB3/';
+    $phpbb_functional_url = 'http://localhost/phpBB/';
 
 Functional tests are automatically run, if '$phpbb_functional_url' is configured.
 If you only want the functional tests, run:
@@ -182,6 +182,22 @@ If you only want the functional tests, run:
 
 This will change your board's config.php file, but it makes a backup at
 config_dev.php, so you can restore it after the test run is complete.
+
+Running on SSL
+--------------
+
+If your local server uses an SSL certificate with HTTPS, you may need to specify the
+path to your security certificate for functional tests to run successfully. Set
+`$path_to_ssl_cert` to the location of your certificate file (.pem or .crt).
+If you can’t locate your certificate, or it still isn’t working, you can disable 
+SSL verification by setting this value to `false` (though this is less secure).
+Note: You must ensure `$phpbb_functional_url` is using `https://`.
+
+	$path_to_ssl_cert = '/path/to/your/certificate.pem';
+
+Or via environment variables as follows:
+
+    $ PHPBB_TEST_SSL_CERT_PATH=/path/to/your/certificate.pem phpunit
 
 UI tests
 ========
@@ -212,5 +228,5 @@ UI tests will take a different form in phpBB 4.
 More Information
 ================
 
-Further information is available on phpbb wiki:
-http://wiki.phpbb.com/Automated_Tests
+Further information is available on phpBB development documentation:
+https://area51.phpbb.com/docs/dev/master/testing/index.html

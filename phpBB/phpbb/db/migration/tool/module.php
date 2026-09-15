@@ -103,6 +103,7 @@ class module implements \phpbb\db\migration\tool\tool_interface
 
 		foreach ($parent_sqls as $parent_sql)
 		{
+			/** @psalm-suppress NoValue */
 			$sql = 'SELECT module_id
 				FROM ' . $this->modules_table . "
 				WHERE module_class = '" . $this->db->sql_escape($class) . "'
@@ -162,7 +163,7 @@ class module implements \phpbb\db\migration\tool\tool_interface
 	* 		Optionally you may not send 'modes' and it will insert all of the
 	* 			modules in that info file.
 	* 	path, specify that here
-	* @return null
+	* @return void
 	* @throws \phpbb\db\migration\exception
 	*/
 	public function add($class, $parent = 0, $data = array())
@@ -339,7 +340,7 @@ class module implements \phpbb\db\migration\tool\tool_interface
 	* 	Use false to ignore the parent check and check class wide.
 	* @param int|string $module The module id|module_langname
 	* 	specify that here
-	* @return null
+	* @return void
 	* @throws \phpbb\db\migration\exception
 	*/
 	public function remove($class, $parent = 0, $module = '')
@@ -350,7 +351,8 @@ class module implements \phpbb\db\migration\tool\tool_interface
 			if (isset($module['module_langname']))
 			{
 				// Manual Method
-				return $this->remove($class, $parent, $module['module_langname']);
+				$this->remove($class, $parent, $module['module_langname']);
+				return;
 			}
 
 			// Failed.
@@ -443,6 +445,8 @@ class module implements \phpbb\db\migration\tool\tool_interface
 		{
 			return call_user_func_array(array(&$this, $call), $arguments);
 		}
+
+		return null;
 	}
 
 	/**
@@ -470,7 +474,7 @@ class module implements \phpbb\db\migration\tool\tool_interface
 	*	key - module_id
 	*	value - module_langname
 	*
-	* @return null
+	* @return void
 	*/
 	protected function get_categories_list()
 	{

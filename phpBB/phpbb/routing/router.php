@@ -58,12 +58,12 @@ class router implements RouterInterface
 	protected $php_ext;
 
 	/**
-	 * @var \Symfony\Component\Routing\Matcher\UrlMatcherInterface|null
+	 * @var \Symfony\Component\Routing\Matcher\UrlMatcherInterface
 	 */
 	protected $matcher;
 
 	/**
-	 * @var \Symfony\Component\Routing\Generator\UrlGeneratorInterface|null
+	 * @var \Symfony\Component\Routing\Generator\UrlGeneratorInterface
 	 */
 	protected $generator;
 
@@ -146,7 +146,7 @@ class router implements RouterInterface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function getRouteCollection()
+	public function getRouteCollection(): RouteCollection
 	{
 		return $this->get_routes();
 	}
@@ -154,7 +154,7 @@ class router implements RouterInterface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function setContext(RequestContext $context)
+	public function setContext(RequestContext $context): void
 	{
 		$this->context = $context;
 
@@ -171,7 +171,7 @@ class router implements RouterInterface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function getContext()
+	public function getContext(): RequestContext
 	{
 		return $this->context;
 	}
@@ -179,7 +179,7 @@ class router implements RouterInterface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function generate($name, $parameters = array(), $referenceType = self::ABSOLUTE_PATH)
+	public function generate(string $name, array $parameters = [], int $referenceType = self::ABSOLUTE_PATH): string
 	{
 		return $this->get_generator()->generate($name, $parameters, $referenceType);
 	}
@@ -187,8 +187,19 @@ class router implements RouterInterface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function match($pathinfo)
+	public function match(string $pathinfo): array
 	{
+		// Remove query string
+		$pathinfo = parse_url($pathinfo, PHP_URL_PATH);
+
+		if ($pathinfo === null)
+		{
+			throw new RuntimeException('Malformed pathinfo given to the router.');
+		}
+
+		// Remove index.php if present
+		$pathinfo = preg_replace('/^\/index\.php\//', '/', $pathinfo);
+
 		return $this->get_matcher()->match($pathinfo);
 	}
 

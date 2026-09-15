@@ -19,6 +19,7 @@ class phpbb_functional_ucp_profile_test extends phpbb_functional_test_case
 	public function test_submitting_profile_info()
 	{
 		$this->add_lang('ucp');
+		$this->add_lang('memberlist');
 		$this->login();
 
 		$crawler = self::request('GET', 'ucp.php?i=ucp_profile&mode=profile_info');
@@ -29,7 +30,7 @@ class phpbb_functional_ucp_profile_test extends phpbb_functional_test_case
 			'pf_phpbb_location'	=> 'Bertie´s Empire',
 			'pf_phpbb_skype'	=> 'phpbb.skype.account',
 			'pf_phpbb_twitter'	=> 'phpbb_twitter',
-			'pf_phpbb_youtube' => 'phpbb.youtube',
+			'pf_phpbb_youtube' => 'user/phpbb.youtube',
 		));
 
 		$crawler = self::submit($form);
@@ -42,7 +43,11 @@ class phpbb_functional_ucp_profile_test extends phpbb_functional_test_case
 		$this->assertEquals('Bertie´s Empire', $form->get('pf_phpbb_location')->getValue());
 		$this->assertEquals('phpbb.skype.account', $form->get('pf_phpbb_skype')->getValue());
 		$this->assertEquals('phpbb_twitter', $form->get('pf_phpbb_twitter')->getValue());
-		$this->assertEquals('phpbb.youtube', $form->get('pf_phpbb_youtube')->getValue());
+		$this->assertEquals('user/phpbb.youtube', $form->get('pf_phpbb_youtube')->getValue());
+
+		$crawler = self::request('GET', 'memberlist.php?mode=viewprofile&un=admin');
+		$link = $crawler->selectLink($this->lang('VIEW_YOUTUBE_PROFILE'));
+		$this->assertSame('https://youtube.com/user/phpbb.youtube', $link->attr('href'));
 	}
 
 	public function test_submitting_emoji()
@@ -68,7 +73,6 @@ class phpbb_functional_ucp_profile_test extends phpbb_functional_test_case
 	{
 		$this->add_lang('ucp');
 		$this->login('admin', true);
-		$db = $this->get_db();
 
 		$crawler = self::request('GET', 'ucp.php?i=ucp_profile&mode=autologin_keys');
 		$this->assertContainsLang('UCP_PROFILE_AUTOLOGIN_KEYS', $crawler->filter('#cp-main h2')->text());
@@ -82,14 +86,17 @@ class phpbb_functional_ucp_profile_test extends phpbb_functional_test_case
 			'WHERE'		=> 'sk.user_id = ' . (int) $user_id,
 			'ORDER_BY'	=> 'sk.last_login ASC',
 		];
-		$result = $db->sql_query_limit($db->sql_build_query('SELECT', $sql_ary), 1);
-		$key_id = substr($db->sql_fetchfield('key_id'), 0, 8);
-		$db->sql_freeresult($result);
+		$result = $this->db->sql_query_limit($this->db->sql_build_query('SELECT', $sql_ary), 1);
+		$key_id = substr($this->db->sql_fetchfield('key_id'), 0, 8);
+		$this->db->sql_freeresult($result);
 
 		$this->assertStringContainsString($key_id, $crawler->filter('label[for="' . $key_id . '"]')->text());
 
 		$form = $crawler->selectButton('submit')->form();
-		$form['keys'][0]->tick();
+		foreach ($form['keys'] as $key)
+		{
+			$key->tick();
+		}
 		$crawler = self::submit($form);
 		$this->assertStringContainsString($this->lang('AUTOLOGIN_SESSION_KEYS_DELETED'), $crawler->filter('html')->text());
 

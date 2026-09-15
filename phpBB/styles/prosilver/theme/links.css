@@ -66,10 +66,10 @@ th a:hover {
 
 /* Links for forum/topic lists */
 a.forumtitle,
-a.topictitle {
+a.topictitle,
+span.topictitle {
 	font-family: "Trebuchet MS", Helvetica, Arial, sans-serif;
-	font-size: 13px;
-	font-weight: bold;
+	font-size: var(--ps-font-normal);
 	text-decoration: none;
 }
 
@@ -79,6 +79,10 @@ a.forumtitle:hover {
 
 a.topictitle {
 	display: inline;
+}
+
+a.unread {
+	font-weight: bold;
 }
 
 a.topictitle:hover {
@@ -98,10 +102,12 @@ a.lastsubject:hover {
 	text-decoration: none;
 }
 
+.row-item .forumtitle:hover,
 .row-item .topictitle:hover,
+.row-item .lastsubject:hover,
 .row-item .subforum:hover,
-.row-item .username:hover,
-.row-item .username-coloured:hover {
+.row-item a.username:hover,
+.row-item a.username-coloured:hover {
 	text-decoration: underline;
 }
 
@@ -134,6 +140,10 @@ a.lastsubject:hover {
 	text-decoration: underline;
 }
 
+.postprofile a.avatar:hover {
+	text-decoration: none;
+}
+
 /* Profile searchresults */
 .search .postprofile a {
 	font-weight: normal;
@@ -145,9 +155,24 @@ a.lastsubject:hover {
 }
 
 .top {
-	font-size: 12px;
+	font-size: var(--ps-font-small);
 	text-decoration: none;
-	margin-top: 10px;
+	margin-top: calc(var(--ps-font-small) - 2px);
+}
+
+.to-top-button {
+	border-radius: 50%;
+	position: fixed;
+	right: var(--ps-line-height);
+	bottom: var(--ps-line-height);
+	display: none;
+	block-size: calc(var(--ps-line-height) * 2);
+	inline-size: calc(var(--ps-line-height) * 2);
+}
+
+.to-top-button .o-icon {
+	font-size: calc(var(--ps-font-normal) * 2);
+	padding: calc(var(--ps-font-normal) / 2);
 }
 
 /* Back to top of page */

@@ -68,6 +68,8 @@ $lang = array_merge($lang, array(
 	'ATTACH_QUOTA_EXPLAIN'				=> 'Maximum drive space available for attachments for the whole board, with 0 being unlimited.',
 	'ATTACH_TO_POST'					=> 'Attach file to post',
 
+	'CAT_AUDIO_FILES'			=> 'Audio files',
+	'CAT_VIDEO_FILES'			=> 'Video files',
 	'CAT_IMAGES'				=> 'Images',
 	'CHECK_CONTENT'				=> 'Check attachment files',
 	'CHECK_CONTENT_EXPLAIN'		=> 'Some browsers can be tricked to assume an incorrect mimetype for uploaded files. This option ensures that such files likely to cause this are rejected.',
@@ -100,6 +102,8 @@ $lang = array_merge($lang, array(
 	'EXT_GROUP_DOWNLOADABLE_FILES'	=> 'Downloadable Files',
 	'EXT_GROUP_IMAGES'				=> 'Images',
 	'EXT_GROUP_PLAIN_TEXT'			=> 'Plain Text',
+	'EXT_GROUP_AUDIO_FILES'			=> 'Audio Files',
+	'EXT_GROUP_VIDEO_FILES'			=> 'Video Files',
 
 	'FILES_GONE'			=> 'Some of the attachments you selected for deletion do not exist. They may have been already deleted. Attachments that did exist were deleted.',
 	'FILES_STATS_WRONG'		=> 'Your file statistics are likely inaccurate and need to be resynchronised. Actual values: number of attachments = %1$d, total size of attachments = %2$s.<br />Click %3$shere%4$s to resynchronise them.',
@@ -107,8 +111,6 @@ $lang = array_merge($lang, array(
 	'GO_TO_EXTENSIONS'		=> 'Go to extension management screen',
 	'GROUP_NAME'			=> 'Group name',
 
-	'IMAGE_LINK_SIZE'			=> 'Image link dimensions',
-	'IMAGE_LINK_SIZE_EXPLAIN'	=> 'Display image attachment as an inline text link if image is larger than this. To disable this behaviour, set the values to 0px by 0px.',
 	'IMAGE_QUALITY'				=> 'Quality of uploaded image attachments (JPEG only)',
 	'IMAGE_QUALITY_EXPLAIN'		=> 'Specify value between 50% (smaller file size) and 90% (higher quality). Quality higher than 90% increases filesize and is disabled. Setting only applies if maximum image dimensions are set to a value other than 0px by 0px.',
 	'IMAGE_STRIP_METADATA'		=> 'Strip image metadata (JPEG only)',
@@ -118,7 +120,7 @@ $lang = array_merge($lang, array(
 	'MAX_ATTACHMENTS_PM'			=> 'Maximum number of attachments per private message',
 	'MAX_EXTGROUP_FILESIZE'			=> 'Maximum file size',
 	'MAX_IMAGE_SIZE'				=> 'Maximum image dimensions',
-	'MAX_IMAGE_SIZE_EXPLAIN'		=> 'Maximum size of image attachments. Set both values to 0px by 0px to disable dimension checking.',
+	'MAX_IMAGE_SIZE_EXPLAIN'		=> 'Maximum dimensions of image attachments. phpBB may try to automatically resize images before upload to these maximum image dimensions. Set both values to 0px by 0px to disable dimension checking and automatic resizing.',
 	'MAX_THUMB_WIDTH'				=> 'Maximum thumbnail width/height in pixel',
 	'MAX_THUMB_WIDTH_EXPLAIN'		=> 'A generated thumbnail will not exceed the width set here.',
 	'MIN_THUMB_FILESIZE'			=> 'Minimum thumbnail file size',
@@ -170,4 +172,5 @@ $lang = array_merge($lang, array(
 	'UPLOAD_DIR_EXPLAIN'			=> 'Storage path for attachments. Please note that if you change this directory while already having uploaded attachments you need to manually copy the files to their new location.',
 	'UPLOAD_ICON'					=> 'Upload icon',
 	'UPLOAD_NOT_DIR'				=> 'The upload location you specified does not appear to be a directory.',
+	'UPLOAD_POST_NOT_EXIST'			=> 'File “%1$s” can not be uploaded to post number %2$d as the post does not exist.',
 ));

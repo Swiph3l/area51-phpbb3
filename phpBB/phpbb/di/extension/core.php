@@ -13,12 +13,13 @@
 
 namespace phpbb\di\extension;
 
+use Symfony\Component\Config\Definition\ConfigurationInterface;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\Config\Resource\FileResource;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
-use Symfony\Component\HttpKernel\DependencyInjection\Extension;
+use Symfony\Component\DependencyInjection\Extension\Extension;
 use phpbb\filesystem\helper as filesystem_helper;
 
 /**
@@ -26,7 +27,11 @@ use phpbb\filesystem\helper as filesystem_helper;
 */
 class core extends Extension
 {
-	const TWIG_OPTIONS_POSITION = 7;
+	/**
+	 * Index of array in service template.twig.environment inside services_twig.yml
+	 * @var int
+	 */
+	const TWIG_OPTIONS_POSITION = 8;
 
 	/**
 	 * Config path
@@ -50,9 +55,9 @@ class core extends Extension
 	 * @param array            $configs   An array of configuration values
 	 * @param ContainerBuilder $container A ContainerBuilder instance
 	 *
-	 * @throws \InvalidArgumentException When provided tag is not defined in this extension
+	 * @throws \InvalidArgumentException|\Exception When provided tag is not defined in this extension
 	 */
-	public function load(array $configs, ContainerBuilder $container)
+	public function load(array $configs, ContainerBuilder $container): void
 	{
 		$loader = new YamlFileLoader($container, new FileLocator(filesystem_helper::realpath($this->config_path)));
 		$loader->load($container->getParameter('core.environment') . '/container/environment.yml');
@@ -62,7 +67,7 @@ class core extends Extension
 
 		if ($config['require_dev_dependencies'])
 		{
-			if (!class_exists('Goutte\Client', true))
+			if (!class_exists('Symfony\Component\BrowserKit\HttpBrowser'))
 			{
 				trigger_error(
 					'Composer development dependencies have not been set up for the ' . $container->getParameter('core.environment') . ' environment yet, run ' .
@@ -86,7 +91,7 @@ class core extends Extension
 			$twig_environment_options['auto_reload'] = true;
 		}
 
-		// Replace the 7th argument, the options passed to the environment
+		// Replace the 8th argument, the options passed to the environment
 		$definition->replaceArgument(static::TWIG_OPTIONS_POSITION, $twig_environment_options);
 
 		if ($config['twig']['enable_debug_extension'])
@@ -118,12 +123,18 @@ class core extends Extension
 		{
 			$container->setParameter('session.' . $name, $value);
 		}
+
+		// Set the finder options
+		foreach ($config['finder'] as $name => $value)
+		{
+			$container->setParameter('finder.' . $name, $value);
+		}
 	}
 
 	/**
 	 * {@inheritdoc}
 	 */
-	public function getConfiguration(array $config, ContainerBuilder $container)
+	public function getConfiguration(array $config, ContainerBuilder $container): ConfigurationInterface|container_configuration|null
 	{
 		$r = new \ReflectionClass('\phpbb\di\extension\container_configuration');
 		$container->addResource(new FileResource($r->getFileName()));
@@ -138,7 +149,7 @@ class core extends Extension
 	 *
 	 * @return string The alias
 	 */
-	public function getAlias()
+	public function getAlias(): string
 	{
 		return 'core';
 	}

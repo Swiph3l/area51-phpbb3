@@ -14,27 +14,20 @@ services:
         tags:
             - { name: service_collection, tag: captcha.plugins }
 
-    core.captcha.plugins.gd:
-        class: phpbb\captcha\plugins\gd
+    core.captcha.plugins.incomplete:
+        class: phpbb\captcha\plugins\incomplete
         shared: false
+        arguments:
+            - '@config'
+            - '@dbal.conn'
+            - '@language'
+            - '@request'
+            - '@template'
+            - '@user'
+            - '%core.root_path%'
+            - '%core.php_ext%'
         calls:
-            - [set_name, [core.captcha.plugins.gd]]
-        tags:
-            - { name: captcha.plugins }
-
-    core.captcha.plugins.gd_wave:
-        class: phpbb\captcha\plugins\gd_wave
-        shared: false
-        calls:
-            - [set_name, [core.captcha.plugins.gd_wave]]
-        tags:
-            - { name: captcha.plugins }
-
-    core.captcha.plugins.nogd:
-        class: phpbb\captcha\plugins\nogd
-        shared: false
-        calls:
-            - [set_name, [core.captcha.plugins.nogd]]
+            - [ set_name, [ core.captcha.plugins.incomplete ] ]
         tags:
             - { name: captcha.plugins }
 
@@ -63,5 +56,21 @@ services:
         shared: false
         calls:
             - ['set_name', ['core.captcha.plugins.recaptcha_v3']]
+        tags:
+            - { name: captcha.plugins }
+
+    core.captcha.plugins.turnstile:
+        class: phpbb\captcha\plugins\turnstile
+        shared: false
+        arguments:
+            - '@config'
+            - '@dbal.conn'
+            - '@language'
+            - '@log'
+            - '@request'
+            - '@template'
+            - '@user'
+        calls:
+            - ['set_name', ['core.captcha.plugins.turnstile']]
         tags:
             - { name: captcha.plugins }

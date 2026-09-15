@@ -32,10 +32,13 @@ class ucp_activate
 		global $config, $phpbb_root_path, $phpEx, $request;
 		global $db, $user, $auth, $phpbb_container, $phpbb_log, $phpbb_dispatcher;
 
+		/** @var \phpbb\controller\helper $controller_helper */
+		$controller_helper = $phpbb_container->get('controller.helper');
+
 		$user_id = $request->variable('u', 0);
 		$key = $request->variable('k', '');
 
-		$sql = 'SELECT user_id, username, user_type, user_email, user_newpasswd, user_lang, user_notify_type, user_actkey, user_inactive_reason
+		$sql = 'SELECT user_id, username, user_type, user_email, user_newpasswd, user_lang, user_actkey, user_inactive_reason
 			FROM ' . USERS_TABLE . "
 			WHERE user_id = $user_id";
 		$result = $db->sql_query($sql);
@@ -49,7 +52,7 @@ class ucp_activate
 
 		if ($user_row['user_type'] <> USER_INACTIVE && !$user_row['user_newpasswd'])
 		{
-			meta_refresh(3, append_sid("{$phpbb_root_path}index.$phpEx"));
+			meta_refresh(3, $controller_helper->route('phpbb_index_controller'));
 			trigger_error('ALREADY_ACTIVATED');
 		}
 
@@ -76,10 +79,12 @@ class ucp_activate
 		if ($update_password)
 		{
 			$sql_ary = array(
-				'user_actkey'		=> '',
-				'user_password'		=> $user_row['user_newpasswd'],
-				'user_newpasswd'	=> '',
-				'user_login_attempts'	=> 0,
+				'user_actkey'				=> '',
+				'user_password'				=> $user_row['user_newpasswd'],
+				'user_newpasswd'			=> '',
+				'user_login_attempts'		=> 0,
+				'reset_token'				=> '',
+				'reset_token_expiration'	=> 0,
 			);
 
 			$sql = 'UPDATE ' . USERS_TABLE . '
@@ -101,8 +106,14 @@ class ucp_activate
 
 			user_active_flip('activate', $user_row['user_id']);
 
-			$sql = 'UPDATE ' . USERS_TABLE . "
-				SET user_actkey = ''
+			$sql_ary = [
+				'user_actkey'				=> '',
+				'reset_token'				=> '',
+				'reset_token_expiration'	=> 0,
+			];
+
+			$sql = 'UPDATE ' . USERS_TABLE . '
+				SET ' . $db->sql_build_array('UPDATE', $sql_ary) . "
 				WHERE user_id = {$user_row['user_id']}";
 			$db->sql_query($sql);
 
@@ -123,21 +134,20 @@ class ucp_activate
 			$phpbb_notifications = $phpbb_container->get('notification_manager');
 			$phpbb_notifications->delete_notifications('notification.type.admin_activate_user', $user_row['user_id']);
 
-			include_once($phpbb_root_path . 'includes/functions_messenger.' . $phpEx);
+			/** @var \phpbb\di\service_collection $messenger_collection */
+			$messenger_collection = $phpbb_container->get('messenger.method_collection');
+			/** @var \phpbb\messenger\method\messenger_interface $messenger_method */
+			$messenger_method = $messenger_collection->offsetGet('messenger.method.email');
 
-			$messenger = new messenger(false);
+			$messenger_method->set_use_queue(false);
+			$messenger_method->template('admin_welcome_activated', $user_row['user_lang']);
+			$messenger_method->set_addresses($user_row);
+			$messenger_method->anti_abuse_headers($config, $user);
+			$messenger_method->assign_vars([
+				'USERNAME'	=> html_entity_decode($user_row['username'], ENT_COMPAT),
+			]);
 
-			$messenger->template('admin_welcome_activated', $user_row['user_lang']);
-
-			$messenger->set_addresses($user_row);
-
-			$messenger->anti_abuse_headers($config, $user);
-
-			$messenger->assign_vars(array(
-				'USERNAME'	=> htmlspecialchars_decode($user_row['username'], ENT_COMPAT))
-			);
-
-			$messenger->send($user_row['user_notify_type']);
+			$messenger_method->send();
 
 			$message = 'ACCOUNT_ACTIVE_ADMIN';
 		}
@@ -164,7 +174,7 @@ class ucp_activate
 		$vars = array('user_row', 'message');
 		extract($phpbb_dispatcher->trigger_event('core.ucp_activate_after', compact($vars)));
 
-		meta_refresh(3, append_sid("{$phpbb_root_path}index.$phpEx"));
+		meta_refresh(3, $controller_helper->route('phpbb_index_controller'));
 		trigger_error($user->lang[$message]);
 	}
 }

@@ -132,6 +132,7 @@ class add_config_settings extends database_task
 
 		$updates = [
 			'board_startdate' => (string) $current_time,
+			'board_timezone' => $this->install_config->get('admin_timezone'),
 			'default_lang' => $this->install_config->get('default_lang'),
 
 			'server_name' => $this->install_config->get('server_name'),
@@ -149,7 +150,6 @@ class add_config_settings extends database_task
 			'smtp_delivery'		=> $this->install_config->get('smtp_delivery'),
 			'smtp_host'			=> $this->install_config->get('smtp_host'),
 			'smtp_port'			=> $this->install_config->get('smtp_port'),
-			'smtp_auth_method'	=> $this->install_config->get('smtp_auth'),
 			'smtp_username'		=> $this->install_config->get('smtp_user'),
 			'smtp_password'		=> $this->install_config->get('smtp_pass'),
 
@@ -166,12 +166,6 @@ class add_config_settings extends database_task
 			'site_desc'	=> $this->install_config->get('board_description'),
 		];
 
-		if (@extension_loaded('gd'))
-		{
-			$updates['captcha_plugin'] = 'core.captcha.plugins.gd';
-			$updates['captcha_gd'] = '1';
-		}
-
 		$ref = substr($referer, strpos($referer, '://') + 3);
 		if (!(stripos($ref, $server_name) === 0))
 		{
@@ -179,7 +173,7 @@ class add_config_settings extends database_task
 		}
 
 		// We set a (semi-)unique cookie name to bypass login issues related to the cookie name.
-		$cookie_name = 'phpbb3_';
+		$cookie_name = 'phpbb_';
 		$rand_str = md5(mt_rand());
 		$rand_str = str_replace('0', 'z', base_convert($rand_str, 16, 35));
 		$rand_str = substr($rand_str, 0, 5);

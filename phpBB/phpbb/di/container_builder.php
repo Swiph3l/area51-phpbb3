@@ -13,11 +13,11 @@
 
 namespace phpbb\di;
 
-use Symfony\Bridge\ProxyManager\LazyProxy\PhpDumper\ProxyDumper;
 use Symfony\Component\Config\ConfigCache;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
+use Symfony\Component\DependencyInjection\LazyProxy\PhpDumper\LazyServiceDumper;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\EventDispatcher\DependencyInjection\RegisterListenersPass;
@@ -46,14 +46,9 @@ class container_builder
 	/**
 	 * The container under construction
 	 *
-	 * @var ContainerBuilder
+	 * @var \phpbb_cache_container|ContainerBuilder
 	 */
 	protected $container;
-
-	/**
-	 * @var \phpbb\db\driver\driver_interface
-	 */
-	protected $dbal_connection = null;
 
 	/**
 	 * Indicates whether extensions should be used (default to true).
@@ -122,6 +117,11 @@ class container_builder
 	private $env_parameters = [];
 
 	/**
+	 * @var \phpbb\db\driver\driver_interface
+	 */
+	protected $dbal_connection = null;
+
+	/**
 	 * Constructor
 	 *
 	 * @param string $phpbb_root_path Path to the phpbb includes directory.
@@ -143,6 +143,7 @@ class container_builder
 	 * Build and return a new Container respecting the current configuration
 	 *
 	 * @return \phpbb_cache_container|ContainerBuilder
+	 * @throws \Exception
 	 */
 	public function get_container()
 	{
@@ -204,11 +205,11 @@ class container_builder
 				// Mark all services public
 				$this->container->addCompilerPass(new pass\markpublic_pass());
 
-				// Event listeners "phpBB style"
-				$this->container->addCompilerPass(new RegisterListenersPass('dispatcher', 'event.listener_listener', 'event.listener'));
+				// Convert old event dispatcher syntax
+				$this->container->addCompilerPass(new pass\convert_events());
 
-				// Event listeners "Symfony style"
-				$this->container->addCompilerPass(new RegisterListenersPass('dispatcher'));
+				// Event listeners
+				$this->container->addCompilerPass(new RegisterListenersPass());
 
 				if ($this->use_extensions)
 				{
@@ -231,7 +232,7 @@ class container_builder
 				}
 			}
 
-			if ($this->compile_container && $this->config_php_file)
+			if ($this->config_php_file)
 			{
 				$this->container->set('config.php', $this->config_php_file);
 			}
@@ -422,7 +423,7 @@ class container_builder
 	 *
 	 * @return string Path to the cache directory.
 	 */
-	protected function get_cache_dir()
+	public function get_cache_dir()
 	{
 		return $this->cache_dir ?: $this->phpbb_root_path . 'cache/' . $this->get_environment() . '/';
 	}
@@ -449,6 +450,7 @@ class container_builder
 			$ext_container->register('cache.driver', '\\phpbb\\cache\\driver\\dummy');
 			$ext_container->compile();
 
+			/** @var \phpbb\config\config $config */
 			$config = $ext_container->get('config');
 			if (@is_file($this->phpbb_root_path . $config['exts_composer_vendor_dir'] . '/autoload.php'))
 			{
@@ -456,6 +458,7 @@ class container_builder
 			}
 
 			$extensions = $ext_container->get('ext.manager')->all_enabled();
+			$resources = [];
 
 			// Load each extension found
 			$autoloaders = '<?php
@@ -478,6 +481,11 @@ class container_builder
 
 				$this->container_extensions[] = new $extension_class($ext_name, $path);
 
+				if (is_dir($path))
+				{
+					$resources[] = new \Symfony\Component\Config\Resource\DirectoryResource($path);
+				}
+
 				// Load extension autoloader
 				$filename = $path . 'vendor/autoload.php';
 				if (file_exists($filename))
@@ -487,7 +495,7 @@ class container_builder
 			}
 
 			$configCache = new ConfigCache($this->get_autoload_filename(), false);
-			$configCache->write($autoloaders);
+			$configCache->write($autoloaders, $resources);
 
 			require($this->get_autoload_filename());
 		}
@@ -509,7 +517,7 @@ class container_builder
 		try
 		{
 			$dumper = new PhpDumper($this->container);
-			$proxy_dumper = new ProxyDumper();
+			$proxy_dumper = new LazyServiceDumper();
 			$dumper->setProxyDumper($proxy_dumper);
 
 			$cached_container_dump = $dumper->dump(array(
@@ -534,7 +542,6 @@ class container_builder
 	protected function create_container(array $extensions)
 	{
 		$container = new ContainerBuilder(new ParameterBag($this->get_core_parameters()));
-		$container->setProxyInstantiator(new proxy_instantiator($this->get_cache_dir()));
 
 		$extensions_alias = array();
 
@@ -571,7 +578,7 @@ class container_builder
 		}
 
 		$config_data = $this->config_php_file->get_all();
-		if (!empty($config_data))
+		if (!empty($config_data) && !empty($config_data['dbms']))
 		{
 			if ($this->dbal_connection === null)
 			{
@@ -585,10 +592,14 @@ class container_builder
 					$this->config_php_file->get('dbname'),
 					$this->config_php_file->get('dbport'),
 					false,
-					defined('PHPBB_DB_NEW_LINK') && PHPBB_DB_NEW_LINK
+					defined('PHPBB_DB_NEW_LINK') ? PHPBB_DB_NEW_LINK : false
 				);
 			}
 			$this->container->set('dbal.conn.driver', $this->dbal_connection);
+		}
+		else
+		{
+			return;
 		}
 	}
 

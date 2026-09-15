@@ -38,7 +38,6 @@ installer:
         enabled: false
         smtp_delivery : ~
         smtp_host: ~
-        smtp_auth: ~
         smtp_user: ~
         smtp_pass: ~
 
@@ -46,6 +45,6 @@ installer:
         cookie_secure: false
         server_protocol: http://
         force_server_vars: false
-        server_name: 192.168.10.10
+        server_name: 192.168.56.56
         server_port: 80
         script_path: /

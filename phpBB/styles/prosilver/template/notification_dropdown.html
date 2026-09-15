@@ -22,7 +22,7 @@
 					<!-- IF notifications.URL -->
 						<a class="notification-block" href="<!-- IF notifications.UNREAD -->{notifications.U_MARK_READ}" data-real-url="{notifications.URL}<!-- ELSE -->{notifications.URL}<!-- ENDIF -->">
 					<!-- ENDIF -->
-						<!-- IF notifications.AVATAR -->{notifications.AVATAR_HTML}<!-- ELSE --><img class="avatar notification-avatar" src="{{ NO_AVATAR_SOURCE }}" alt="" /><!-- ENDIF -->
+						{% include 'avatar.html' with {'avatar_data': notifications.AVATAR} only %}
 						<div class="notification-text">
 							<p class="notification-title">{notifications.FORMATTED_TITLE}</p>
 							<!-- IF notifications.REFERENCE --><p class="notification-reference">{notifications.REFERENCE}</p><!-- ENDIF -->
@@ -33,15 +33,24 @@
 					<!-- IF notifications.URL --></a><!-- ENDIF -->
 					<!-- IF notifications.UNREAD -->
 						<a href="{notifications.U_MARK_READ}" class="mark_read icon-mark" data-ajax="notification.mark_read" title="{L_MARK_READ}">
-							 {{ Icon('iconify', 'fa:check-circle', lang('MARK_READ'), true, 'c-notification-check-icon') }}
+							 {{ Icon('font', 'circle-check', lang('MARK_READ'), true, 'fas c-notification-check-icon') }}
 						</a>
 					<!-- ENDIF -->
 				</li>
 			<!-- END notifications -->
 		</ul>
 
+		{% EVENT notification_dropdown_footer_before %}
 		<div class="footer">
 			<a href="{U_VIEW_ALL_NOTIFICATIONS}"><span>{L_SEE_ALL}</span></a>
 		</div>
+		{% if NOTIFICATIONS_WEBPUSH_ENABLE and notification_types is not defined %}
+			<div class="footer webpush-subscribe">
+				<span class="ellipsis-text">{{ lang('NOTIFY_WEB_PUSH_ENABLE') ~ lang('COLON') }}</span>
+				<button id="subscribe_webpush" name="subscribe_webpush" class="notification-subscribe-toggle" data-l-err="{{ lang('INFORMATION')|e('html_attr') }}" data-l-msg="{{ lang('NOTIFY_WEB_PUSH_DENIED')|e('html_attr') }}" data-disabled-msg="{{ lang('NOTIFY_WEB_PUSH_DISABLED')|e('html_attr') }}">{{ Icon('svg', 'toggle-off', lang('NOTIFY_WEB_PUSH_SUBSCRIBE'), true, 'push-subscribe-toggle-icon toggle-off') }}</button>
+				<button id="unsubscribe_webpush" name="unsubscribe_webpush" class="notification-subscribe-toggle hidden">{{ Icon('svg', 'toggle-on', lang('NOTIFY_WEB_PUSH_SUBSCRIBED'), true, 'push-subscribe-toggle-icon toggle-on') }}</button>
+			</div>
+		{% endif %}
+		{% EVENT notification_dropdown_footer_after %}
 	</div>
 </div>

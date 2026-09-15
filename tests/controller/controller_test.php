@@ -21,6 +21,9 @@ use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 
 class phpbb_controller_controller_test extends phpbb_test_case
 {
+	/** @var phpbb_mock_extension_manager */
+	protected $extension_manager;
+
 	protected function setUp(): void
 	{
 		$this->extension_manager = new phpbb_mock_extension_manager(
@@ -99,7 +102,7 @@ class phpbb_controller_controller_test extends phpbb_test_case
 		$this->assertEquals(array(), $resolver->getArguments($symfony_request, $resolver->getController($symfony_request)));
 	}
 
-	public function data_get_arguments()
+	public static function data_get_arguments()
 	{
 		return array(
 			array(array(new foo\controller(), 'handle2'), array('foo', 0)),

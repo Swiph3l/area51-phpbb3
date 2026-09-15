@@ -17,8 +17,8 @@ use phpbb\config\config;
 use phpbb\db\driver\driver_interface;
 use phpbb\event\dispatcher_interface;
 use phpbb\language\language;
+use phpbb\search\exception\search_exception;
 use phpbb\user;
-use RuntimeException;
 
 /**
 * Fulltext search for MySQL
@@ -72,19 +72,20 @@ class fulltext_mysql extends base implements search_backend_interface
 	 * Constructor
 	 * Creates a new \phpbb\search\backend\fulltext_mysql, which is used as a search backend
 	 *
-	 * @param config $config Config object
-	 * @param driver_interface $db Database object
-	 * @param dispatcher_interface $phpbb_dispatcher Event dispatcher object
-	 * @param language $language
-	 * @param user $user User object
-	 * @param string $phpbb_root_path Relative path to phpBB root
-	 * @param string $phpEx PHP file extension
+	 * @param config				$config				Config object
+	 * @param driver_interface		$db					Database object
+	 * @param dispatcher_interface	$phpbb_dispatcher	Event dispatcher object
+	 * @param language				$language
+	 * @param user					$user				User object
+	 * @param string				$search_results_table
+	 * @param string				$phpbb_root_path	Relative path to phpBB root
+	 * @param string				$phpEx				PHP file extension
 	 */
-	public function __construct(config $config, driver_interface $db, dispatcher_interface $phpbb_dispatcher, language $language, user $user, string $phpbb_root_path, string $phpEx)
+	public function __construct(config $config, driver_interface $db, dispatcher_interface $phpbb_dispatcher, language $language, user $user, string $search_results_table, string $phpbb_root_path, string $phpEx)
 	{
 		global $cache;
 
-		parent::__construct($cache, $config, $db, $user);
+		parent::__construct($cache, $config, $db, $user, $search_results_table);
 		$this->phpbb_dispatcher = $phpbb_dispatcher;
 		$this->language = $language;
 
@@ -215,7 +216,7 @@ class fulltext_mysql extends base implements search_backend_interface
 		}
 
 		// Filter out as above
-		$split_keywords = preg_replace("#[\n\r\t]+#", ' ', trim(htmlspecialchars_decode($keywords, ENT_COMPAT)));
+		$split_keywords = preg_replace("#[\n\r\t]+#", ' ', trim(html_entity_decode($keywords, ENT_COMPAT)));
 
 		// Split words
 		$split_keywords = preg_replace('#([^\p{L}\p{N}\'*"()])#u', '$1$1', str_replace('\'\'', '\' \'', trim($split_keywords)));
@@ -508,8 +509,8 @@ class fulltext_mysql extends base implements search_backend_interface
 		);
 		extract($this->phpbb_dispatcher->trigger_event('core.search_mysql_keywords_main_query_before', compact($vars)));
 
-		$sql_select			= (!$result_count) ? 'SQL_CALC_FOUND_ROWS ' : '';
-		$sql_select			= ($type == 'posts') ? $sql_select . 'p.post_id' : 'DISTINCT ' . $sql_select . 't.topic_id';
+		$sql_select			= ($type == 'posts') ? 'DISTINCT p.post_id' : 'DISTINCT t.topic_id';
+		$sql_select			.= $sort_by_sql[$sort_key] ? ", {$sort_by_sql[$sort_key]}" : '';
 		$sql_from			= ($join_topic) ? TOPICS_TABLE . ' t, ' : '';
 		$field				= ($type == 'posts') ? 'post_id' : 'topic_id';
 		if (count($author_ary) && $author_name)
@@ -537,7 +538,7 @@ class fulltext_mysql extends base implements search_backend_interface
 
 		$sql = "SELECT $sql_select
 			FROM $sql_from$sql_sort_table" . POSTS_TABLE . " p
-			WHERE MATCH ($sql_match) AGAINST ('" . $this->db->sql_escape(htmlspecialchars_decode($this->search_query, ENT_COMPAT)) . "' IN BOOLEAN MODE)
+			WHERE MATCH ($sql_match) AGAINST ('" . $this->db->sql_escape(html_entity_decode($this->search_query, ENT_COMPAT)) . "' IN BOOLEAN MODE)
 				$sql_where_options
 			ORDER BY $sql_sort";
 		$this->db->sql_return_on_error(true);
@@ -549,12 +550,10 @@ class fulltext_mysql extends base implements search_backend_interface
 		}
 		$this->db->sql_freeresult($result);
 
-		$id_ary = array_unique($id_ary);
-
 		// if the total result count is not cached yet, retrieve it from the db
 		if (!$result_count && count($id_ary))
 		{
-			$sql_found_rows = 'SELECT FOUND_ROWS() as result_count';
+			$sql_found_rows = str_replace("SELECT $sql_select", "SELECT COUNT($sql_select) as result_count", $sql);
 			$result = $this->db->sql_query($sql_found_rows);
 			$result_count = (int) $this->db->sql_fetchfield('result_count');
 			$this->db->sql_freeresult($result);
@@ -576,9 +575,9 @@ class fulltext_mysql extends base implements search_backend_interface
 				$id_ary[] = (int) $row[$field];
 			}
 			$this->db->sql_freeresult($result);
-
-			$id_ary = array_unique($id_ary);
 		}
+
+		$id_ary = array_unique($id_ary);
 
 		// store the ids, from start on then delete anything that isn't on the current page because we only need ids for one page
 		$this->save_ids($search_key, implode(' ', $this->split_words), $author_ary, $result_count, $id_ary, $start, $sort_dir);
@@ -752,12 +751,15 @@ class fulltext_mysql extends base implements search_backend_interface
 		extract($this->phpbb_dispatcher->trigger_event('core.search_mysql_author_query_before', compact($vars)));
 
 		// If the cache was completely empty count the results
-		$calc_results = ($result_count) ? '' : 'SQL_CALC_FOUND_ROWS ';
+		$sql_select	= ($type == 'posts') ? 'p.post_id' : 't.topic_id';
+		$sql_select	.= $sort_by_sql[$sort_key] ? ", {$sort_by_sql[$sort_key]}" : '';
 
 		// Build the query for really selecting the post_ids
 		if ($type == 'posts')
 		{
-			$sql = "SELECT {$calc_results}p.post_id
+			// For sorting by non-unique columns, add unique sort key to avoid duplicated rows in results
+			$sql_sort .= ', p.post_id' . (($sort_dir == 'a') ? ' ASC' : ' DESC');
+			$sql = "SELECT $sql_select
 				FROM " . $sql_sort_table . POSTS_TABLE . ' p' . (($firstpost_only) ? ', ' . TOPICS_TABLE . ' t ' : ' ') . "
 				WHERE $sql_author
 					$sql_topic_id
@@ -771,7 +773,7 @@ class fulltext_mysql extends base implements search_backend_interface
 		}
 		else
 		{
-			$sql = "SELECT {$calc_results}t.topic_id
+			$sql = "SELECT $sql_select
 				FROM " . $sql_sort_table . TOPICS_TABLE . ' t, ' . POSTS_TABLE . " p
 				WHERE $sql_author
 					$sql_topic_id
@@ -781,7 +783,7 @@ class fulltext_mysql extends base implements search_backend_interface
 					AND t.topic_id = p.topic_id
 					$sql_sort_join
 					$sql_time
-				GROUP BY t.topic_id
+				GROUP BY $sql_select
 				ORDER BY $sql_sort";
 			$field = 'topic_id';
 		}
@@ -798,9 +800,10 @@ class fulltext_mysql extends base implements search_backend_interface
 		// retrieve the total result count if needed
 		if (!$result_count)
 		{
-			$sql_found_rows = 'SELECT FOUND_ROWS() as result_count';
+			$sql_found_rows = str_replace("SELECT $sql_select", "SELECT COUNT(*) as result_count", $sql);
 			$result = $this->db->sql_query($sql_found_rows);
-			$result_count = (int) $this->db->sql_fetchfield('result_count');
+			$result_count = ($type == 'posts') ? (int) $this->db->sql_fetchfield('result_count') : count($this->db->sql_fetchrowset($result));
+
 			$this->db->sql_freeresult($result);
 
 			if (!$result_count)
@@ -819,9 +822,9 @@ class fulltext_mysql extends base implements search_backend_interface
 				$id_ary[] = (int) $row[$field];
 			}
 			$this->db->sql_freeresult($result);
-
-			$id_ary = array_unique($id_ary);
 		}
+
+		$id_ary = array_unique($id_ary);
 
 		if (count($id_ary))
 		{
@@ -910,12 +913,12 @@ class fulltext_mysql extends base implements search_backend_interface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function create_index(int &$post_counter = 0): ?array
+	public function create_index(int &$post_counter = 0): array|null
 	{
 		// Make sure we can actually use MySQL with fulltext indexes
 		if ($error = $this->init())
 		{
-			throw new RuntimeException($error);
+			throw new search_exception($error);
 		}
 
 		if (empty($this->stats))
@@ -974,7 +977,7 @@ class fulltext_mysql extends base implements search_backend_interface
 			$this->db->sql_query($sql_query);
 		}
 
-		$this->db->sql_query('TRUNCATE TABLE ' . SEARCH_RESULTS_TABLE);
+		$this->db->sql_query('TRUNCATE TABLE ' . $this->search_results_table);
 
 		return null;
 	}
@@ -982,12 +985,12 @@ class fulltext_mysql extends base implements search_backend_interface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function delete_index(int &$post_counter = null): ?array
+	public function delete_index(int|null &$post_counter = null): array|null
 	{
 		// Make sure we can actually use MySQL with fulltext indexes
 		if ($error = $this->init())
 		{
-			throw new RuntimeException($error);
+			throw new search_exception($error);
 		}
 
 		if (empty($this->stats))
@@ -1040,7 +1043,7 @@ class fulltext_mysql extends base implements search_backend_interface
 			$this->db->sql_query($sql_query);
 		}
 
-		$this->db->sql_query('TRUNCATE TABLE ' . SEARCH_RESULTS_TABLE);
+		$this->db->sql_query('TRUNCATE TABLE ' . $this->search_results_table);
 
 		return null;
 	}

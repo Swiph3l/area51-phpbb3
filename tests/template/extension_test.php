@@ -15,7 +15,7 @@ require_once __DIR__ . '/template_test_case.php';
 
 class phpbb_template_extension_test extends phpbb_template_template_test_case
 {
-	protected function setup_engine(array $new_config = [])
+	protected function setup_engine(array $new_config = [], string $template_path = '')
 	{
 		global $config, $phpbb_container, $phpbb_dispatcher, $phpbb_root_path, $phpEx;
 
@@ -32,13 +32,13 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 		$this->user->style['style_parent_id'] = 0;
 
 		global $auth, $request, $symfony_request, $user;
-		$user = new phpbb_mock_user();
+		$user = $this->createMock(\phpbb\user::class);
 		$user->optionset('user_id', 2);
 		$user->style['style_path'] = '';
 		$user->data['user_id'] = 2;
 		$auth = $this->getMockBuilder('phpbb\auth\auth')
 			->disableOriginalConstructor()
-			->setMethods(['acl_get'])
+			->onlyMethods(['acl_get'])
 			->getMock();
 		$auth->method('acl_get')
 			->willReturn(true);
@@ -66,10 +66,16 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 			->disableOriginalConstructor()
 			->getMock();
 
+		$routing_helper = $this->createMock(\phpbb\routing\helper::class);
+		$routing_helper->method('route')
+			->willReturnCallback(function($route, $params) {
+				return 'download/avatar/' . $params['file'];
+			});
+
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 		$phpbb_container = new phpbb_mock_container_builder();
 		$files = new phpbb\files\factory($phpbb_container);
-		$upload_avatar_driver = new phpbb\avatar\driver\upload($config, $phpbb_root_path, $phpEx, $storage, $phpbb_path_helper, $phpbb_dispatcher, $files, new \bantu\IniGetWrapper\IniGetWrapper());
+		$upload_avatar_driver = new phpbb\avatar\driver\upload($config, $phpbb_root_path, $phpEx, $storage, $phpbb_path_helper, $routing_helper, $phpbb_dispatcher, $files, new \bantu\IniGetWrapper\IniGetWrapper());
 		$upload_avatar_driver->set_name('avatar.driver.upload');
 		$phpbb_container->set('avatar.manager', new \phpbb\avatar\manager($config, $phpbb_dispatcher, [
 			$upload_avatar_driver,
@@ -78,15 +84,25 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 
 		$class = new ReflectionClass('\phpbb\avatar\manager');
 		$enabled_drivers = $class->getProperty('enabled_drivers');
-		$enabled_drivers->setAccessible(true);
-		$enabled_drivers->setValue(false);
+		$enabled_drivers->setValue($class, false);
+		$avatar_helper = new phpbb\avatar\helper(
+			$config,
+			$phpbb_dispatcher,
+			$lang,
+			$phpbb_container->get('avatar.manager'),
+			$phpbb_path_helper,
+			$user
+		);
 
 		$this->template_path = $this->test_path . '/templates';
 
 		$cache_path = $phpbb_root_path . 'cache/twig';
 		$context = new \phpbb\template\context();
 		$loader = new \phpbb\template\twig\loader([]);
+		$log = new \phpbb\log\dummy();
+		$assets_bag = new \phpbb\template\assets_bag();
 		$twig = new \phpbb\template\twig\environment(
+			$assets_bag,
 			$config,
 			$filesystem,
 			$phpbb_path_helper,
@@ -110,7 +126,7 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 			$this->user,
 			[
 				new \phpbb\template\twig\extension($context, $twig, $this->lang),
-				new \phpbb\template\twig\extension\avatar(),
+				new \phpbb\template\twig\extension\avatar($avatar_helper),
 				new \phpbb\template\twig\extension\config($config),
 				new \phpbb\template\twig\extension\icon($this->user),
 				new \phpbb\template\twig\extension\username(),
@@ -125,51 +141,80 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 		]);
 	}
 
-	public function data_template_extensions()
+	public static function data_template_extensions()
 	{
 		return [
 			[
 				'avatar_user.html',
 				[
 					'row' => [
-						'user_avatar' => 'great_avatar.png',
-						'user_avatar_type' => 'avatar.driver.upload',
-						'user_avatar_width' => 90,
-						'user_avatar_height' => 90,
+						'src' => 'great_avatar.png',
+						'width' => 90,
+						'height' => 90,
+						'lazy' => false,
+						'title' => 'foo'
 					],
-					'alt' => 'foo'
 				],
 				[],
 				[],
-				'<img class="avatar" src="phpBB/download/file.php?avatar=great_avatar.png" width="90" height="90" alt="foo" />',
+				'<img class="avatar" src="great_avatar.png" width="90" height="90" alt="foo">',
 				[]
 			],
 			[
 				'avatar_user.html',
 				[
 					'row' => [
-						'user_avatar' => 'great_avatar.png',
-						'user_avatar_type' => 'avatar.driver.upload',
-						'user_avatar_width' => 90,
-						'user_avatar_height' => 90,
+						'src' => 'great_avatar.png',
+						'width' => 90,
+						'height' => 90,
+						'title' => 'foo',
+						'lazy' => true,
 					],
-					'alt' => 'foo',
-					'ignore_config' => true,
-					'lazy' => true,
 				],
 				[],
 				[],
-				'<img class="avatar" src="phpBB/styles//theme/images/no_avatar.gif" data-src="phpBB/download/file.php?avatar=great_avatar.png" width="90" height="90" alt="foo" />',
+				'<img class="avatar" src="phpBB/styles//theme/images/no_avatar.gif" data-src="great_avatar.png" width="90" height="90" alt="foo">',
 				[]
 			],
 			[
-				'avatar_user.html',
+				'avatar_group.html',
 				[
 					'row' => [
-						'user_avatar' => 'foo@bar.com',
-						'user_avatar_type' => 'avatar.driver.gravatar',
-						'user_avatar_width' => 90,
-						'user_avatar_height' => 90,
+						'src' => 'great_avatar.png',
+						'width' => 90,
+						'height' => 90,
+						'title' => 'foo',
+					],
+				],
+				[],
+				[],
+				'<img class="avatar" src="great_avatar.png" width="90" height="90" alt="foo">',
+				[]
+			],
+			[
+				'avatar_group.html',
+				[
+					'row' => [
+						'src' => 'great_avatar.png',
+						'width' => 90,
+						'height' => 90,
+						'title' => 'foo',
+						'lazy' => true,
+					],
+				],
+				[],
+				[],
+				'<img class="avatar" src="phpBB/styles//theme/images/no_avatar.gif" data-src="great_avatar.png" width="90" height="90" alt="foo">',
+				[]
+			],
+			[
+				'avatar_group.html',
+				[
+					'row' => [
+						'avatar' => 'foo@bar.com',
+						'avatar_type' => 'avatar.driver.gravatar',
+						'avatar_width' => 90,
+						'avatar_height' => 90,
 					],
 					'alt' => 'foo'
 				],
@@ -255,16 +300,6 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 				'',
 				[]
 			],
-			[
-				'extension_config_test.html',
-				[
-					'config_name' => 'tpl_allow_php',
-				],
-				[],
-				[],
-				'',
-				[]
-			],
 		];
 	}
 
@@ -276,7 +311,7 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 		$this->run_template($file, $vars, $block_vars, $destroy_array, $expected, $lang_vars);
 	}
 
-	public function data_template_icon_extension()
+	public static function data_template_icon_extension()
 	{
 		return [
 			/** Font: default */
@@ -292,7 +327,7 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 				[
 					'ICON_PHONE'	=> 'Phone icon',
 				],
-				'<i class="o-icon o-icon-font fa-phone"></i><span>Phone icon</span>',
+				'<i class="o-icon o-icon-font fa-fw fa-phone fas"></i><span>Phone icon</span>',
 
 			],
 			/** Font: all options */
@@ -311,7 +346,7 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 				[
 					'ICON_PENCIL'	=> 'Pencil icon',
 				],
-				'<i class="o-icon o-icon-font fa-pencil a-class another-class" title="Pencil icon" aria-hidden="true" data-attr-1="true" data-attr-2="two"></i>
+				'<i class="o-icon o-icon-font fa-fw fa-pencil fas a-class another-class" title="Pencil icon" aria-hidden="true" data-attr-1="true" data-attr-2="two"></i>
 				<span class="sr-only">Pencil icon</span>'
 			],
 			/** Font: icons array */
@@ -320,7 +355,7 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 					'type'			=> 'font',
 					'icon'			=> [
 						'bullhorn'		=> false,
-						'star'			=> false,
+						'thumbtack'			=> false,
 						'lock'			=> true,
 						'fire'			=> false,
 						'file'			=> true,
@@ -333,7 +368,7 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 				[
 					'ICON_TOPIC'	=> 'Topic icon',
 				],
-				'<i class="o-icon o-icon-font fa-lock"></i>
+				'<i class="o-icon o-icon-font fa-fw fa-lock fas"></i>
 				<span>Topic icon</span>',
 			],
 			/** Font: icons array with no key for the default */
@@ -342,7 +377,7 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 					'type'			=> 'font',
 					'icon'			=> [
 						'bullhorn'		=> false,
-						'star'			=> false,
+						'thumbtack'			=> false,
 						'lock'			=> false,
 						'fire'			=> false,
 						'file',
@@ -355,39 +390,8 @@ class phpbb_template_extension_test extends phpbb_template_template_test_case
 				[
 					'ICON_TOPIC'	=> 'Topic icon',
 				],
-				'<i class="o-icon o-icon-font fa-file"></i>
+				'<i class="o-icon o-icon-font fa-fw fa-file fas"></i>
 				<span>Topic icon</span>',
-			],
-			/** Iconify: default */
-			[
-				[
-					'type'			=> 'iconify',
-					'icon'			=> 'fa:phone',
-					'title'			=> '',
-					'hidden'		=> false,
-					'classes'		=> '',
-					'attributes'	=> [],
-				],
-				[],
-				'<i class="iconify o-icon-src-fa o-icon" data-icon="fa:phone" data-inline="true"></i>',
-			],
-			/** Iconify: all options */
-			[
-				[
-					'type'			=> 'iconify',
-					'icon'			=> 'mdi:pencil',
-					'title'			=> 'ICON_PENCIL',
-					'hidden'		=> true,
-					'classes'		=> 'icon-lg',
-					'attributes'	=> [
-						'style'			=> 'color: #12a3eb;',
-					],
-				],
-				[
-					'ICON_PENCIL'	=> 'Pencil icon',
-				],
-				'<i class="iconify o-icon-src-mdi o-icon icon-lg" title="Pencil icon" aria-hidden="true" data-icon="mdi:pencil" data-inline="true" style="color: #12a3eb;"></i>
-				<span class="sr-only">Pencil icon</span>',
 			],
 			/** PNG: default */
 			[

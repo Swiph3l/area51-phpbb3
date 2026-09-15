@@ -1,5 +1,5 @@
 ---
-ip: "192.168.10.10"
+ip: "192.168.56.56"
 memory: 2048
 cpus: 1
 hostname: phpbb
@@ -12,14 +12,13 @@ keys:
     - ~/.ssh/id_rsa
 
 folders:
-    - map: "."
+    - map: ".."
       to: "/home/vagrant/phpbb"
-      php: "7.3"
-
 sites:
     - map: phpbb.app
       to: "/home/vagrant/phpbb/phpBB"
       type: apache
+      php: "8.2"
 
 # blackfire:
 #     - id: foo

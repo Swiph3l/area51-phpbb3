@@ -39,14 +39,15 @@ class admin_form extends form
 	* @param \phpbb\config\config $config
 	* @param \phpbb\config\db_text $config_text
 	* @param \phpbb\db\driver\driver_interface $db
+	* @param \phpbb\controller\helper $controller_helper
 	* @param \phpbb\user $user
 	* @param \phpbb\event\dispatcher_interface $dispatcher
 	* @param string $phpbb_root_path
 	* @param string $phpEx
 	*/
-	public function __construct(\phpbb\auth\auth $auth, \phpbb\config\config $config, \phpbb\config\db_text $config_text, \phpbb\db\driver\driver_interface $db, \phpbb\user $user, \phpbb\event\dispatcher_interface $dispatcher, $phpbb_root_path, $phpEx)
+	public function __construct(\phpbb\auth\auth $auth, \phpbb\config\config $config, \phpbb\config\db_text $config_text, \phpbb\db\driver\driver_interface $db, \phpbb\controller\helper $controller_helper, \phpbb\user $user, \phpbb\event\dispatcher_interface $dispatcher, $phpbb_root_path, $phpEx)
 	{
-		parent::__construct($auth, $config, $db, $user, $phpbb_root_path, $phpEx);
+		parent::__construct($auth, $config, $db, $controller_helper, $user, $phpbb_root_path, $phpEx);
 		$this->config_text = $config_text;
 		$this->dispatcher = $dispatcher;
 	}
@@ -85,7 +86,7 @@ class admin_form extends form
 	/**
 	* {inheritDoc}
 	*/
-	public function submit(\messenger $messenger)
+	public function submit(\phpbb\di\service_collection $messenger)
 	{
 		if (!$this->subject)
 		{
@@ -155,7 +156,6 @@ class admin_form extends form
 			}
 
 			$this->message->set_sender($this->user->ip, $this->sender_name, $this->sender_address, $this->user->lang_name);
-			$this->message->set_sender_notify_type(NOTIFY_EMAIL);
 		}
 
 		$this->message->set_template('contact_admin');
@@ -164,8 +164,7 @@ class admin_form extends form
 		$this->message->add_recipient(
 			$this->user->lang['ADMINISTRATOR'],
 			$this->config['board_contact'],
-			$this->config['default_lang'],
-			NOTIFY_EMAIL
+			$this->config['default_lang']
 		);
 
 		$this->message->set_template_vars(array(

@@ -47,12 +47,12 @@ class session
 
 		// First of all, get the request uri...
 		$script_name = $request->escape($symfony_request->getScriptName(), true);
-		$args = $request->escape(explode('&', $symfony_request->getQueryString()), true);
+		$args = $request->escape(explode('&', $symfony_request->getQueryString() ?? ''), true);
 
 		// If we are unable to get the script name we use REQUEST_URI as a failover and note it within the page array for easier support...
 		if (!$script_name)
 		{
-			$script_name = htmlspecialchars_decode($request->server('REQUEST_URI'), ENT_COMPAT);
+			$script_name = html_entity_decode($request->server('REQUEST_URI'), ENT_COMPAT);
 			$script_name = (($pos = strpos($script_name, '?')) !== false) ? substr($script_name, 0, $pos) : $script_name;
 			$page_array['failover'] = 1;
 		}
@@ -61,12 +61,12 @@ class session
 		$script_name = str_replace(array('\\', '//'), '/', $script_name);
 
 		// Now, remove the sid and let us get a clean query string...
-		$use_args = array();
+		$use_args = [];
 
 		// Since some browser do not encode correctly we need to do this with some "special" characters...
 		// " -> %22, ' => %27, < -> %3C, > -> %3E
-		$find = array('"', "'", '<', '>', '&quot;', '&lt;', '&gt;');
-		$replace = array('%22', '%27', '%3C', '%3E', '%22', '%3C', '%3E');
+		$find = ['"', "'", '<', '>', '&quot;', '&lt;', '&gt;'];
+		$replace = ['%22', '%27', '%3C', '%3E', '%22', '%3C', '%3E'];
 
 		foreach ($args as $argument)
 		{
@@ -75,7 +75,7 @@ class session
 				continue;
 			}
 
-			$use_args[] = str_replace($find, $replace, $argument);
+			$use_args[] = (string) str_replace($find, $replace, $argument);
 		}
 		unset($args);
 
@@ -125,10 +125,10 @@ class session
 			$page .= '?' . $query_string;
 		}
 
-		// The script path from the webroot to the current directory (for example: /phpBB3/adm/) : always prefixed with / and ends in /
+		// The script path from the webroot to the current directory (for example: /phpBB/adm/) : always prefixed with / and ends in /
 		$script_path = $symfony_request->getBasePath();
 
-		// The script path from the webroot to the phpBB root (for example: /phpBB3/)
+		// The script path from the webroot to the phpBB root (for example: /phpBB/)
 		$script_dirs = explode('/', $script_path);
 		array_splice($script_dirs, -count($page_dirs));
 		$root_script_path = implode('/', $script_dirs) . (count($root_dirs) ? '/' . implode('/', $root_dirs) : '');
@@ -169,50 +169,46 @@ class session
 		global $config, $request;
 
 		// Get hostname
-		$host = htmlspecialchars_decode($request->header('Host', $request->server('SERVER_NAME')), ENT_COMPAT);
+		$host = html_entity_decode($request->header('Host', $request->server('SERVER_NAME')), ENT_COMPAT);
 
 		// Should be a string and lowered
 		$host = (string) strtolower($host);
 
-		// If host is equal the cookie domain or the server name (if config is set), then we assume it is valid
-		if ((isset($config['cookie_domain']) && $host === $config['cookie_domain']) || (isset($config['server_name']) && $host === $config['server_name']))
+		if (!empty($config['server_name']))
 		{
-			return $host;
+			return $config['server_name'];
 		}
 
-		// Is the host actually a IP? If so, we use the IP... (IPv4)
-		if (long2ip(ip2long($host)) === $host)
+		if (!empty($config['cookie_domain']))
 		{
-			return $host;
+			return (strpos($config['cookie_domain'], '.') === 0) ? substr($config['cookie_domain'], 1) : $config['cookie_domain'];
 		}
 
-		// Now return the hostname (this also removes any port definition). The http:// is prepended to construct a valid URL, hosts never have a scheme assigned
-		$host = @parse_url('http://' . $host);
+		// Try using provided host if neither cookie_domain nor server_name are set in config
+		$host = @parse_url('https://' . $host);
 		$host = (!empty($host['host'])) ? $host['host'] : '';
-
-		// Remove any portions not removed by parse_url (#)
-		$host = str_replace('#', '', $host);
-
-		// If, by any means, the host is now empty, we will use a "best approach" way to guess one
-		if (empty($host))
+		if (!empty($host))
 		{
-			if (!empty($config['server_name']))
-			{
-				$host = $config['server_name'];
-			}
-			else if (!empty($config['cookie_domain']))
-			{
-				$host = (strpos($config['cookie_domain'], '.') === 0) ? substr($config['cookie_domain'], 1) : $config['cookie_domain'];
-			}
-			else
-			{
-				// Set to OS hostname or localhost
-				$host = (function_exists('php_uname')) ? php_uname('n') : 'localhost';
-			}
+			return $host;
 		}
 
-		// It may be still no valid host, but for sure only a hostname (we may further expand on the cookie domain... if set)
-		return $host;
+		// Fallback to OS hostname or localhost
+		return (function_exists('php_uname')) ? php_uname('n') : 'localhost';
+	}
+
+	/**
+	 * Setup basic user-specific items (style, language, ...)
+	 *
+	 * @param array|string|false $lang_set Lang set(s) to include, false if none shall be included
+	 * @param int|false $style_id Style ID to load, false to load default style
+	 *
+	 * @throws \RuntimeException When called on session and not user instance
+	 *
+	 * @return void
+	 */
+	public function setup($lang_set = false, $style_id = false)
+	{
+		throw new \RuntimeException('Calling setup on session class is not supported.');
 	}
 
 	/**
@@ -272,10 +268,10 @@ class session
 			$this->cookie_data['k'] = $request->variable($config['cookie_name'] . '_k', '', false, \phpbb\request\request_interface::COOKIE);
 			$this->session_id 		= $request->variable($config['cookie_name'] . '_sid', '', false, \phpbb\request\request_interface::COOKIE);
 
-			$SID = (defined('NEED_SID')) ? '?sid=' . $this->session_id : '?sid=';
-			$_SID = (defined('NEED_SID')) ? $this->session_id : '';
+			$SID = '?sid=';
+			$_SID = '';
 
-			if (empty($this->session_id))
+			if (empty($this->session_id) && $phpbb_container->getParameter('session.force_sid'))
 			{
 				$this->session_id = $_SID = $request->variable('sid', '');
 				$SID = '?sid=' . $this->session_id;
@@ -284,7 +280,7 @@ class session
 		}
 		else
 		{
-			$this->session_id = $_SID = $request->variable('sid', '');
+			$this->session_id = $_SID = $phpbb_container->getParameter('session.force_sid') ? $request->variable('sid', '') : '';
 			$SID = '?sid=' . $this->session_id;
 		}
 
@@ -292,7 +288,7 @@ class session
 
 		// Why no forwarded_for et al? Well, too easily spoofed. With the results of my recent requests
 		// it's pretty clear that in the majority of cases you'll at least be left with a proxy/cache ip.
-		$ip = htmlspecialchars_decode($request->server('REMOTE_ADDR'), ENT_COMPAT);
+		$ip = html_entity_decode($request->server('REMOTE_ADDR'), ENT_COMPAT);
 		$ip = preg_replace('# {2,}#', ' ', str_replace(',', ' ', $ip));
 
 		/**
@@ -341,14 +337,6 @@ class session
 				$config->set('limit_load', '0');
 				$config->set('limit_search_load', '0');
 			}
-		}
-
-		// if no session id is set, redirect to index.php
-		$session_id = $request->variable('sid', '');
-		if (defined('NEED_SID') && (empty($session_id) || $this->session_id !== $session_id))
-		{
-			send_status_line(401, 'Unauthorized');
-			redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
 		}
 
 		// if session id is set
@@ -423,7 +411,7 @@ class session
 						// Else check the autologin length... and also removing those having autologin enabled but no longer allowed board-wide.
 						if (!$this->data['session_autologin'])
 						{
-							if ($this->data['session_time'] < $this->time_now - ($config['session_length'] + 60))
+							if ($this->data['session_time'] < $this->time_now - ((int) $config['session_length'] + 60))
 							{
 								$session_expired = true;
 							}
@@ -442,6 +430,12 @@ class session
 
 						// Is user banned? Are they excluded? Won't return on ban, exists within method
 						$this->check_ban_for_current_session($config);
+
+						// Update user last active time accordingly, but in a minute or so
+						if ($this->time_now - (int) $this->data['user_last_active'] > 60)
+						{
+							$this->update_last_active_time();
+						}
 
 						return true;
 					}
@@ -517,7 +511,7 @@ class session
 		{
 			if ($row['bot_agent'] && preg_match('#' . str_replace('\*', '.*?', preg_quote($row['bot_agent'], '#')) . '#i', $this->browser))
 			{
-				$bot = $row['user_id'];
+				$bot = (int) $row['user_id'];
 			}
 
 			// If ip is supplied, we will make sure the ip is matching too...
@@ -691,10 +685,7 @@ class session
 				if ($this->time_now - $this->data['session_time'] > 60 || ($this->update_session_page && $this->data['session_page'] != $this->page['page']))
 				{
 					// Update the last visit time
-					$sql = 'UPDATE ' . USERS_TABLE . '
-						SET user_lastvisit = ' . (int) $this->data['session_time'] . '
-						WHERE user_id = ' . (int) $this->data['user_id'];
-					$db->sql_query($sql);
+					$this->update_user_lastvisit();
 				}
 
 				$SID = '?sid=';
@@ -791,8 +782,11 @@ class session
 		}
 
 		// refresh data
-		$SID = '?sid=' . $this->session_id;
-		$_SID = $this->session_id;
+		if ($phpbb_container->getParameter('session.force_sid'))
+		{
+			$SID = '?sid=' . $this->session_id;
+			$_SID = $this->session_id;
+		}
 		$this->data = array_merge($this->data, $sql_ary);
 
 		if (!$bot)
@@ -805,36 +799,43 @@ class session
 
 			unset($cookie_expire);
 
-			$sql = 'SELECT COUNT(session_id) AS sessions
-					FROM ' . SESSIONS_TABLE . '
-					WHERE session_user_id = ' . (int) $this->data['user_id'] . '
-					AND session_time >= ' . (int) ($this->time_now - (max((int) $config['session_length'], (int) $config['form_token_lifetime'])));
-			$result = $db->sql_query($sql);
-			$row = $db->sql_fetchrow($result);
-			$db->sql_freeresult($result);
-
-			if ((int) $row['sessions'] <= 1 || empty($this->data['user_form_salt']))
+			if ($this->data['user_id'] != ANONYMOUS)
 			{
-				$this->data['user_form_salt'] = unique_id();
-				// Update the form key
-				$sql = 'UPDATE ' . USERS_TABLE . '
-					SET user_form_salt = \'' . $db->sql_escape($this->data['user_form_salt']) . '\'
+				$sql = 'SELECT COUNT(session_id) AS sessions
+						FROM ' . SESSIONS_TABLE . '
+						WHERE session_user_id = ' . (int) $this->data['user_id'] . '
+						AND session_time >= ' . (int) ($this->time_now - (max((int) $config['session_length'], (int) $config['form_token_lifetime'])));
+				$result = $db->sql_query($sql);
+				$row = $db->sql_fetchrow($result);
+				$db->sql_freeresult($result);
+
+				if ((int) $row['sessions'] <= 1 || empty($this->data['user_form_salt']))
+				{
+					$this->data['user_form_salt'] = unique_id();
+					// Update the form key
+					$sql = 'UPDATE ' . USERS_TABLE . '
+					SET user_form_salt = \'' . $db->sql_escape($this->data['user_form_salt']) . '\',
+						user_last_active = ' . (int) $this->time_now . '
 					WHERE user_id = ' . (int) $this->data['user_id'];
-				$db->sql_query($sql);
+					$db->sql_query($sql);
+				}
+			}
+			else
+			{
+				$this->update_last_active_time();
 			}
 		}
 		else
 		{
 			$this->data['session_time'] = $this->data['session_last_visit'] = $this->time_now;
 
-			// Update the last visit time
-			$sql = 'UPDATE ' . USERS_TABLE . '
-				SET user_lastvisit = ' . (int) $this->data['session_time'] . '
-				WHERE user_id = ' . (int) $this->data['user_id'];
-			$db->sql_query($sql);
+			$this->update_user_lastvisit();
 
-			$SID = '?sid=';
-			$_SID = '';
+			if ($phpbb_container->getParameter('session.force_sid'))
+			{
+				$SID = '?sid=';
+				$_SID = '';
+			}
 		}
 
 		$session_data = $sql_ary;
@@ -1055,8 +1056,6 @@ class session
 		* @since 3.1.6-RC1
 		*/
 		$phpbb_dispatcher->trigger_event('core.session_gc_after');
-
-		return;
 	}
 
 	/**
@@ -1126,119 +1125,23 @@ class session
 	*/
 	function check_ban($user_id = false, $user_ips = false, $user_email = false, $return = false)
 	{
-		global $config, $db, $phpbb_dispatcher;
+		global $phpbb_container, $phpbb_dispatcher;
 
 		if (defined('IN_CHECK_BAN') || defined('SKIP_CHECK_BAN'))
 		{
-			return;
+			return false;
 		}
 
-		$banned = false;
-		$cache_ttl = 3600;
-		$where_sql = array();
-
-		$sql = 'SELECT ban_ip, ban_userid, ban_email, ban_exclude, ban_give_reason, ban_end
-			FROM ' . BANLIST_TABLE . '
-			WHERE ';
-
-		// Determine which entries to check, only return those
-		if ($user_email === false)
+		/** @var \phpbb\ban\manager $ban_manager */
+		$ban_manager = $phpbb_container->get('ban.manager');
+		$ban_row = $ban_manager->check(['user_id' => $user_id, 'user_email' => $user_email]);
+		if (empty($ban_row))
 		{
-			$where_sql[] = "ban_email = ''";
+			return false;
 		}
 
-		if ($user_ips === false)
-		{
-			$where_sql[] = "(ban_ip = '' OR ban_exclude = 1)";
-		}
-
-		if ($user_id === false)
-		{
-			$where_sql[] = '(ban_userid = 0 OR ban_exclude = 1)';
-		}
-		else
-		{
-			$cache_ttl = ($user_id == ANONYMOUS) ? 3600 : 0;
-			$_sql = '(ban_userid = ' . $user_id;
-
-			if ($user_email !== false)
-			{
-				$_sql .= " OR ban_email <> ''";
-			}
-
-			if ($user_ips !== false)
-			{
-				$_sql .= " OR ban_ip <> ''";
-			}
-
-			$_sql .= ')';
-
-			$where_sql[] = $_sql;
-		}
-
-		$sql .= (count($where_sql)) ? implode(' AND ', $where_sql) : '';
-		$result = $db->sql_query($sql, $cache_ttl);
-
-		$ban_triggered_by = 'user';
-		while ($row = $db->sql_fetchrow($result))
-		{
-			if ($row['ban_end'] && $row['ban_end'] < time())
-			{
-				continue;
-			}
-
-			$ip_banned = false;
-			if (!empty($row['ban_ip']))
-			{
-				if (!is_array($user_ips))
-				{
-					$ip_banned = preg_match('#^' . str_replace('\*', '.*?', preg_quote($row['ban_ip'], '#')) . '$#i', $user_ips);
-				}
-				else
-				{
-					foreach ($user_ips as $user_ip)
-					{
-						if (preg_match('#^' . str_replace('\*', '.*?', preg_quote($row['ban_ip'], '#')) . '$#i', $user_ip))
-						{
-							$ip_banned = true;
-							break;
-						}
-					}
-				}
-			}
-
-			if ((!empty($row['ban_userid']) && intval($row['ban_userid']) == $user_id) ||
-				$ip_banned ||
-				(!empty($row['ban_email']) && preg_match('#^' . str_replace('\*', '.*?', preg_quote($row['ban_email'], '#')) . '$#i', $user_email)))
-			{
-				if (!empty($row['ban_exclude']))
-				{
-					$banned = false;
-					break;
-				}
-				else
-				{
-					$banned = true;
-					$ban_row = $row;
-
-					if (!empty($row['ban_userid']) && intval($row['ban_userid']) == $user_id)
-					{
-						$ban_triggered_by = 'user';
-					}
-					else if ($ip_banned)
-					{
-						$ban_triggered_by = 'ip';
-					}
-					else
-					{
-						$ban_triggered_by = 'email';
-					}
-
-					// Don't break. Check if there is an exclude rule for this user
-				}
-			}
-		}
-		$db->sql_freeresult($result);
+		$banned = true;
+		$ban_triggered_by = $ban_row['mode'];
 
 		/**
 		* Event to set custom ban type
@@ -1256,14 +1159,7 @@ class session
 
 		if ($banned && !$return)
 		{
-			global $phpbb_root_path, $phpEx;
-
-			// If the session is empty we need to create a valid one...
-			if (empty($this->session_id))
-			{
-				// This seems to be no longer needed? - #14971
-//				$this->session_create(ANONYMOUS);
-			}
+			global $config, $phpbb_root_path, $phpEx;
 
 			// Initiate environment ... since it won't be set at this stage
 			$this->setup();
@@ -1297,13 +1193,8 @@ class session
 			}
 
 			// Determine which message to output
-			$till_date = ($ban_row['ban_end']) ? $this->format_date($ban_row['ban_end']) : '';
-			$message = ($ban_row['ban_end']) ? 'BOARD_BAN_TIME' : 'BOARD_BAN_PERM';
-
 			$contact_link = phpbb_get_board_contact_link($config, $phpbb_root_path, $phpEx);
-			$message = sprintf($this->lang[$message], $till_date, '<a href="' . $contact_link . '">', '</a>');
-			$message .= ($ban_row['ban_give_reason']) ? '<br /><br />' . sprintf($this->lang['BOARD_BAN_REASON'], $ban_row['ban_give_reason']) : '';
-			$message .= '<br /><br /><em>' . $this->lang['BAN_TRIGGERED_BY_' . strtoupper($ban_triggered_by)] . '</em>';
+			$message = $ban_manager->get_ban_message($ban_row, $ban_triggered_by, $contact_link);
 
 			// A very special case... we are within the cron script which is not supposed to print out the ban message... show blank page
 			if (defined('IN_CRON'))
@@ -1348,6 +1239,109 @@ class session
 	}
 
 	/**
+	* Check if ip is blacklisted by Spamhaus SBL
+	*
+	* Disables DNSBL setting if errors are returned by Spamhaus due to a policy violation.
+	* https://www.spamhaus.com/product/help-for-spamhaus-public-mirror-users/
+	*
+	* @param string 		$dnsbl	the blacklist to check against
+	* @param string|false	$ip		the IPv4 address to check
+	*
+	* @return bool true if listed in spamhaus database, false if not
+	*/
+	function check_dnsbl_spamhaus($dnsbl, $ip = false)
+	{
+		global $config, $phpbb_log;
+
+		if ($ip === false)
+		{
+			$ip = $this->ip;
+		}
+
+		// Spamhaus does not support IPv6 addresses.
+		if (strpos($ip, ':') !== false)
+		{
+			return false;
+		}
+
+		if ($ip)
+		{
+			$quads = explode('.', $ip);
+			$reverse_ip = $quads[3] . '.' . $quads[2] . '.' . $quads[1] . '.' . $quads[0];
+
+			$records = dns_get_record($reverse_ip . '.' . $dnsbl . '.', DNS_A);
+			if (empty($records))
+			{
+				return false;
+			}
+			else
+			{
+				$error = false;
+				foreach ($records as $record)
+				{
+					if ($record['ip'] == '127.255.255.254')
+					{
+						$error = 'LOG_SPAMHAUS_OPEN_RESOLVER';
+						break;
+					}
+					else if ($record['ip'] == '127.255.255.255')
+					{
+						$error = 'LOG_SPAMHAUS_VOLUME_LIMIT';
+						break;
+					}
+				}
+
+				if ($error !== false)
+				{
+					$config->set('check_dnsbl', 0);
+					$phpbb_log->add('critical', $this->data['user_id'], $ip, $error);
+				}
+				else
+				{
+					// The existence of a non-error A record means it's a hit
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	* Checks if an IPv4 address is in a specified DNS blacklist
+	*
+	* Only checks if a record is returned or not.
+	*
+	* @param string 		$dnsbl	the blacklist to check against
+	* @param string|false	$ip		the IPv4 address to check
+	*
+	* @return bool true if record is returned, false if not
+	*/
+	function check_dnsbl_ipv4_generic($dnsbl, $ip = false)
+	{
+		if ($ip === false)
+		{
+			$ip = $this->ip;
+		}
+
+		// This function does not support IPv6 addresses.
+		if (strpos($ip, ':') !== false)
+		{
+			return false;
+		}
+
+		$quads = explode('.', $ip);
+		$reverse_ip = $quads[3] . '.' . $quads[2] . '.' . $quads[1] . '.' . $quads[0];
+
+		if (checkdnsrr($reverse_ip . '.' . $dnsbl . '.', 'A') === true)
+		{
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
 	* Check if ip is blacklisted
 	* This should be called only where absolutely necessary
 	*
@@ -1357,7 +1351,7 @@ class session
 	* @param string 		$mode	register/post - spamcop for example is omitted for posting
 	* @param string|false	$ip		the IPv4 address to check
 	*
-	* @return false if ip is not blacklisted, else an array([checked server], [lookup])
+	* @return array|false false if ip is not blacklisted, else an array([checked server], [lookup])
 	*/
 	function check_dnsbl($mode, $ip = false)
 	{
@@ -1373,28 +1367,25 @@ class session
 		}
 
 		$dnsbl_check = array(
-			'sbl.spamhaus.org'	=> 'http://www.spamhaus.org/query/bl?ip=',
+			'sbl.spamhaus.org'	=> ['https://check.spamhaus.org/listed/?searchterm=', 'check_dnsbl_spamhaus'],
 		);
 
 		if ($mode == 'register')
 		{
-			$dnsbl_check['bl.spamcop.net'] = 'http://spamcop.net/bl.shtml?';
+			$dnsbl_check['bl.spamcop.net'] = ['https://www.spamcop.net/bl.shtml?', 'check_dnsbl_ipv4_generic'];
 		}
 
 		if ($ip)
 		{
-			$quads = explode('.', $ip);
-			$reverse_ip = $quads[3] . '.' . $quads[2] . '.' . $quads[1] . '.' . $quads[0];
-
 			// Need to be listed on all servers...
 			$listed = true;
 			$info = array();
 
 			foreach ($dnsbl_check as $dnsbl => $lookup)
 			{
-				if (checkdnsrr($reverse_ip . '.' . $dnsbl . '.', 'A') === true)
+				if (call_user_func(array($this, $lookup[1]), $dnsbl, $ip) === true)
 				{
-					$info = array($dnsbl, $lookup . $ip);
+					$info = array($dnsbl, $lookup[0] . $ip);
 				}
 				else
 				{
@@ -1661,7 +1652,7 @@ class session
 		}
 
 		// Do not update the session page for ajax requests, so the view online still works as intended
-		$page_changed = $this->update_session_page && (!isset($this->data['session_page']) || $this->data['session_page'] != $this->page['page']) && !$request->is_ajax();
+		$page_changed = $this->update_session_page && (!isset($this->data['session_page']) || $this->data['session_page'] != $this->page['page'] || $this->data['session_forum_id'] != $this->page['forum']) && !$request->is_ajax();
 
 		// Only update session DB a minute or so after last update or if page changes
 		if ($this->time_now - (isset($this->data['session_time']) ? $this->data['session_time'] : 0) > 60 || $page_changed)
@@ -1682,7 +1673,9 @@ class session
 
 			$this->data = array_merge($this->data, $sql_ary);
 
-			if ($this->data['user_id'] != ANONYMOUS && isset($config['new_member_post_limit']) && $this->data['user_new'] && $config['new_member_post_limit'] <= $this->data['user_posts'])
+			if ($this->data['user_id'] != ANONYMOUS && isset($config['new_member_post_limit'])
+				&& $this->data['user_new'] && $config['new_member_post_limit'] <= $this->data['user_posts']
+				&& $this instanceof user)
 			{
 				$this->leave_newly_registered();
 			}
@@ -1697,5 +1690,52 @@ class session
 	public function id() : int
 	{
 		return isset($this->data['user_id']) ? (int) $this->data['user_id'] : ANONYMOUS;
+	}
+
+	/**
+	 * Update user last visit time
+	 */
+	public function update_user_lastvisit()
+	{
+		global $db;
+
+		if (isset($this->data['session_time'], $this->data['user_id']) && !$this->is_push_notification_request())
+		{
+			$sql = 'UPDATE ' . USERS_TABLE . '
+				SET user_lastvisit = ' . (int) $this->data['session_time'] . ',
+					user_last_active = ' . $this->time_now . '
+				WHERE user_id = ' . (int) $this->data['user_id'];
+			$db->sql_query($sql);
+		}
+	}
+
+	/**
+	 * Update user's last active time
+	 *
+	 * @return void
+	 */
+	public function update_last_active_time()
+	{
+		global $db;
+
+		if (isset($this->time_now, $this->data['user_id']) && !$this->is_push_notification_request())
+		{
+			$sql = 'UPDATE ' . USERS_TABLE . '
+				SET user_last_active = ' . $this->time_now . '
+				WHERE user_id = ' . (int) $this->data['user_id'];
+			$db->sql_query($sql);
+		}
+	}
+
+	/**
+	 * Determine if the request is an Ajax request from the web push service worker
+	 *
+	 * @return bool True if the request is an Ajax request and the page URL contains '/push/notification', otherwise false
+	 */
+	protected function is_push_notification_request(): bool
+	{
+		global $request;
+
+		return $request->is_ajax() && str_contains($this->page['page'], '/push/notification');
 	}
 }

@@ -82,7 +82,7 @@ abstract class driver implements \phpbb\avatar\driver\driver_interface
 	* @param \phpbb\path_helper $path_helper phpBB path helper
 	* @param \phpbb\cache\driver\driver_interface|null $cache Cache driver
 	*/
-	public function __construct(\phpbb\config\config $config, \FastImageSize\FastImageSize $imagesize, $phpbb_root_path, $php_ext, \phpbb\path_helper $path_helper, \phpbb\cache\driver\driver_interface $cache = null)
+	public function __construct(\phpbb\config\config $config, \FastImageSize\FastImageSize $imagesize, $phpbb_root_path, $php_ext, \phpbb\path_helper $path_helper, \phpbb\cache\driver\driver_interface|null $cache = null)
 	{
 		$this->config = $config;
 		$this->imagesize = $imagesize;
@@ -129,7 +129,7 @@ abstract class driver implements \phpbb\avatar\driver\driver_interface
 	*/
 	public function get_config_name()
 	{
-		return preg_replace('#^phpbb\\\\avatar\\\\driver\\\\#', '', get_class($this));
+		return preg_replace('#^phpbb\\\\avatar\\\\driver\\\\#', '', get_class($this)) ?: '';
 	}
 
 	/**

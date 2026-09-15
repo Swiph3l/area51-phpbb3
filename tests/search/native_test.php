@@ -16,6 +16,8 @@ require_once __DIR__ . '/../test_framework/phpbb_search_test_case.php';
 class phpbb_search_native_test extends phpbb_search_test_case
 {
 	protected $db;
+	protected $db_tools;
+	protected $search;
 
 	public function getDataSet()
 	{
@@ -33,15 +35,24 @@ class phpbb_search_native_test extends phpbb_search_test_case
 		$language = new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx));
 		$user = $this->createMock('\phpbb\user');
 
+		$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
+		$lang = new \phpbb\language\language($lang_loader);
+		$user = new \phpbb\user($lang, '\phpbb\datetime');
+
 		$this->db = $this->new_dbal();
+		$tools_factory = new \phpbb\db\tools\factory();
+		$this->db_tools = $tools_factory->get($this->new_doctrine_dbal());
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 		$class = self::get_search_wrapper('\phpbb\search\backend\fulltext_native');
-		$config['fulltext_native_min_chars'] = 2;
-		$config['fulltext_native_max_chars'] = 14;
-		$this->search = new $class($config, $this->db, $phpbb_dispatcher, $language, $user, $phpbb_root_path, $phpEx);
+		$config = new \phpbb\config\config([
+			'fulltext_native_min_chars' => 2,
+			'fulltext_native_max_chars' => 14,
+			'max_num_search_keywords' => 10,
+		]);
+		$this->search = new $class($config, $this->db, $this->db_tools, $phpbb_dispatcher, $language, $user, SEARCH_RESULTS_TABLE, SEARCH_WORDLIST_TABLE, SEARCH_WORDMATCH_TABLE, $phpbb_root_path, $phpEx);
 	}
 
-	public function keywords()
+	public static function keywords()
 	{
 		return array(
 			// keywords
@@ -258,5 +269,79 @@ class phpbb_search_native_test extends phpbb_search_test_case
 			$this->assert_array_content_equals($must_not_contain, $this->search->get_must_not_contain_ids());
 		}
 		$this->assert_array_content_equals($common, $this->search->get_common_words());
+	}
+
+	public static function data_split_keywords_max(): array
+	{
+		return [
+			'character count within limits separated by more spaces' => [
+				'foo    bar    baz    boo    far   faz    roo     rar    raz    zoo',
+				'all',
+				false,
+			],
+			'character count within limits separated by spaces' => [
+				'foo bar baz boo far faz roo rar raz zoo',
+				'all',
+				false,
+			],
+			'character count within limits separated by +, spaces after +' => [
+				'foo+ bar+ baz+ boo+ far+ faz+ roo+ rar+ raz+ zoo',
+				'all',
+				false,
+			],
+			'character count within limits separated by +, no spaces' => [
+				'foo+bar+baz+boo+far+faz+roo+rar+raz+zoo',
+				'all',
+				false,
+			],
+			'character count outside limits separated by +, no spaces' => [
+				'foo+bar+baz+boo+far+faz+roo+rar+raz+zoo+zar',
+				'all',
+				true,
+			],
+			'character count outside limits separated by + and spaces' => [
+				'foo +bar +baz +boo +far +faz +roo +rar +raz +zoo +zar',
+				'all',
+				true,
+			],
+			'character count outside limits separated by spaces' => [
+				'foo bar baz boo far faz roo rar raz zoo zar',
+				'all',
+				true,
+			],
+			'character count outside limits separated by -, no spaces' => [
+				'foo-bar-baz-boo-far-faz-roo-rar-raz-zoo-zar',
+				'all',
+				true,
+			],
+			'character count outside limits separated by - and spaces' => [
+				'foo -bar -baz -boo -far -faz -roo -rar -raz -zoo -zar',
+				'all',
+				true,
+			],
+			'character count outside limits separated by |, no spaces' => [
+				'foo|bar|baz|boo|far|faz|roo|rar|raz|zoo|zar',
+				'all',
+				true,
+			],
+			'character count outside limits separated by | and spaces' => [
+				'foo |bar |baz |boo |far |faz |roo |rar |raz |zoo |zar',
+				'all',
+				true,
+			],
+		];
+	}
+
+	/**
+	 * @dataProvider data_split_keywords_max
+	 */
+	public function test_split_max_keywords($keywords, $terms, $expect_error)
+	{
+		if ($expect_error)
+		{
+			$this->setExpectedTriggerError(E_USER_NOTICE, 'MAX_NUM_SEARCH_KEYWORDS_REFINE');
+		}
+
+		$this->assertTrue($this->search->split_keywords($keywords, $terms));
 	}
 }

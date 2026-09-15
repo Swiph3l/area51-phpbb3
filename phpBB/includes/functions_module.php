@@ -22,6 +22,7 @@ if (!defined('IN_PHPBB'))
 /**
 * Class handling all types of 'plugins' (a future term)
 */
+#[\AllowDynamicProperties]
 class p_master
 {
 	var $p_id;
@@ -29,6 +30,10 @@ class p_master
 	var $p_name;
 	var $p_mode;
 	var $p_parent;
+
+	var $module_cache;
+	var $p_left;
+	var $p_right;
 
 	var $include_path = false;
 	var $active_module = false;
@@ -468,9 +473,9 @@ class p_master
 		);
 
 		$is_auth = false;
-		// @codingStandardsIgnoreStart
+		// phpcs:disable Squiz.PHP.Eval
 		eval('$is_auth = (int) (' .	$module_auth . ');');
-		// @codingStandardsIgnoreEnd
+		// phpcs:enable Squiz.PHP.Eval
 
 		return $is_auth;
 	}
@@ -480,7 +485,7 @@ class p_master
 	*/
 	function set_active($id = false, $mode = false)
 	{
-		global $request;
+		global $auth, $request, $user;
 
 		$icat = false;
 		$this->active_module = false;
@@ -500,6 +505,14 @@ class p_master
 		if ($id && !is_numeric($id) && !$this->is_full_class($id))
 		{
 			$id = $this->p_class . '_' . $id;
+		}
+
+		// Fallback to acp main page for special test permission mode
+		if ($this->p_class === 'acp' && $user->data['user_perm_from'] && $auth->acl_get('a_switchperm'))
+		{
+			$id = '';
+			$mode = '';
+			$icat = false;
 		}
 
 		$category = false;
@@ -608,12 +621,19 @@ class p_master
 
 				if (is_dir($module_style_dir))
 				{
-					$template->set_custom_style(array(
-						array(
-							'name' 		=> 'adm',
-							'ext_path' 	=> 'adm/style/',
-						),
-					), array($module_style_dir, $phpbb_admin_path . 'style'));
+					$template->set_custom_style(
+						[
+							[
+								'name' 		=> 'adm',
+								'ext_path' 	=> 'adm/style/',
+							],
+						],
+						[
+							$module_style_dir,
+							$phpbb_admin_path . 'style',
+							$phpbb_root_path . 'styles/all/template/',
+						]
+					);
 				}
 			}
 
@@ -662,11 +682,14 @@ class p_master
 		// Add url_extra parameter to u_action url
 		if (!empty($this->module_ary) && $this->active_module !== false && $this->module_ary[$this->active_module_row_id]['url_extra'])
 		{
-			$this->module->u_action .= $this->module_ary[$this->active_module_row_id]['url_extra'];
+			$this->module->u_action .= '&amp;' . $this->module_ary[$this->active_module_row_id]['url_extra'];
 		}
 
 		// Assign the module path for re-usage
-		$this->module->module_path = $module_path . '/';
+		if (property_exists($this->module, 'module_path'))
+		{
+			$this->module->module_path = $module_path . '/';
+		}
 
 		// Execute the main method for the new instance, we send the module id and mode as parameters
 		// Users are able to call the main method after this function to be able to assign additional parameters manually
@@ -920,7 +943,7 @@ class p_master
 			}
 
 			// Was not allowed in categories before - /*!$item_ary['cat'] && */
-			$u_title .= (isset($item_ary['url_extra'])) ? $item_ary['url_extra'] : '';
+			$u_title .= (isset($item_ary['url_extra']) && $item_ary['url_extra']) ? '&amp;' . $item_ary['url_extra'] : '';
 
 			// Only output a categories items if it's currently selected
 			if (!$depth || ($depth && (in_array($item_ary['parent'], array_values($this->module_cache['parents'])) || $item_ary['parent'] == $this->p_parent)))

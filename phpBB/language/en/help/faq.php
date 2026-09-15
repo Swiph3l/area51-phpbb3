@@ -41,6 +41,7 @@ $lang = array_merge($lang, array(
 	'HELP_FAQ_BLOCK_POSTING'	=> 'Posting Issues',
 	'HELP_FAQ_BLOCK_SEARCH'	=> 'Searching the Forums',
 	'HELP_FAQ_BLOCK_USERSETTINGS'	=> 'User Preferences and settings',
+	'HELP_FAQ_BLOCK_WEBPUSH'	=> 'Web Push Notifications for Browsers',
 
 	'HELP_FAQ_BOOKMARKS_DIFFERENCE_ANSWER'	=> 'In phpBB 3.0, bookmarking topics worked much like bookmarking in a web browser. You were not alerted when there was an update. As of phpBB 3.1, bookmarking is more like subscribing to a topic. You can be notified when a bookmarked topic is updated. Subscribing, however, will notify you when there is an update to a topic or forum on the board. Notification options for bookmarks and subscriptions can be configured in the User Control Panel, under “Board preferences”.',
 	'HELP_FAQ_BOOKMARKS_DIFFERENCE_QUESTION'	=> 'What is the difference between bookmarking and subscribing?',
@@ -158,7 +159,7 @@ $lang = array_merge($lang, array(
 	'HELP_FAQ_SEARCH_BLANK_QUESTION'	=> 'Why does my search return a blank page!?',
 	'HELP_FAQ_SEARCH_FORUM_ANSWER'	=> 'Enter a search term in the search box located on the index, forum or topic pages. Advanced search can be accessed by clicking the “Advance Search” link which is available on all pages on the forum. How to access the search may depend on the style used.',
 	'HELP_FAQ_SEARCH_FORUM_QUESTION'	=> 'How can I search a forum or forums?',
-	'HELP_FAQ_SEARCH_MEMBERS_ANSWER'	=> 'Visit to the “Members” page and click the “Find a member” link.',
+	'HELP_FAQ_SEARCH_MEMBERS_ANSWER'	=> 'Visit the memberlist and click the “Find a member” link.',
 	'HELP_FAQ_SEARCH_MEMBERS_QUESTION'	=> 'How do I search for members?',
 	'HELP_FAQ_SEARCH_NO_RESULT_ANSWER'	=> 'Your search was probably too vague and included many common terms which are not indexed by phpBB. Be more specific and use the options available within Advanced search.',
 	'HELP_FAQ_SEARCH_NO_RESULT_QUESTION'	=> 'Why does my search return no results?',
@@ -166,7 +167,7 @@ $lang = array_merge($lang, array(
 	'HELP_FAQ_SEARCH_OWN_QUESTION'	=> 'How can I find my own posts and topics?',
 
 	'HELP_FAQ_USERSETTINGS_AVATAR_ANSWER'	=> 'There are two images which may appear along with a username when viewing posts. One of them may be an image associated with your rank, generally in the form of stars, blocks or dots, indicating how many posts you have made or your status on the board. Another, usually larger, image is known as an avatar and is generally unique or personal to each user.',
-	'HELP_FAQ_USERSETTINGS_AVATAR_DISPLAY_ANSWER'	=> 'Within your User Control Panel, under “Profile” you can add an avatar by using one of the four following methods: Gravatar, Gallery, Remote or Upload. It is up to the board administrator to enable avatars and to choose the way in which avatars can be made available. If you are unable to use avatars, contact a board administrator.',
+	'HELP_FAQ_USERSETTINGS_AVATAR_DISPLAY_ANSWER'	=> 'Within your User Control Panel, under “Profile” you can add an avatar by using one of the four following methods: Gravatar, Gallery or Upload. It is up to the board administrator to enable avatars and to choose the way in which avatars can be made available. If you are unable to use avatars, contact a board administrator.',
 	'HELP_FAQ_USERSETTINGS_AVATAR_DISPLAY_QUESTION'	=> 'How do I display an avatar?',
 	'HELP_FAQ_USERSETTINGS_AVATAR_QUESTION'	=> 'What are the images next to my username?',
 	'HELP_FAQ_USERSETTINGS_CHANGE_SETTINGS_ANSWER'	=> 'If you are a registered user, all your settings are stored in the board database. To alter them, visit your User Control Panel; a link can usually be found by clicking on your username at the top of board pages. This system will allow you to change all your settings and preferences.',
@@ -183,4 +184,15 @@ $lang = array_merge($lang, array(
 	'HELP_FAQ_USERSETTINGS_SERVERTIME_QUESTION'	=> 'I changed the timezone and the time is still wrong!',
 	'HELP_FAQ_USERSETTINGS_TIMEZONE_ANSWER'	=> 'It is possible the time displayed is from a timezone different from the one you are in. If this is the case, visit your User Control Panel and change your timezone to match your particular area, e.g. London, Paris, New York, Sydney, etc. Please note that changing the timezone, like most settings, can only be done by registered users. If you are not registered, this is a good time to do so.',
 	'HELP_FAQ_USERSETTINGS_TIMEZONE_QUESTION'	=> 'The times are not correct!',
+
+	'HELP_FAQ_WEBPUSH_GENERAL_ANSWER'	=> 'Make sure this forum is allowed to send notifications in your browser settings. Also, verify that your device’s system settings permit notifications from your web browser or app. Some browsers deliver notifications even when closed, whilst others only do so when the browser is open. <a href="https://caniuse.com/push-api" target="_blank">View this table for browser support information.</a> Finally, if you’re using an ad blocker, review its settings to make sure it’s not configured to block push notifications.',
+	'HELP_FAQ_WEBPUSH_GENERAL_QUESTION'	=> 'What if I’m still having trouble receiving notifications?',
+	'HELP_FAQ_WEBPUSH_HOW_ANSWER'		=> 'Navigate to “Notification options” in your UCP (User Control Panel) and click “Subscribe.” Your browser may ask for permission to send notifications — be sure to allow it. If you’re still not receiving notifications, check your device’s system settings to ensure notifications are enabled for your browser. For mobile devices such as iPhone or iPad, you may need to add the forum site to your Home Screen for push notifications to work, effectively turning it into a standalone web app. Follow your mobile device’s instructions to enable push notifications for <a href="https://www.xda-developers.com/how-enable-safari-notifications-iphone/" target="_blank">iPhone/iPad</a> or <a href="https://support.google.com/chrome/answer/3220216?hl=en&co=GENIE.Platform%3DAndroid&oco=0" target="_blank">Android</a>.',
+	'HELP_FAQ_WEBPUSH_HOW_QUESTION'		=> 'How can I receive forum notification alerts on my computer or mobile device?',
+	'HELP_FAQ_WEBPUSH_SESSION_ANSWER'	=> 'Yes, you will continue to receive notifications even if you’re logged out.',
+	'HELP_FAQ_WEBPUSH_SESSION_QUESTION'	=> 'Will I receive notifications if I am logged out?',
+	'HELP_FAQ_WEBPUSH_SUBBING_ANSWER'	=> 'If the “Subscribe” button is visible but cannot be clicked, your browser or device likely doesn’t support push notifications. Try using a different browser or device that supports this feature.',
+	'HELP_FAQ_WEBPUSH_SUBBING_QUESTION'	=> 'Why is the “Subscribe” button disabled?',
+	'HELP_FAQ_WEBPUSH_WHAT_ANSWER'		=> 'Web push notifications enhance phpBB’s notification system by allowing real-time notifications to be sent directly to your desktop or mobile device, even if you’re not actively browsing the forum. These notifications function like app alerts, providing instant updates for private messages, post interactions, moderation actions, and more.',
+	'HELP_FAQ_WEBPUSH_WHAT_QUESTION'	=> 'What are web push notifications?',
 ));

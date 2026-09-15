@@ -15,7 +15,9 @@ require_once __DIR__ . '/template_test_case.php';
 
 class phpbb_template_template_events_test extends phpbb_template_template_test_case
 {
-	public function template_data()
+	protected $extension_manager;
+
+	public static function template_data()
 	{
 		return array(
 			/*
@@ -152,7 +154,10 @@ Zeta test event in all',
 		$cache_path = $phpbb_root_path . 'cache/twig';
 		$context = new \phpbb\template\context();
 		$loader = new \phpbb\template\twig\loader('');
+		$log = new \phpbb\log\dummy();
+		$assets_bag = new \phpbb\template\assets_bag();
 		$twig = new \phpbb\template\twig\environment(
+			$assets_bag,
 			$config,
 			$filesystem,
 			$path_helper,

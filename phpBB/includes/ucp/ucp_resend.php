@@ -26,11 +26,16 @@ if (!defined('IN_PHPBB'))
 class ucp_resend
 {
 	var $u_action;
+	var $page_title;
+	var $tpl_name;
 
 	function main($id, $mode)
 	{
 		global $config, $phpbb_root_path, $phpEx;
-		global $db, $user, $auth, $template, $request;
+		global $db, $user, $auth, $template, $request, $phpbb_container;
+
+		/** @var \phpbb\controller\helper $controller_helper */
+		$controller_helper = $phpbb_container->get('controller.helper');
 
 		$username	= $request->variable('username', '', true);
 		$email		= strtolower($request->variable('email', ''));
@@ -45,7 +50,7 @@ class ucp_resend
 				trigger_error('FORM_INVALID');
 			}
 
-			$sql = 'SELECT user_id, group_id, username, user_email, user_type, user_lang, user_actkey, user_inactive_reason
+			$sql = 'SELECT user_id, group_id, username, user_email, user_type, user_lang, user_actkey, user_actkey_expiration, user_inactive_reason
 				FROM ' . USERS_TABLE . "
 				WHERE user_email = '" . $db->sql_escape($email) . "'
 					AND username_clean = '" . $db->sql_escape(utf8_clean_string($username)) . "'";
@@ -73,6 +78,12 @@ class ucp_resend
 				trigger_error('ACCOUNT_DEACTIVATED');
 			}
 
+			// Do not resend activation email if valid one still exists
+			if (!empty($user_row['user_actkey']) && (int) $user_row['user_actkey_expiration'] >= time())
+			{
+				trigger_error('ACTIVATION_ALREADY_SENT');
+			}
+
 			// Determine coppa status on group (REGISTERED(_COPPA))
 			$sql = 'SELECT group_name, group_type
 				FROM ' . GROUPS_TABLE . '
@@ -86,34 +97,35 @@ class ucp_resend
 				trigger_error('NO_GROUP');
 			}
 
+			$board_url = generate_board_url();
 			$coppa = ($row['group_name'] == 'REGISTERED_COPPA' && $row['group_type'] == GROUP_SPECIAL) ? true : false;
 
-			include_once($phpbb_root_path . 'includes/functions_messenger.' . $phpEx);
-			$messenger = new messenger(false);
+			$email_method = $phpbb_container->get('messenger.method.email');
+			$email_method->set_use_queue(false);
 
 			if ($config['require_activation'] == USER_ACTIVATION_SELF || $coppa)
 			{
-				$messenger->template(($coppa) ? 'coppa_resend_inactive' : 'user_resend_inactive', $user_row['user_lang']);
-				$messenger->set_addresses($user_row);
+				$email_method->template(($coppa) ? 'coppa_resend_inactive' : 'user_resend_inactive', $user_row['user_lang']);
+				$email_method->set_addresses($user_row);
 
-				$messenger->anti_abuse_headers($config, $user);
+				$email_method->anti_abuse_headers($config, $user);
 
-				$messenger->assign_vars(array(
-					'WELCOME_MSG'	=> htmlspecialchars_decode(sprintf($user->lang['WELCOME_SUBJECT'], $config['sitename']), ENT_COMPAT),
-					'USERNAME'		=> htmlspecialchars_decode($user_row['username'], ENT_COMPAT),
-					'U_ACTIVATE'	=> generate_board_url() . "/ucp.$phpEx?mode=activate&u={$user_row['user_id']}&k={$user_row['user_actkey']}")
-				);
+				$email_method->assign_vars([
+					'WELCOME_MSG'	=> html_entity_decode(sprintf($user->lang['WELCOME_SUBJECT'], $config['sitename']), ENT_COMPAT),
+					'USERNAME'		=> html_entity_decode($user_row['username'], ENT_COMPAT),
+					'U_ACTIVATE'	=> $board_url . "/ucp.$phpEx?mode=activate&u={$user_row['user_id']}&k={$user_row['user_actkey']}",
+				]);
 
 				if ($coppa)
 				{
-					$messenger->assign_vars(array(
+					$email_method->assign_vars([
 						'FAX_INFO'		=> $config['coppa_fax'],
 						'MAIL_INFO'		=> $config['coppa_mail'],
-						'EMAIL_ADDRESS'	=> $user_row['user_email'])
-					);
+						'EMAIL_ADDRESS'	=> $user_row['user_email'],
+					]);
 				}
 
-				$messenger->send(NOTIFY_EMAIL);
+				$email_method->send();
 			}
 
 			if ($config['require_activation'] == USER_ACTIVATION_ADMIN)
@@ -121,33 +133,39 @@ class ucp_resend
 				// Grab an array of user_id's with a_user permissions ... these users can activate a user
 				$admin_ary = $auth->acl_get_list(false, 'a_user', false);
 
-				$sql = 'SELECT user_id, username, user_email, user_lang, user_jabber, user_notify_type
+				$sql = 'SELECT user_id, username, user_email, user_lang
 					FROM ' . USERS_TABLE . '
 					WHERE ' . $db->sql_in_set('user_id', $admin_ary[0]['a_user']);
 				$result = $db->sql_query($sql);
 
+				/** @var \phpbb\di\service_collection $messenger_collection */
+				$messenger_collection = $phpbb_container->get('messenger.method_collection');
+				/** @var \phpbb\messenger\method\messenger_interface $messenger_method */
+				$messenger_method = $messenger_collection->offsetGet('messenger.method.email');
+
 				while ($row = $db->sql_fetchrow($result))
 				{
-					$messenger->template('admin_activate', $row['user_lang']);
-					$messenger->set_addresses($row);
+					$messenger_method->set_use_queue(false);
+					$messenger_method->template('admin_activate', $row['user_lang']);
+					$messenger_method->set_addresses($row);
+					$messenger_method->anti_abuse_headers($config, $user);
+					$messenger_method->assign_vars([
+						'USERNAME'			=> html_entity_decode($user_row['username'], ENT_COMPAT),
+						'U_USER_DETAILS'	=> $board_url . "/memberlist.$phpEx?mode=viewprofile&u={$user_row['user_id']}",
+						'U_ACTIVATE'		=> $board_url . "/ucp.$phpEx?mode=activate&u={$user_row['user_id']}&k={$user_row['user_actkey']}",
+					]);
 
-					$messenger->anti_abuse_headers($config, $user);
-
-					$messenger->assign_vars(array(
-						'USERNAME'			=> htmlspecialchars_decode($user_row['username'], ENT_COMPAT),
-						'U_USER_DETAILS'	=> generate_board_url() . "/memberlist.$phpEx?mode=viewprofile&u={$user_row['user_id']}",
-						'U_ACTIVATE'		=> generate_board_url() . "/ucp.$phpEx?mode=activate&u={$user_row['user_id']}&k={$user_row['user_actkey']}")
-					);
-
-					$messenger->send($row['user_notify_type']);
+					$messenger_method->send();
 				}
 				$db->sql_freeresult($result);
 			}
 
-			meta_refresh(3, append_sid("{$phpbb_root_path}index.$phpEx"));
+			$this->update_activation_expiration();
+
+			meta_refresh(3, $controller_helper->route('phpbb_index_controller'));
 
 			$message = ($config['require_activation'] == USER_ACTIVATION_ADMIN) ? $user->lang['ACTIVATION_EMAIL_SENT_ADMIN'] : $user->lang['ACTIVATION_EMAIL_SENT'];
-			$message .= '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . append_sid("{$phpbb_root_path}index.$phpEx") . '">', '</a>');
+			$message .= '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . $controller_helper->route('phpbb_index_controller') . '">', '</a>');
 			trigger_error($message);
 		}
 
@@ -159,5 +177,24 @@ class ucp_resend
 
 		$this->tpl_name = 'ucp_resend';
 		$this->page_title = 'UCP_RESEND';
+	}
+
+	/**
+	 * Update activation expiration to 1 day from now
+	 *
+	 * @return void
+	 */
+	protected function update_activation_expiration(): void
+	{
+		global $db, $user;
+
+		$sql_ary = [
+			'user_actkey_expiration'	=> $user::get_token_expiration(),
+		];
+
+		$sql = 'UPDATE ' . USERS_TABLE . '
+			SET ' . $db->sql_build_array('UPDATE', $sql_ary) . '
+			WHERE user_id = ' . (int) $user->id();
+		$db->sql_query($sql);
 	}
 }

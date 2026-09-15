@@ -22,6 +22,8 @@ if (!defined('IN_PHPBB'))
 class acp_permission_roles
 {
 	var $u_action;
+	var $tpl_name;
+	var $page_title;
 	protected $auth_admin;
 
 	function main($id, $mode)
@@ -179,7 +181,7 @@ class acp_permission_roles
 					$db->sql_freeresult($result);
 
 					// Make sure we only print out the error if we add the role or change it's name
-					if ($row && ($mode == 'add' || ($mode == 'edit' && $role_row['role_name'] != $role_name)))
+					if ($row && ($action == 'add' || ($action == 'edit' && $role_row['role_name'] != $role_name)))
 					{
 						trigger_error(sprintf($user->lang['ROLE_NAME_ALREADY_EXIST'], $role_name) . adm_back_link($this->u_action), E_USER_WARNING);
 					}

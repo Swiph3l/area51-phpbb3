@@ -15,6 +15,7 @@ require_once __DIR__ . '/../../test_framework/phpbb_database_test_case.php';
 
 abstract class phpbb_textreparser_test_row_based_plugin extends phpbb_database_test_case
 {
+	/** @var \phpbb\db\driver\driver_interface */
 	protected $db;
 
 	abstract protected function get_reparser();
@@ -26,7 +27,6 @@ abstract class phpbb_textreparser_test_row_based_plugin extends phpbb_database_t
 
 		$reflection_reparser = new ReflectionClass(get_class($reparser));
 		$table_property = $reflection_reparser->getProperty('table');
-		$table_property->setAccessible(true);
 
 		$sql = 'SELECT ' . $columns['id'] . ' AS id, ' . $columns['text'] . ' AS text
 			FROM ' . $table_property->getValue($reparser) . '
@@ -84,7 +84,7 @@ abstract class phpbb_textreparser_test_row_based_plugin extends phpbb_database_t
 		$this->assertEquals($expected, $this->get_rows($ids));
 	}
 
-	public function get_reparse_tests()
+	public static function get_reparse_tests()
 	{
 		return array(
 			array(
@@ -114,20 +114,6 @@ abstract class phpbb_textreparser_test_row_based_plugin extends phpbb_database_t
 					array(
 						'id'   => '1000',
 						'text' => 'This row should be [b]ignored[/b]',
-					),
-				)
-			),
-			array(
-				6,
-				7,
-				array(
-					array(
-						'id'   => '6',
-						'text' => '<r><FLASH height="345" url="http://example.org/flash.swf" width="123"><s>[flash=123,345]</s>http://example.org/flash.swf<e>[/flash]</e></FLASH></r>',
-					),
-					array(
-						'id'   => '7',
-						'text' => '<t>[flash=123,345]http://example.org/flash.swf[/flash]</t>',
 					),
 				)
 			),

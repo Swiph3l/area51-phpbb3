@@ -1,13 +1,41 @@
 services:
+    phpbb.ucp.controller.delete_cookies:
+        class: phpbb\ucp\controller\delete_cookies
+        arguments:
+            - '@config'
+            - '@dispatcher'
+            - '@controller.helper'
+            - '@language'
+            - '@request'
+            - '@user'
+            - '%core.root_path%'
+            - '%core.php_ext%'
+
+    phpbb.ucp.controller.oauth:
+        class: phpbb\ucp\controller\oauth
+        arguments:
+            - '@auth.provider_collection'
+            - '@captcha.factory'
+            - '@config'
+            - '@dispatcher'
+            - '@controller.helper'
+            - '@language'
+            - '@request'
+            - '@template'
+            - '@user'
+            - '%core.root_path%'
+            - '%core.php_ext%'
+
     phpbb.ucp.controller.reset_password:
         class: phpbb\ucp\controller\reset_password
         arguments:
             - '@config'
             - '@dbal.conn'
-            - '@dispatcher'
+            - '@event_dispatcher'
             - '@controller.helper'
             - '@language'
             - '@log'
+            - '@messenger.method.email'
             - '@passwords.manager'
             - '@request'
             - '@template'
@@ -15,3 +43,21 @@ services:
             - '%tables.users%'
             - '%core.root_path%'
             - '%core.php_ext%'
+
+    phpbb.ucp.controller.webpush:
+        class: phpbb\ucp\controller\webpush
+        arguments:
+            - '@config'
+            - '@controller.helper'
+            - '@dbal.conn'
+            - '@event_dispatcher'
+            - '@form_helper'
+            - '@language'
+            - '@notification_manager'
+            - '@path_helper'
+            - '@request'
+            - '@user_loader'
+            - '@user'
+            - '@template.twig.environment'
+            - '%tables.notification_push%'
+            - '%tables.push_subscriptions%'

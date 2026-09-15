@@ -1,15 +1,15 @@
 <?php
 /**
-*
-* This file is part of the phpBB Forum Software package.
-*
-* @copyright (c) phpBB Limited <https://www.phpbb.com>
-* @license GNU General Public License, version 2 (GPL-2.0)
-*
-* For full copyright and license information, please see
-* the docs/CREDITS.txt file.
-*
-*/
+ *
+ * This file is part of the phpBB Forum Software package.
+ *
+ * @copyright (c) phpBB Limited <https://www.phpbb.com>
+ * @license GNU General Public License, version 2 (GPL-2.0)
+ *
+ * For full copyright and license information, please see
+ * the docs/CREDITS.txt file.
+ *
+ */
 
 namespace phpbb\search\backend;
 
@@ -19,9 +19,9 @@ use phpbb\db\driver\driver_interface;
 use phpbb\user;
 
 /**
-* optional base class for search plugins providing simple caching based on ACM
-* and functions to retrieve ignore_words and synonyms
-*/
+ * optional base class for search plugins providing simple caching based on ACM
+ * and functions to retrieve ignore_words and synonyms
+ */
 abstract class base implements search_backend_interface
 {
 	public const SEARCH_RESULT_NOT_IN_CACHE = 0;
@@ -52,19 +52,26 @@ abstract class base implements search_backend_interface
 	protected $user;
 
 	/**
+	 * @var string
+	 */
+	protected $search_results_table;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param service $cache
-	 * @param config $config
-	 * @param driver_interface $db
-	 * @param user $user
+	 * @param service			$cache
+	 * @param config			$config
+	 * @param driver_interface	$db
+	 * @param user				$user
+	 * @param string			$search_results_table
 	 */
-	public function __construct(service $cache, config $config, driver_interface $db, user $user)
+	public function __construct(service $cache, config $config, driver_interface $db, user $user, string $search_results_table)
 	{
 		$this->cache = $cache;
 		$this->config = $config;
 		$this->db = $db;
 		$this->user = $user;
+		$this->search_results_table = $search_results_table;
 	}
 
 	/**
@@ -105,17 +112,16 @@ abstract class base implements search_backend_interface
 				}
 			}
 
-			// change the start to the actual end of the current request if the sort direction differs
-			// from the direction in the cache and reverse the ids later
+			// If the sort direction differs from the direction in the cache, then recalculate array keys
 			if ($reverse_ids)
 			{
-				$start = $result_count - $start - $per_page;
-
-				// the user requested a page past the last index
-				if ($start < 0)
-				{
-					return self::SEARCH_RESULT_NOT_IN_CACHE;
-				}
+				$keys = array_keys($stored_ids);
+				array_walk($keys, function (&$value, $key) use ($result_count)
+					{
+						$value = ($value >= 0) ? $result_count - $value - 1 : $value;
+					}
+				);
+				$stored_ids = array_combine($keys, $stored_ids);
 			}
 
 			for ($i = $start, $n = $start + $per_page; ($i < $n) && ($i < $result_count); $i++)
@@ -130,11 +136,6 @@ abstract class base implements search_backend_interface
 				}
 			}
 			unset($stored_ids);
-
-			if ($reverse_ids)
-			{
-				$id_ary = array_reverse($id_ary);
-			}
 
 			if (!$complete)
 			{
@@ -171,6 +172,8 @@ abstract class base implements search_backend_interface
 		}
 
 		$store_ids = array_slice($id_ary, 0, $length);
+		$id_range = range($start, $start + $length - 1);
+		$store_ids = array_combine($id_range, $store_ids);
 
 		// create a new resultset if there is none for this search_key yet
 		// or add the ids to the existing resultset
@@ -180,7 +183,7 @@ abstract class base implements search_backend_interface
 			if (!empty($keywords) || count($author_ary))
 			{
 				$sql = 'SELECT search_time
-					FROM ' . SEARCH_RESULTS_TABLE . '
+					FROM ' . $this->search_results_table . '
 					WHERE search_key = \'' . $this->db->sql_escape($search_key) . '\'';
 				$result = $this->db->sql_query($sql);
 
@@ -193,7 +196,7 @@ abstract class base implements search_backend_interface
 						'search_authors'	=> ' ' . implode(' ', $author_ary) . ' '
 					);
 
-					$sql = 'INSERT INTO ' . SEARCH_RESULTS_TABLE . ' ' . $this->db->sql_build_array('INSERT', $sql_ary);
+					$sql = 'INSERT INTO ' . $this->search_results_table . ' ' . $this->db->sql_build_array('INSERT', $sql_ary);
 					$this->db->sql_query($sql);
 				}
 				$this->db->sql_freeresult($result);
@@ -205,29 +208,26 @@ abstract class base implements search_backend_interface
 			$this->db->sql_query($sql);
 
 			$store = array(-1 => $result_count, -2 => $sort_dir);
-			$id_range = range($start, $start + $length - 1);
 		}
 		else
 		{
 			// we use one set of results for both sort directions so we have to calculate the indizes
-			// for the reversed array and we also have to reverse the ids themselves
+			// for the reversed array
 			if ($store[-2] != $sort_dir)
 			{
-				$store_ids = array_reverse($store_ids);
-				$id_range = range($store[-1] - $start - $length, $store[-1] - $start - 1);
-			}
-			else
-			{
-				$id_range = range($start, $start + $length - 1);
+				$keys = array_keys($store_ids);
+				array_walk($keys, function (&$value, $key) use ($store) {
+					$value = $store[-1] - $value - 1;
+				});
+				$store_ids = array_combine($keys, $store_ids);
 			}
 		}
-
-		$store_ids = array_combine($id_range, $store_ids);
 
 		// append the ids
 		if (is_array($store_ids))
 		{
 			$store += $store_ids;
+			ksort($store);
 
 			// if the cache is too big
 			if (count($store) - 2 > 20 * $this->config['search_block_size'])
@@ -253,7 +253,7 @@ abstract class base implements search_backend_interface
 			}
 			$this->cache->put('_search_results_' . $search_key, $store, $this->config['search_store_results']);
 
-			$sql = 'UPDATE ' . SEARCH_RESULTS_TABLE . '
+			$sql = 'UPDATE ' . $this->search_results_table . '
 				SET search_time = ' . time() . '
 				WHERE search_key = \'' . $this->db->sql_escape($search_key) . '\'';
 			$this->db->sql_query($sql);
@@ -280,7 +280,7 @@ abstract class base implements search_backend_interface
 			}
 
 			$sql = 'SELECT search_key
-				FROM ' . SEARCH_RESULTS_TABLE . "
+				FROM ' . $this->search_results_table . "
 				WHERE search_keywords LIKE '%*%' $sql_where";
 			$result = $this->db->sql_query($sql);
 
@@ -301,7 +301,7 @@ abstract class base implements search_backend_interface
 			}
 
 			$sql = 'SELECT search_key
-				FROM ' . SEARCH_RESULTS_TABLE . "
+				FROM ' . $this->search_results_table . "
 				WHERE $sql_where";
 			$result = $this->db->sql_query($sql);
 
@@ -313,7 +313,7 @@ abstract class base implements search_backend_interface
 		}
 
 		$sql = 'DELETE
-			FROM ' . SEARCH_RESULTS_TABLE . '
+			FROM ' . $this->search_results_table . '
 			WHERE search_time < ' . (time() - (int) $this->config['search_store_results']);
 		$this->db->sql_query($sql);
 	}
@@ -321,7 +321,7 @@ abstract class base implements search_backend_interface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function create_index(int &$post_counter = 0): ?array
+	public function create_index(int &$post_counter = 0): array|null
 	{
 		$max_post_id = $this->get_max_post_id();
 		$forums_indexing_enabled = $this->forum_ids_with_indexing_enabled();
@@ -329,9 +329,9 @@ abstract class base implements search_backend_interface
 		$starttime = microtime(true);
 		$row_count = 0;
 
-		while (still_on_time() && $post_counter <= $max_post_id)
+		while (still_on_time() && $post_counter < $max_post_id)
 		{
-			$rows = $this->get_posts_between($post_counter + 1, $post_counter + self::BATCH_SIZE);
+			$rows = $this->get_posts_batch_after($post_counter);
 
 			if ($this->db->sql_buffer_nested_transactions())
 			{
@@ -346,9 +346,14 @@ abstract class base implements search_backend_interface
 					$this->index('post', (int) $row['post_id'], $row['post_text'], $row['post_subject'], (int) $row['poster_id'], (int) $row['forum_id']);
 				}
 				$row_count++;
+				$post_counter = (int) $row['post_id'];
 			}
 
-			$post_counter += self::BATCH_SIZE;
+			// With cli process only one batch each time to be able to track progress
+			if (PHP_SAPI === 'cli')
+			{
+				break;
+			}
 		}
 
 		// pretend the number of posts was as big as the number of ids we indexed so far
@@ -358,7 +363,7 @@ abstract class base implements search_backend_interface
 		$this->tidy();
 		$this->config['num_posts'] = $num_posts;
 
-		if ($post_counter <= $max_post_id)
+		if ($post_counter < $max_post_id) // If there are still post to index
 		{
 			$totaltime = microtime(true) - $starttime;
 			$rows_per_second = $row_count / $totaltime;
@@ -377,15 +382,16 @@ abstract class base implements search_backend_interface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function delete_index(int &$post_counter = null): ?array
+	public function delete_index(int|null &$post_counter = null): array|null
 	{
 		$max_post_id = $this->get_max_post_id();
 
 		$starttime = microtime(true);
 		$row_count = 0;
-		while (still_on_time() && $post_counter <= $max_post_id)
+
+		while (still_on_time() && $post_counter < $max_post_id)
 		{
-			$rows = $this->get_posts_between($post_counter + 1, $post_counter + self::BATCH_SIZE);
+			$rows = $this->get_posts_batch_after($post_counter);
 			$ids = $posters = $forum_ids = array();
 			foreach ($rows as $row)
 			{
@@ -398,12 +404,17 @@ abstract class base implements search_backend_interface
 			if (count($ids))
 			{
 				$this->index_remove($ids, $posters, $forum_ids);
+				$post_counter = $ids[count($ids) - 1];
 			}
 
-			$post_counter += self::BATCH_SIZE;
+			// With cli process only one batch each time to be able to track progress
+			if (PHP_SAPI === 'cli')
+			{
+				break;
+			}
 		}
 
-		if ($post_counter <= $max_post_id)
+		if ($post_counter < $max_post_id) // If there are still post delete from index
 		{
 			$totaltime = microtime(true) - $starttime;
 			$rows_per_second = $row_count / $totaltime;
@@ -445,19 +456,18 @@ abstract class base implements search_backend_interface
 	}
 
 	/**
-	 * Get posts between 2 ids
+	 * Get batch of posts after id
 	 *
-	 * @param int $initial_id
-	 * @param int $final_id
+	 * @param int $post_id
 	 * @return \Generator
 	 */
-	protected function get_posts_between(int $initial_id, int $final_id): \Generator
+	protected function get_posts_batch_after(int $post_id): \Generator
 	{
 		$sql = 'SELECT post_id, post_subject, post_text, poster_id, forum_id
-			FROM ' . POSTS_TABLE . '
-			WHERE post_id >= ' . $initial_id . '
-				AND post_id <= ' . $final_id;
-		$result = $this->db->sql_query($sql);
+				FROM ' . POSTS_TABLE . '
+				WHERE post_id > ' . (int) $post_id . '
+				ORDER BY post_id ASC';
+		$result = $this->db->sql_query_limit($sql, self::BATCH_SIZE);
 
 		while ($row = $this->db->sql_fetchrow($result))
 		{

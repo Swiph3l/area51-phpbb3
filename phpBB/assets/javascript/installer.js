@@ -2,6 +2,9 @@
  * Installer's AJAX frontend handler
  */
 
+/* eslint no-prototype-builtins: 0 */
+/* eslint no-var: 0 */
+
 (function($) { // Avoid conflicts with other libraries
 	'use strict';
 
@@ -359,10 +362,10 @@
 		} else {
 			$('#loading_indicator').css('display', 'none');
 			addMessage('error',
-				[{
+				[ {
 					title: installLang.title,
-					description: installLang.msg
-				}]
+					description: installLang.msg,
+				} ],
 			);
 		}
 	}
@@ -372,7 +375,7 @@
 	 */
 	function queryInstallerStatus() {
 		var url = $(location).attr('pathname');
-		var lookUp = 'install/app.php';
+		var lookUp = 'install/index.php';
 		var position = url.indexOf(lookUp);
 
 		if (position === -1) {
@@ -487,7 +490,7 @@
 	function startPolling(xhReq) {
 		resetPolling();
 		transmissionOver = false;
-		pollTimer = setInterval(function () {
+		pollTimer = setInterval(function() {
 			pollContent(xhReq);
 		}, 250);
 	}
@@ -605,11 +608,29 @@
 	function interceptFormSubmit($form) {
 		if (!$form.length) {
 			return;
+		} else if ($form.find('input[name="admin_name"]').length > 0) {
+			setAdminTimezone($form);
 		}
 
-		$form.find(':submit').bind('click', function (event) {
+		$form.find(':submit').bind('click', function(event) {
 			event.preventDefault();
 			submitForm($form, $(this));
 		});
+	}
+
+	/**
+	 * Set admin timezone in form
+	 *
+	 * @param $form
+	 */
+	function setAdminTimezone($form) {
+		// Set admin timezone if it does not exist yet
+		if ($form.find('input[name="admin_timezone"]').length === 0) {
+			const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+			// Add timezone as form entry
+			const timezoneEntry = $('<input type="hidden" name="admin_timezone" value="' + timeZone + '">');
+			$form.append(timezoneEntry);
+		}
 	}
 })(jQuery); // Avoid conflicts with other libraries

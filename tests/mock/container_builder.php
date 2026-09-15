@@ -22,6 +22,8 @@ class phpbb_mock_container_builder implements ContainerInterface
 	{
 		$this->setParameter('debug.load_time', false);
 		$this->setParameter('session.log_errors', false);
+		$this->setParameter('session.force_sid', true);
+		$this->setParameter('finder.cache', false);
 	}
 
 	/**
@@ -33,7 +35,7 @@ class phpbb_mock_container_builder implements ContainerInterface
 	*
 	* @api
 	*/
-	public function set($id, $service, $shared = false)
+	public function set(string $id, mixed $service): void
 	{
 		$this->services[$id] = $service;
 	}
@@ -54,7 +56,7 @@ class phpbb_mock_container_builder implements ContainerInterface
 	*
 	* @api
 	*/
-	public function get($id, $invalidBehavior = self::EXCEPTION_ON_INVALID_REFERENCE)
+	public function get(string $id, int $invalidBehavior = self::EXCEPTION_ON_INVALID_REFERENCE): object|null
 	{
 		if ($this->has($id))
 		{
@@ -77,11 +79,11 @@ class phpbb_mock_container_builder implements ContainerInterface
 	*
 	* @param string $id The service identifier
 	*
-	* @return Boolean true if the service is defined, false otherwise
+	* @return bool true if the service is defined, false otherwise
 	*
 	* @api
 	*/
-	public function has($id)
+	public function has(string $id): bool
 	{
 		return isset($this->services[$id]);
 	}
@@ -97,7 +99,7 @@ class phpbb_mock_container_builder implements ContainerInterface
 	*
 	* @api
 	*/
-	public function getParameter($name)
+	public function getParameter(string $name): array|bool|string|int|float|\UnitEnum|null
 	{
 		if ($this->hasParameter($name))
 		{
@@ -112,11 +114,11 @@ class phpbb_mock_container_builder implements ContainerInterface
 	*
 	* @param string $name The parameter name
 	*
-	* @return Boolean The presence of parameter in container
+	* @return bool The presence of parameter in container
 	*
 	* @api
 	*/
-	public function hasParameter($name)
+	public function hasParameter(string $name): bool
 	{
 		return isset($this->parameters[$name]);
 	}
@@ -129,7 +131,7 @@ class phpbb_mock_container_builder implements ContainerInterface
 	*
 	* @api
 	*/
-	public function setParameter($name, $value)
+	public function setParameter($name, array|bool|string|int|float|\UnitEnum|null $value): void
 	{
 		$this->parameters[$name] = $value;
 	}
@@ -200,7 +202,7 @@ class phpbb_mock_container_builder implements ContainerInterface
 		return false;
 	}
 
-	public function initialized($id)
+	public function initialized($id): bool
 	{
 		return true;
 	}

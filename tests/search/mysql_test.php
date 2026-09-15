@@ -34,12 +34,14 @@ class phpbb_search_mysql_test extends phpbb_search_common_test_case
 		$user = $this->createMock('\phpbb\user');
 
 		//  set config values
-		$config['fulltext_mysql_min_word_len'] = 4;
-		$config['fulltext_mysql_max_word_len'] = 254;
+		$config = new \phpbb\config\config([
+			'fulltext_mysql_min_word_len' => 4,
+			'fulltext_mysql_max_word_len' => 254,
+		]);
 
 		$this->db = $this->new_dbal();
 		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 		$class = self::get_search_wrapper('\phpbb\search\backend\fulltext_mysql');
-		$this->search = new $class($config, $this->db, $phpbb_dispatcher, $language, $user, $phpbb_root_path, $phpEx);
+		$this->search = new $class($config, $this->db, $phpbb_dispatcher, $language, $user, SEARCH_RESULTS_TABLE, $phpbb_root_path, $phpEx);
 	}
 }

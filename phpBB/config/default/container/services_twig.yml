@@ -5,13 +5,14 @@ services:
     template.twig.environment:
         class: phpbb\template\twig\environment
         arguments:
+            - '@assets.bag'
             - '@config'
             - '@filesystem'
             - '@path_helper'
             - '%core.template.cache_path%'
             - '@ext.manager'
             - '@template.twig.loader'
-            - '@dispatcher'
+            - '@event_dispatcher'
             - []
         calls:
             - [setLexer, ['@template.twig.lexer']]
@@ -44,6 +45,8 @@ services:
 
     template.twig.extensions.avatar:
         class: phpbb\template\twig\extension\avatar
+        arguments:
+            - '@avatar.helper'
         tags:
             - { name: twig.extension }
 
@@ -68,6 +71,13 @@ services:
 
     template.twig.extensions.debug:
         class: Twig\Extension\DebugExtension
+
+    template.twig.extensions.forms:
+        class: phpbb\template\twig\extension\forms
+        arguments:
+            - '@user'
+        tags:
+            - { name: twig.extension }
 
     template:
         class: phpbb\template\twig\twig

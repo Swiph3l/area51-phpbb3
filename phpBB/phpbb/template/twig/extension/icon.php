@@ -46,7 +46,7 @@ class icon extends AbstractExtension
 	 *
 	 * @return \Twig\TwigFunction[]			Array of twig functions
 	 */
-	public function getFunctions()
+	public function getFunctions(): array
 	{
 		return [
 			new \Twig\TwigFunction('Icon', [$this, 'icon'], ['needs_environment' => true]),
@@ -57,8 +57,8 @@ class icon extends AbstractExtension
 	 * Generate icon HTML for use in the template, depending on the mode.
 	 *
 	 * @param environment	$environment	Twig environment object
-	 * @param string		$type			Icon type (font|iconify|png|svg)
-	 * @param string		$icon			Icon name (eg. "bold")
+	 * @param string		$type			Icon type (font|png|svg)
+	 * @param array|string	$icon			Icon name (eg. "bold")
 	 * @param string		$title			Icon title
 	 * @param bool			$hidden			Hide the icon title from view
 	 * @param string		$classes		Additional classes (eg. "fa-fw")
@@ -83,27 +83,19 @@ class icon extends AbstractExtension
 		switch ($type)
 		{
 			case 'font':
-				// Nothing to do here..
-			break;
-
-			case 'iconify':
-				$source = explode(':', $icon);
-				$source = $source[0];
+				$classes = $this->insert_fa_class($classes);
 			break;
 
 			case 'png':
 				$filesystem	= $environment->get_filesystem();
 				$root_path	= $environment->get_web_root_path();
 
-				$board_url	= defined('PHPBB_USE_BOARD_URL_PATH') && PHPBB_USE_BOARD_URL_PATH;
-				$base_path	= $board_url ? generate_board_url() . '/' : $root_path;
-
 				// Iterate over the user's styles and check for icon existance
 				foreach ($this->get_style_list() as $style_path)
 				{
 					if ($filesystem->exists("{$root_path}styles/{$style_path}/theme/png/{$icon}.png"))
 					{
-						$source = "{$base_path}styles/{$style_path}/theme/png/{$icon}.png";
+						$source = "{$root_path}styles/{$style_path}/theme/png/{$icon}.png";
 
 						break;
 					}
@@ -132,13 +124,12 @@ class icon extends AbstractExtension
 				}
 				catch (\Twig\Error\Error $e)
 				{
-					return '';
+					return $e->getMessage();
 				}
 			break;
 
 			default:
 				return '';
-			break;
 		}
 
 		// If no PNG or SVG icon was found, display a default 404 SVG icon.
@@ -151,7 +142,7 @@ class icon extends AbstractExtension
 			}
 			catch (\Twig\Error\Error $e)
 			{
-				return '';
+				return $e->getMessage();
 			}
 
 			$type = 'svg';
@@ -173,8 +164,41 @@ class icon extends AbstractExtension
 		}
 		catch (\Twig\Error\Error $e)
 		{
-			return '';
+			return $e->getMessage();
 		}
+	}
+
+	/**
+	 * Insert fa class into class string by checking if class string contains any fa classes
+	 *
+	 * @param string $class_string
+	 * @return string Updated class string or original class string if fa class is already set or string is empty
+	 */
+	protected function insert_fa_class(string $class_string): string
+	{
+		if (empty($class_string))
+		{
+			return $class_string;
+		}
+
+		// These also include pro class name we don't use, but handle them properly anyway
+		$fa_classes = ['fa-solid', 'fas', 'fa-regular', 'far', 'fal', 'fa-light', 'fab', 'fa-brands'];
+
+		// Split the class string into individual words
+		$icon_classes = explode(' ', $class_string);
+
+		// Check if the class string contains any of the fa classes, just return class string in that case
+		foreach ($icon_classes as $word)
+		{
+			if (in_array($word, $fa_classes))
+			{
+				return $class_string;
+			}
+		}
+
+		// If we reach this it means we didn't have any fa classes in the class string.
+		// Prepend class string with fas for fa-solid
+		return 'fas ' . $class_string;
 	}
 
 	/**
@@ -195,11 +219,11 @@ class icon extends AbstractExtension
 		$doc = new \DOMDocument();
 		$doc->preserveWhiteSpace = false;
 
-		/**
-		 * Suppression is needed as DOMDocument does not like HTML5 and SVGs.
-		 * Options parameter prevents $dom->saveHTML() from adding an <html> element.
-		 */
-		@$doc->loadHTML($code, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+		// Hide html5/svg errors
+		libxml_use_internal_errors(true);
+
+		// Options parameter prevents $dom->saveHTML() from adding an <html> element.
+		$doc->loadHTML($code, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
 
 		// Remove any DOCTYPE
 		foreach ($doc->childNodes as $child)
@@ -245,7 +269,7 @@ class icon extends AbstractExtension
 		$string = $doc->saveHTML();
 		$string = preg_replace('/\s+/', ' ', $string);
 
-		return $string;
+		return $string ?: '';
 	}
 
 	/**
@@ -256,7 +280,7 @@ class icon extends AbstractExtension
 	 *
 	 * {{ Icon('font', {
 	 * 		'bullhorn': topicrow.S_POST_GLOBAL or topicrow.S_POST_ANNOUNCE,
-	 * 		'star': topicrow.S_POST_STICKY,
+	 * 		'thumbtack': topicrow.S_POST_STICKY,
 	 * 		'lock': topicrow.S_TOPIC_LOCKED,
 	 * 		'fire': topicrow.S_TOPIC_HOT,
 	 * 		'file': true,

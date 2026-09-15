@@ -1,4 +1,6 @@
 /* global phpbb */
+/* eslint camelcase: 0 */
+/* eslint no-var: 0 */
 
 (function($) {  // Avoid conflicts with other libraries
 
@@ -11,7 +13,7 @@ phpbb.addAjaxCallback('mark_forums_read', function(res) {
 	var iconsArray = {
 		forum_unread: 'forum_read',
 		forum_unread_subforum: 'forum_read_subforum',
-		forum_unread_locked: 'forum_read_locked'
+		forum_unread_locked: 'forum_read_locked',
 	};
 
 	$('li.row').find('dl[class*="forum_unread"]').each(function() {
@@ -52,9 +54,9 @@ phpbb.addAjaxCallback('mark_topics_read', function(res, updateTopicLinks) {
 		global_unread: 'global_read',
 		announce_unread: 'announce_read',
 		sticky_unread: 'sticky_read',
-		topic_unread: 'topic_read'
+		topic_unread: 'topic_read',
 	};
-	var iconsState = ['', '_hot', '_hot_mine', '_locked', '_locked_mine', '_mine'];
+	var iconsState = [ '', '_hot', '_hot_mine', '_locked', '_locked_mine', '_mine' ];
 	var unreadClassSelectors;
 	var classMap = {};
 	var classNames = [];
@@ -101,6 +103,7 @@ phpbb.addAjaxCallback('mark_topics_read', function(res, updateTopicLinks) {
 phpbb.addAjaxCallback('notification.mark_all_read', function(res) {
 	if (typeof res.success !== 'undefined') {
 		phpbb.markNotifications($('[data-notification-unread="true"]'), 0);
+		phpbb.toggleDropdown.call($('#notification-button'));
 		phpbb.closeDarkenWrapper(3000);
 	}
 });
@@ -205,7 +208,7 @@ phpbb.addAjaxCallback('vote_poll', function(res) {
 		var mostVotes = 0;
 
 		// Set min-height to prevent the page from jumping when the content changes
-		var updatePanelHeight = function (height) {
+		var updatePanelHeight = function(height) {
 			height = (typeof height === 'undefined') ? panel.find('.inner').outerHeight() : height;
 			panel.css('min-height', height);
 		};
@@ -217,7 +220,7 @@ phpbb.addAjaxCallback('vote_poll', function(res) {
 		}
 
 		if (!res.can_vote) {
-			poll.find('.polls, .poll_max_votes, .poll_vote, .poll_option_select').fadeOut(500, function () {
+			poll.find('.polls, .poll_max_votes, .poll_vote, .poll_option_select').fadeOut(500, function() {
 				poll.find('.resultbar, .poll_option_percent, .poll_total_votes').show();
 			});
 		} else {
@@ -259,7 +262,7 @@ phpbb.addAjaxCallback('vote_poll', function(res) {
 			var barTimeLapse = (res.can_vote) ? 500 : 1500;
 			var newBarClass = (percent === 100) ? 'pollbar5' : 'pollbar' + (Math.floor(percent / 20) + 1);
 
-			setTimeout(function () {
+			setTimeout(function() {
 				bar.animate({ width: percentRel + '%' }, 500)
 					.removeClass('pollbar1 pollbar2 pollbar3 pollbar4 pollbar5')
 					.addClass(newBarClass)
@@ -291,13 +294,13 @@ phpbb.addAjaxCallback('vote_poll', function(res) {
 			resizePanel(500);
 		}, 1500);
 
-		var resizePanel = function (time) {
+		var resizePanel = function(time) {
 			var panelHeight = panel.height();
 			var innerHeight = panel.find('.inner').outerHeight();
 
 			if (panelHeight !== innerHeight) {
 				panel.css({ minHeight: '', height: panelHeight })
-					.animate({ height: innerHeight }, time, function () {
+					.animate({ height: innerHeight }, time, function() {
 						panel.css({ minHeight: innerHeight, height: '' });
 					});
 			}
@@ -331,11 +334,10 @@ $('[data-ajax]').each(function() {
 			selector: this,
 			refresh: $this.attr('data-refresh') !== undefined,
 			filter: filter,
-			callback: fn
+			callback: fn,
 		});
 	}
 });
-
 
 /**
  * This simply appends #preview to the action of the
@@ -362,13 +364,24 @@ $('.display_post').click(function(e) {
 });
 
 /**
+ * Display hidden post on post review page
+ */
+$('.display_post_review').on('click', function(e) {
+	e.preventDefault();
+
+	const $displayPostLink = $(this);
+	$displayPostLink.closest('.post-ignore').removeClass('post-ignore');
+	$displayPostLink.hide();
+});
+
+/**
 * Toggle the member search panel in memberlist.php.
 *
 * If user returns to search page after viewing results the search panel is automatically displayed.
 * In any case the link will toggle the display status of the search panel and link text will be
 * appropriately changed based on the status of the search panel.
 */
-$('#member_search').click(function () {
+$('#member_search').click(function() {
 	var $memberlistSearch = $('#memberlist_search');
 
 	$memberlistSearch.slideToggle('fast');
@@ -380,6 +393,28 @@ $('#member_search').click(function () {
 	}
 	return false;
 });
+
+/**
+ * Show to top button if available on page
+ */
+const $scrollTopButton = $('.to-top-button');
+
+if ($scrollTopButton.length) {
+	// Show or hide the button based on scroll position
+	$(window).scroll(function() {
+		if ($(this).scrollTop() > 300) {
+			$scrollTopButton.fadeIn(); // Fade in the button
+		} else {
+			$scrollTopButton.fadeOut(); // Fade out the button
+		}
+	});
+
+	// Scroll smoothly to the top when the button is clicked
+	$scrollTopButton.click(function(e) {
+		e.preventDefault(); // Prevent the default anchor link behavior
+		$('html, body').animate({ scrollTop: 0 }, 500); // Smooth scroll to top
+	});
+}
 
 /**
 * Automatically resize textarea

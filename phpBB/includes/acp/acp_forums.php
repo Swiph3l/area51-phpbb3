@@ -22,12 +22,14 @@ if (!defined('IN_PHPBB'))
 class acp_forums
 {
 	var $u_action;
+	var $tpl_name;
+	var $page_title;
 	var $parent_id = 0;
 
 	function main($id, $mode)
 	{
 		global $db, $user, $auth, $template, $cache, $request, $phpbb_dispatcher;
-		global $phpbb_admin_path, $phpbb_root_path, $phpEx, $phpbb_log;
+		global $phpbb_admin_path, $phpbb_container, $phpbb_root_path, $phpEx, $phpbb_log;
 
 		$user->add_lang('acp/forums');
 		$this->tpl_name = 'acp_forums';
@@ -210,16 +212,10 @@ class acp_forums
 							($action != 'edit' || empty($forum_id) || ($auth->acl_get('a_fauth') && $auth->acl_get('a_authusers') && $auth->acl_get('a_authgroups') && $auth->acl_get('a_mauth'))))
 						{
 							copy_forum_permissions($forum_perm_from, $forum_data['forum_id'], ($action == 'edit') ? true : false);
-							phpbb_cache_moderators($db, $cache, $auth);
+							phpbb_cache_moderators($db, $phpbb_container->get('dbal.tools'), $cache, $auth);
 							$copied_permissions = true;
 						}
-/* Commented out because of questionable UI workflow - re-visit for 3.0.7
-						else if (!$this->parent_id && $action != 'edit' && $auth->acl_get('a_fauth') && $auth->acl_get('a_authusers') && $auth->acl_get('a_authgroups') && $auth->acl_get('a_mauth'))
-						{
-							$this->copy_permission_page($forum_data);
-							return;
-						}
-*/
+
 						$auth->acl_clear_prefetch();
 
 						$acl_url = '&amp;mode=setting_forum_local&amp;forum_id[]=' . $forum_data['forum_id'];
@@ -789,7 +785,7 @@ class acp_forums
 				if (!empty($forum_perm_from) && $forum_perm_from != $forum_id)
 				{
 					copy_forum_permissions($forum_perm_from, $forum_id, true);
-					phpbb_cache_moderators($db, $cache, $auth);
+					phpbb_cache_moderators($db, $phpbb_container->get('dbal.tools'), $cache, $auth);
 					$auth->acl_clear_prefetch();
 					$cache->destroy('sql', FORUMS_TABLE);
 
@@ -869,28 +865,9 @@ class acp_forums
 			{
 				$forum_type = $row['forum_type'];
 
-				if ($row['forum_status'] == ITEM_LOCKED)
-				{
-					$folder_image = '<img src="images/icon_folder_lock.gif" alt="' . $user->lang['LOCKED'] . '" />';
-				}
-				else
-				{
-					switch ($forum_type)
-					{
-						case FORUM_LINK:
-							$folder_image = '<img src="images/icon_folder_link.gif" alt="' . $user->lang['LINK'] . '" />';
-						break;
-
-						default:
-							$folder_image = ($row['left_id'] + 1 != $row['right_id']) ? '<img src="images/icon_subfolder.gif" alt="' . $user->lang['SUBFORUM'] . '" />' : '<img src="images/icon_folder.gif" alt="' . $user->lang['FOLDER'] . '" />';
-						break;
-					}
-				}
-
 				$url = $this->u_action . "&amp;parent_id=$this->parent_id&amp;f={$row['forum_id']}";
 
 				$template->assign_block_vars('forums', array(
-					'FOLDER_IMAGE'		=> $folder_image,
 					'FORUM_IMAGE'		=> ($row['forum_image']) ? '<img src="' . $phpbb_root_path . $row['forum_image'] . '" alt="" />' : '',
 					'FORUM_IMAGE_SRC'	=> ($row['forum_image']) ? $phpbb_root_path . $row['forum_image'] : '',
 					'FORUM_NAME'		=> $row['forum_name'],
@@ -900,6 +877,8 @@ class acp_forums
 
 					'S_FORUM_LINK'		=> ($forum_type == FORUM_LINK) ? true : false,
 					'S_FORUM_POST'		=> ($forum_type == FORUM_POST) ? true : false,
+					'S_FORUM_LOCKED'	=> ($row['forum_status'] == ITEM_LOCKED) ? true : false,
+					'S_SUBFORUMS'		=> ($row['left_id'] + 1 != $row['right_id']) ? true : false,
 
 					'U_FORUM'			=> $this->u_action . '&amp;parent_id=' . $row['forum_id'],
 					'U_MOVE_UP'			=> $url . '&amp;action=move_up',
@@ -1224,7 +1203,7 @@ class acp_forums
 					if ($action_subforums == 'delete')
 					{
 						$rows = get_forum_branch($row['forum_id'], 'children', 'descending', false);
-
+						$forum_ids = [];
 						foreach ($rows as $_row)
 						{
 							// Do not remove the forum id we are about to change. ;)
@@ -2071,7 +2050,7 @@ class acp_forums
 
 		$config->set('num_files', (int) $row['stat'], false);
 
-		$sql = 'SELECT SUM(filesize) as stat
+		$sql = 'SELECT SUM(' . $db->cast_expr_to_bigint('filesize') . ') as stat
 			FROM ' . ATTACHMENTS_TABLE;
 		$result = $db->sql_query($sql);
 		$row = $db->sql_fetchrow($result);
@@ -2183,29 +2162,4 @@ class acp_forums
 
 		adm_page_footer();
 	}
-
-	/**
-	* Display copy permission page
-	* Not used at the moment - we will have a look at it for 3.0.7
-	*/
-	function copy_permission_page($forum_data)
-	{
-		global $phpEx, $phpbb_admin_path, $template, $user;
-
-		$acl_url = '&amp;mode=setting_forum_local&amp;forum_id[]=' . $forum_data['forum_id'];
-		$action = append_sid($this->u_action . "&amp;parent_id={$this->parent_id}&amp;f={$forum_data['forum_id']}&amp;action=copy_perm");
-
-		$l_acl = sprintf($user->lang['COPY_TO_ACL'], '<a href="' . append_sid("{$phpbb_admin_path}index.$phpEx", 'i=permissions' . $acl_url) . '">', '</a>');
-
-		$this->tpl_name = 'acp_forums_copy_perm';
-
-		$template->assign_vars(array(
-			'U_ACL'				=> append_sid("{$phpbb_admin_path}index.$phpEx", 'i=permissions' . $acl_url),
-			'L_ACL_LINK'		=> $l_acl,
-			'L_BACK_LINK'		=> adm_back_link($this->u_action . '&amp;parent_id=' . $this->parent_id),
-			'S_COPY_ACTION'		=> $action,
-			'S_FORUM_OPTIONS'	=> make_forum_select($forum_data['parent_id'], $forum_data['forum_id'], false, false, false),
-		));
-	}
-
 }

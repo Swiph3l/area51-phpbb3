@@ -13,7 +13,9 @@
 
 namespace phpbb\install\module\install_database\task;
 
+use phpbb\db\doctrine\connection_factory;
 use phpbb\install\exception\resource_limit_reached_exception;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * Create database schema
@@ -31,6 +33,11 @@ class create_schema_file extends \phpbb\install\task_base
 	protected $db;
 
 	/**
+	 * @var \Doctrine\DBAL\Connection
+	 */
+	protected $db_doctrine;
+
+	/**
 	 * @var \phpbb\filesystem\filesystem_interface
 	 */
 	protected $filesystem;
@@ -46,6 +53,11 @@ class create_schema_file extends \phpbb\install\task_base
 	protected $php_ext;
 
 	/**
+	 * @var bool
+	 */
+	protected $finder_cache;
+
+	/**
 	 * Constructor
 	 *
 	 * @param \phpbb\install\helper\config							$config				Installer's config provider
@@ -53,12 +65,14 @@ class create_schema_file extends \phpbb\install\task_base
 	 * @param \phpbb\filesystem\filesystem_interface				$filesystem			Filesystem service
 	 * @param string												$phpbb_root_path	Path phpBB's root
 	 * @param string												$php_ext			Extension of PHP files
+	 * @param bool													$finder_cache		Flag whether to cache finder
 	 */
 	public function __construct(\phpbb\install\helper\config $config,
 								\phpbb\install\helper\database $db_helper,
 								\phpbb\filesystem\filesystem_interface $filesystem,
 								$phpbb_root_path,
-								$php_ext)
+								$php_ext,
+								$finder_cache)
 	{
 		$dbms = $db_helper->get_available_dbms($config->get('dbms'));
 		$dbms = $dbms[$config->get('dbms')]['DRIVER'];
@@ -74,10 +88,20 @@ class create_schema_file extends \phpbb\install\task_base
 			false
 		);
 
+		$this->db_doctrine = connection_factory::get_connection_from_params(
+			$config->get('dbms'),
+			$config->get('dbhost'),
+			$config->get('dbuser'),
+			$config->get('dbpasswd'),
+			$config->get('dbname'),
+			$config->get('dbport')
+		);
+
 		$this->config			= $config;
 		$this->filesystem		= $filesystem;
 		$this->phpbb_root_path	= $phpbb_root_path;
 		$this->php_ext			= $php_ext;
+		$this->finder_cache		= $finder_cache;
 
 		parent::__construct(true);
 	}
@@ -117,15 +141,17 @@ class create_schema_file extends \phpbb\install\task_base
 				include ($this->phpbb_root_path . 'includes/constants.' . $this->php_ext);
 			}
 
-			$finder = new \phpbb\finder($this->phpbb_root_path, null, $this->php_ext);
+			$finder_factory = new \phpbb\finder\factory(null, $this->finder_cache, $this->phpbb_root_path, $this->php_ext);
+			$finder = $finder_factory->get();
 			$migrator_classes = $finder->core_path('phpbb/db/migration/data/')->get_classes();
 			$factory = new \phpbb\db\tools\factory();
-			$db_tools = $factory->get($this->db, true);
-			$tables_data = \Symfony\Component\Yaml\Yaml::parseFile($this->phpbb_root_path . '/config/default/container/tables.yml');
+			$db_tools = $factory->get($this->db_doctrine, true);
+			$db_tools->set_table_prefix($table_prefix);
+			$tables_data = Yaml::parseFile($this->phpbb_root_path . '/config/default/container/tables.yml', Yaml::PARSE_EXCEPTION_ON_INVALID_TYPE);
 			$tables = [];
 			foreach ($tables_data['parameters'] as $parameter => $table)
 			{
-				$tables[str_replace('tables.', '', $parameter)] = str_replace('%core.table_prefix%', $table_prefix, $table);
+				$tables[str_replace('tables.', '', (string) $parameter)] = str_replace('%core.table_prefix%', $table_prefix, $table);
 			}
 
 			$schema_generator = new \phpbb\db\migration\schema_generator(

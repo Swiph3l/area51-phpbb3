@@ -21,7 +21,7 @@ class phpbb_template_template_includecss_test extends phpbb_template_template_te
 	/** @var string */
 	protected $parent_template_path;
 
-	protected function setup_engine(array $new_config = array())
+	protected function setup_engine(array $new_config = array(), string $template_path = '')
 	{
 		global $phpbb_root_path, $phpEx, $user;
 
@@ -44,7 +44,10 @@ class phpbb_template_template_includecss_test extends phpbb_template_template_te
 		$cache_path = $phpbb_root_path . 'cache/twig';
 		$context = new \phpbb\template\context();
 		$loader = new \phpbb\template\twig\loader('');
+		$log = new \phpbb\log\dummy();
+		$assets_bag = new \phpbb\template\assets_bag();
 		$twig = new \phpbb\template\twig\environment(
+			$assets_bag,
 			$config,
 			$filesystem,
 			$this->phpbb_path_helper,
@@ -82,7 +85,7 @@ class phpbb_template_template_includecss_test extends phpbb_template_template_te
 		$this->template->set_custom_style('tests', array($this->template_path, $this->parent_template_path));
 	}
 
-	public function template_data()
+	public static function template_data()
 	{
 		return array(
 			/*
@@ -93,19 +96,19 @@ class phpbb_template_template_includecss_test extends phpbb_template_template_te
 			*/
 			array(
 				array('TEST' => 1),
-				'<link href="tests/template/templates/child_only.css?assets_version=1" rel="stylesheet" media="screen" />',
+				'<link href="tests/template/templates/child_only.css?assets_version=1" rel="stylesheet" media="screen">',
 			),
 			array(
 				array('TEST' => 2),
-				'<link href="tests/template/parent_templates/parent_only.css?assets_version=1" rel="stylesheet" media="screen" />',
+				'<link href="tests/template/parent_templates/parent_only.css?assets_version=1" rel="stylesheet" media="screen">',
 			),
 			array(
 				array('TEST' => 3),
-				'<link href="tests/template/ext/include/css/styles/all/theme/test.css?assets_version=1" rel="stylesheet" media="screen" />',
+				'<link href="tests/template/ext/include/css/styles/all/theme/test.css?assets_version=1" rel="stylesheet" media="screen">',
 			),
 			array(
 				array('TEST' => 4),
-				'<link href="tests/template/ext/include/css/styles/all/theme/child_only.css?assets_version=1" rel="stylesheet" media="screen" />',
+				'<link href="tests/template/ext/include/css/styles/all/theme/child_only.css?assets_version=1" rel="stylesheet" media="screen">',
 			),
 		);
 	}
@@ -122,5 +125,19 @@ class phpbb_template_template_includecss_test extends phpbb_template_template_te
 
 		// Run test
 		$this->run_template('includecss.html', array(), array(), array(), $expected);
+	}
+
+	/**
+	 * @dataProvider template_data
+	 */
+	public function test_include_css_compilation($vars, $expected)
+	{
+		// Reset the engine state
+		$this->setup_engine(array('assets_version' => 1));
+
+		$this->template->assign_vars($vars);
+
+		// Run test
+		$this->run_template('includecss_twig.html', array(), array(), array(), $expected);
 	}
 }

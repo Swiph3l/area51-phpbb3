@@ -42,10 +42,13 @@ if (!defined('IN_PHPBB'))
 class ucp_pm
 {
 	var $u_action;
+	var $page_title;
+	var $tpl_name;
+	var $p_name;
 
 	function main($id, $mode)
 	{
-		global $user, $template, $phpbb_root_path, $auth, $phpEx, $db, $config, $request;
+		global $user, $template, $phpbb_root_path, $auth, $phpEx, $db, $config, $request, $global_privmsgs_rules, $global_rule_conditions;
 
 		if (!$user->data['is_registered'])
 		{

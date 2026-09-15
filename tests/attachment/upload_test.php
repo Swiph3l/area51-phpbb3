@@ -69,6 +69,9 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 	/** @var \phpbb\request\request */
 	protected $request;
 
+	/** @var string */
+	protected $phpbb_root_path;
+
 	public function getDataSet()
 	{
 		return $this->createXMLDataSet(__DIR__ . '/fixtures/resync.xml');
@@ -87,7 +90,8 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 		$config = $this->config;
 		$this->phpbb_root_path = $phpbb_root_path;
 		$this->db = $this->new_dbal();
-		$this->cache = new \phpbb\cache\service(new \phpbb\cache\driver\dummy(), $this->config, $this->db, $phpbb_root_path, $phpEx);
+		$this->phpbb_dispatcher = new phpbb_mock_event_dispatcher();
+		$this->cache = new \phpbb\cache\service(new \phpbb\cache\driver\dummy(), $this->config, $this->db, $this->phpbb_dispatcher, $phpbb_root_path, $phpEx);
 		$this->request = $this->createMock('\phpbb\request\request');
 
 		$this->filesystem = new \phpbb\filesystem\filesystem();
@@ -161,7 +165,7 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 		);
 	}
 
-	public function data_upload()
+	public static function data_upload()
 	{
 		return array(
 			array('foobar', 1, false,
@@ -276,7 +280,7 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 		), $filedata);
 	}
 
-	public function data_image_upload()
+	public static function data_image_upload()
 	{
 		return array(
 			array(false, false, array(),
@@ -361,7 +365,7 @@ class phpbb_attachment_upload_test extends \phpbb_database_test_case
 	public function test_image_upload($is_image, $plupload_active, $config_data, $expected)
 	{
 		$filespec = $this->getMockBuilder('\phpbb\files\filespec_storage')
-			->setMethods(array(
+			->onlyMethods(array(
 				'init_error',
 				'is_image',
 				'move_file',

@@ -27,6 +27,8 @@ class mcp_pm_reports
 {
 	var $p_master;
 	var $u_action;
+	var $page_title;
+	var $tpl_name;
 
 	function __construct($p_master)
 	{
@@ -51,8 +53,6 @@ class mcp_pm_reports
 		{
 			case 'close':
 			case 'delete':
-				include_once($phpbb_root_path . 'includes/functions_messenger.' . $phpEx);
-
 				$report_id_list = $request->variable('report_id_list', array(0));
 
 				if (!count($report_id_list))
@@ -135,6 +135,7 @@ class mcp_pm_reports
 						ORDER BY filetime DESC';
 					$result = $db->sql_query($sql);
 
+					$attachments = [];
 					while ($row = $db->sql_fetchrow($result))
 					{
 						$attachments[] = $row;
@@ -201,7 +202,7 @@ class mcp_pm_reports
 					'POST_SUBJECT'			=> ($pm_info['message_subject']) ? $pm_info['message_subject'] : $user->lang['NO_SUBJECT'],
 					'POST_DATE'				=> $user->format_date($pm_info['message_time']),
 					'POST_IP'				=> $pm_info['author_ip'],
-					'POST_IPADDR'			=> ($auth->acl_getf_global('m_info') && $request->variable('lookup', '')) ? @gethostbyaddr($pm_info['author_ip']) : '',
+					'POST_IPADDR'			=> ($auth->acl_getf_global('m_info') && $request->variable('lookup', '')) ? phpbb_get_host_for_ip($pm_info['author_ip']) : '',
 					'POST_ID'				=> $pm_info['msg_id'],
 
 					'U_LOOKUP_IP'			=> ($auth->acl_getf_global('m_info')) ? $this->u_action . '&amp;r=' . $report_id . '&amp;pm=' . $pm_id . '&amp;lookup=' . $pm_info['author_ip'] . '#ip' : '',
@@ -242,12 +243,10 @@ class mcp_pm_reports
 					ORDER BY $sort_order_sql";
 				$result = $db->sql_query_limit($sql, $config['topics_per_page'], $start);
 
-				$i = 0;
 				$report_ids = array();
 				while ($row = $db->sql_fetchrow($result))
 				{
 					$report_ids[] = $row['report_id'];
-					$row_num[$row['report_id']] = $i++;
 				}
 				$db->sql_freeresult($result);
 

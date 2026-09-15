@@ -66,7 +66,7 @@ class update_hashes extends \phpbb\console\command\command
 	/**
 	 * {@inheritdoc}
 	 */
-	protected function configure()
+	protected function configure(): void
 	{
 		$this
 			->setName('fixup:update-hashes')
@@ -77,7 +77,7 @@ class update_hashes extends \phpbb\console\command\command
 	/**
 	 * {@inheritdoc}
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output)
+	protected function execute(InputInterface $input, OutputInterface $output): int
 	{
 		// Get count to be able to display progress
 		$sql = 'SELECT COUNT(user_id) AS count
@@ -101,7 +101,15 @@ class update_hashes extends \phpbb\console\command\command
 		while ($row = $this->db->sql_fetchrow($result))
 		{
 			$old_hash = preg_replace('/^\$CP\$/', '', $row['user_password']);
-			$new_hash = $this->passwords_manager->hash($old_hash, array($this->default_type));
+
+			// If stored hash type is unknown then it's md5 hash with no prefix
+			// First rehash it using $H$ as hash type identifier (salted_md5)
+			if (!$this->passwords_manager->detect_algorithm($old_hash))
+			{
+				$old_hash = $this->passwords_manager->hash($old_hash, '$H$');
+			}
+
+			$new_hash = $this->passwords_manager->hash($old_hash, [$this->default_type]);
 
 			$sql = 'UPDATE ' . USERS_TABLE . "
 					SET user_password = '" . $this->db->sql_escape($new_hash) . "'

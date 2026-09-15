@@ -21,7 +21,7 @@ use phpbb\passwords\manager;
 use phpbb\user;
 
 /**
- * Database authentication provider for phpBB3
+ * Database authentication provider for phpBB
  * This is for authentication via the integrated user table
  */
 class db extends base
@@ -137,8 +137,12 @@ class db extends base
 		}
 
 		$login_error_attempts = 'LOGIN_ERROR_ATTEMPTS';
-		$show_captcha = ($this->config['max_login_attempts'] && $row['user_login_attempts'] >= $this->config['max_login_attempts']) ||
-			($this->config['ip_login_limit_max'] && $attempts >= $this->config['ip_login_limit_max']);
+
+		$user_login_attempts	= (is_array($row) && $this->config['max_login_attempts'] && $row['user_login_attempts'] >= $this->config['max_login_attempts']);
+		$ip_login_attempts		= ($this->config['ip_login_limit_max'] && $attempts >= $this->config['ip_login_limit_max']);
+
+		$show_captcha = $user_login_attempts || $ip_login_attempts;
+
 		if ($show_captcha)
 		{
 			$captcha = $this->captcha_factory->get_instance($this->config['captcha_plugin']);
@@ -172,9 +176,8 @@ class db extends base
 		// Every auth module is able to define what to do by itself...
 		if ($show_captcha)
 		{
-			$captcha->init(CONFIRM_LOGIN);
-			$vc_response = $captcha->validate($row);
-			if ($vc_response)
+			$captcha->init(\phpbb\captcha\plugins\confirm_type::LOGIN);
+			if ($captcha->validate() !== true)
 			{
 				return array(
 					'status'		=> LOGIN_ERROR_ATTEMPTS,

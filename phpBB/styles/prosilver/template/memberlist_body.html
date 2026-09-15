@@ -21,12 +21,12 @@
 		<!-- IF U_MANAGE -->
 			<p class="right responsive-center manage rightside"><a href="{U_MANAGE}">{L_MANAGE_GROUP}</a></p>
 		<!-- ENDIF -->
-		<p>{GROUP_DESC} {GROUP_TYPE}</p>
+		<div class="group-description">{GROUP_DESC} {GROUP_TYPE}</div>
 
 		{% EVENT memberlist_body_group_desc_after %}
 
 		<p>
-			<!-- IF AVATAR_HTML -->{AVATAR_HTML}<!-- ENDIF -->
+			{% include 'avatar.html' with {'avatar_data': AVATAR} only %}
 			{% EVENT memberlist_body_group_rank_before %}
 			{% if RANK_IMG %}<span class="rank-img">{{ RANK_IMG }}</span>{% endif %}
 			{% if GROUP_RANK %}

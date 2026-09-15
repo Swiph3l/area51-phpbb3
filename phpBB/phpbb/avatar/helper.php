@@ -81,7 +81,7 @@ class helper
 	 */
 	public function get_template_vars(array $avatar, string $prefix = ''): array
 	{
-		$prefix = $prefix && substr($prefix, -1) !== '_' ? "{$prefix}_" : $prefix;
+		$prefix = $prefix && !str_ends_with($prefix, '_') ? "{$prefix}_" : $prefix;
 
 		return [
 			"{$prefix}AVATAR"			=> $avatar,
@@ -94,7 +94,6 @@ class helper
 			"{$prefix}AVATAR_HEIGHT"	=> $avatar['height'],
 
 			"{$prefix}AVATAR_LAZY"		=> $avatar['lazy'],
-			"{$prefix}AVATAR_HTML"		=> $avatar['html'],
 		];
 	}
 
@@ -144,7 +143,8 @@ class helper
 		if (!$this->config['allow_avatar'] && !$ignore_config)
 		{
 			return [
-				'html'		=> '',
+				'id'		=> 0,
+				'username'	=> '',
 				'lazy'		=> false,
 				'src'		=> '',
 				'title'		=> '',
@@ -155,6 +155,8 @@ class helper
 		}
 
 		$data = [
+			'id'		=> $row['id'] ?? 0,
+			'username'	=> $row['username'] ?? '',
 			'src'		=> $row['avatar'],
 			'width'		=> $row['avatar_width'],
 			'height'	=> $row['avatar_height'],
@@ -231,8 +233,7 @@ class helper
 		 * We need to correct the phpBB root path in case this is called from a controller,
 		 * because the web path will be incorrect otherwise.
 		 */
-		$board_url	= defined('PHPBB_USE_BOARD_URL_PATH') && PHPBB_USE_BOARD_URL_PATH;
-		$web_path	= $board_url ? generate_board_url() . '/' : $this->path_helper->get_web_root_path();
+		$web_path	= $this->path_helper->get_web_root_path();
 		$style_path	= rawurlencode($this->user->style['style_path']);
 
 		return "{$web_path}styles/{$style_path}/theme/images/no_avatar.gif";
@@ -253,7 +254,7 @@ class helper
 	{
 		if ($data['lazy'])
 		{
-			$data['src'] = $this->get_no_avatar_source() . ' data-src="' . $data['src'];
+			$data['src'] = $this->get_no_avatar_source() . '" data-src="' . $data['src'];
 		}
 
 		$src = ' src="' . $data['src'] . '"';

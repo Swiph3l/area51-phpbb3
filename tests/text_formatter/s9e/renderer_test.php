@@ -93,7 +93,7 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 		$this->assertSame($expected, $renderer->render($original));
 	}
 
-	public function get_options_cases()
+	public static function get_options_cases()
 	{
 		return array(
 			array(
@@ -105,11 +105,6 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 				'<t>apple</t>',
 				'apple',
 				array('set_viewcensors' => false)
-			),
-			array(
-				'<r><FLASH height="456" url="http://example.org/foo.swf" width="123"><s>[flash=123,456]</s><URL url="http://example.org/foo.swf">http://example.org/foo.swf</URL><e>[/flash]</e></FLASH></r>',
-				'<object classid="clsid:D27CDB6E-AE6D-11CF-96B8-444553540000" codebase="http://active.macromedia.com/flash2/cabs/swflash.cab#version=5,0,0,0" width="123" height="456"><param name="movie" value="http://example.org/foo.swf"><param name="play" value="false"><param name="loop" value="false"><param name="quality" value="high"><param name="allowScriptAccess" value="never"><param name="allowNetworking" value="internal"><embed src="http://example.org/foo.swf" type="application/x-shockwave-flash" pluginspage="http://www.macromedia.com/shockwave/download/index.cgi?P1_Prod_Version=ShockwaveFlash" width="123" height="456" play="false" loop="false" quality="high" allowscriptaccess="never" allownetworking="internal"></object>',
-				array('set_viewflash' => true)
 			),
 			array(
 				'<r><IMG src="http://example.org/foo.png"><s>[img]</s>http://example.org/foo.png<e>[/img]</e></IMG></r>',
@@ -146,7 +141,7 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 		$this->assertSame($expected, $container->get('text_formatter.renderer')->render($original));
 	}
 
-	public function get_default_options_cases()
+	public static function get_default_options_cases()
 	{
 		return array(
 			array(
@@ -212,26 +207,6 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 					$phpbb_container->set('user', $user);
 					$phpbb_container->set('config', $config);
 					$phpbb_container->set('auth', $auth);
-				}
-			),
-			array(
-				'<r><FLASH url="http://localhost/foo.swf" width="123" height="456"><s>[flash=123,456]</s>http://localhost/foo.swf<e>[/flash]</e></FLASH></r>',
-				'<object classid="clsid:D27CDB6E-AE6D-11CF-96B8-444553540000" codebase="http://active.macromedia.com/flash2/cabs/swflash.cab#version=5,0,0,0" width="123" height="456"><param name="movie" value="http://localhost/foo.swf"><param name="play" value="false"><param name="loop" value="false"><param name="quality" value="high"><param name="allowScriptAccess" value="never"><param name="allowNetworking" value="internal"><embed src="http://localhost/foo.swf" type="application/x-shockwave-flash" pluginspage="http://www.macromedia.com/shockwave/download/index.cgi?P1_Prod_Version=ShockwaveFlash" width="123" height="456" play="false" loop="false" quality="high" allowscriptaccess="never" allownetworking="internal"></object>'
-			),
-			array(
-				'<r><FLASH url="http://localhost/foo.swf" width="123" height="456"><s>[flash=123,456]</s>http://localhost/foo.swf<e>[/flash]</e></FLASH></r>',
-				'http://localhost/foo.swf',
-				function ($phpbb_container)
-				{
-					global $phpbb_root_path, $phpEx;
-
-					$lang_loader = new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx);
-					$lang = new \phpbb\language\language($lang_loader);
-					$user = new \phpbb\user($lang, '\phpbb\datetime');
-					$user->data['user_options'] = 230271;
-					$user->optionset('viewflash', false);
-
-					$phpbb_container->set('user', $user);
 				}
 			),
 			array(
@@ -303,11 +278,10 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 		$this->assertTrue($renderer->{'get_' . $option_name}());
 	}
 
-	public function get_option_names()
+	public static function get_option_names()
 	{
 		return array(
 			array('viewcensors'),
-			array('viewflash'),
 			array('viewimg'),
 			array('viewsmilies')
 		);
@@ -447,15 +421,22 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 			$dispatcher
 		);
 
+		$matcher = $this->exactly(2);
 		$dispatcher
-			->expects($this->exactly(2))
+			->expects($matcher)
 			->method('trigger_event')
-			->withConsecutive(
-				['core.text_formatter_s9e_render_before', $this->callback(array($this, 'render_before_event_callback'))],
-				['core.text_formatter_s9e_render_after', $this->callback(array($this, 'render_after_event_callback'))]
-			)
-			->will($this->returnArgument(1));
-
+			->willReturnCallback(function($event, $vars) use ($matcher) {
+				$callNr = $matcher->numberOfInvocations();
+				match($callNr) {
+					1 => $this->assertEquals('core.text_formatter_s9e_render_before', $event),
+					2 => $this->assertEquals('core.text_formatter_s9e_render_after', $event),
+				};
+				match($callNr) {
+					1 => $this->assertTrue($this->render_before_event_callback($vars)),
+					2 => $this->assertTrue($this->render_after_event_callback($vars)),
+				};
+				return $vars;
+			});
 		$renderer->render('<t>...</t>');
 	}
 
@@ -463,8 +444,8 @@ class phpbb_textformatter_s9e_renderer_test extends phpbb_test_case
 	{
 		return isset($vars['renderer'])
 			&& $vars['renderer'] instanceof \phpbb\textformatter\s9e\renderer
-			&& isset($vars['xml'])
-			&& $vars['xml'] === '<t>...</t>';
+			&& isset($vars['text'])
+			&& $vars['text'] === '<t>...</t>';
 	}
 
 	public function render_after_event_callback($vars)

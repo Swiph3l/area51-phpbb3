@@ -24,10 +24,11 @@ class container_configuration implements ConfigurationInterface
 	 *
 	 * @return TreeBuilder The tree builder
 	 */
-	public function getConfigTreeBuilder()
+	public function getConfigTreeBuilder(): TreeBuilder
 	{
 		$treeBuilder = new TreeBuilder('core');
 		$rootNode = $treeBuilder->getRootNode();
+		/** @psalm-suppress UndefinedMethod */
 		$rootNode
 			->children()
 				->booleanNode('require_dev_dependencies')->defaultValue(false)->end()
@@ -42,6 +43,7 @@ class container_configuration implements ConfigurationInterface
 						->booleanNode('show_errors')->defaultValue(false)->end()
 						->booleanNode('url_generator')->defaultValue(false)->end()
 						->booleanNode('url_matcher')->defaultValue(false)->end()
+						->booleanNode('error_handler')->defaultValue(false)->end()
 					->end()
 				->end()
 				->arrayNode('twig')
@@ -62,7 +64,14 @@ class container_configuration implements ConfigurationInterface
 				->arrayNode('session')
 					->addDefaultsIfNotSet()
 					->children()
+						->booleanNode('force_sid')->defaultValue(false)->end()
 						->booleanNode('log_errors')->defaultValue(false)->end()
+					->end()
+				->end()
+				->arrayNode('finder')
+					->addDefaultsIfNotSet()
+					->children()
+						->booleanNode('cache')->defaultValue(true)->end()
 					->end()
 				->end()
 			->end()

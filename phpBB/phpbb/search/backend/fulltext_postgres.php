@@ -17,8 +17,8 @@ use phpbb\config\config;
 use phpbb\db\driver\driver_interface;
 use phpbb\event\dispatcher_interface;
 use phpbb\language\language;
+use phpbb\search\exception\search_exception;
 use phpbb\user;
-use RuntimeException;
 
 /**
 * Fulltext search for PostgreSQL
@@ -65,7 +65,7 @@ class fulltext_postgres extends base implements search_backend_interface
 	 * Operators are prefixed in search query and common words excluded
 	 * @var string
 	 */
-	protected $search_query;
+	protected $search_query = '';
 
 	/**
 	 * Contains common words.
@@ -84,19 +84,20 @@ class fulltext_postgres extends base implements search_backend_interface
 	 * Constructor
 	 * Creates a new \phpbb\search\backend\fulltext_postgres, which is used as a search backend
 	 *
-	 * @param config $config Config object
-	 * @param driver_interface $db Database object
-	 * @param dispatcher_interface $phpbb_dispatcher Event dispatcher object
-	 * @param language $language
-	 * @param user $user User object
-	 * @param string $phpbb_root_path Relative path to phpBB root
-	 * @param string $phpEx PHP file extension
+	 * @param config				$config				Config object
+	 * @param driver_interface		$db					Database object
+	 * @param dispatcher_interface	$phpbb_dispatcher	Event dispatcher object
+	 * @param language				$language
+	 * @param user					$user				User object
+	 * @param string				$search_results_table
+	 * @param string				$phpbb_root_path	Relative path to phpBB root
+	 * @param string				$phpEx				PHP file extension
 	 */
-	public function __construct(config $config, driver_interface $db, dispatcher_interface $phpbb_dispatcher, language $language, user $user, string $phpbb_root_path, string $phpEx)
+	public function __construct(config $config, driver_interface $db, dispatcher_interface $phpbb_dispatcher, language $language, user $user, string $search_results_table, string $phpbb_root_path, string $phpEx)
 	{
 		global $cache;
 
-		parent::__construct($cache, $config, $db, $user);
+		parent::__construct($cache, $config, $db, $user, $search_results_table);
 		$this->phpbb_dispatcher = $phpbb_dispatcher;
 		$this->language = $language;
 
@@ -178,7 +179,7 @@ class fulltext_postgres extends base implements search_backend_interface
 		}
 
 		// Filter out as above
-		$split_keywords = preg_replace("#[\"\n\r\t]+#", ' ', trim(htmlspecialchars_decode($keywords, ENT_COMPAT)));
+		$split_keywords = preg_replace("#[\"\n\r\t]+#", ' ', trim(html_entity_decode($keywords, ENT_COMPAT)));
 
 		// Split words
 		$split_keywords = preg_replace('#([^\p{L}\p{N}\'*"()])#u', '$1$1', str_replace('\'\'', '\' \'', trim($split_keywords)));
@@ -477,12 +478,10 @@ class fulltext_postgres extends base implements search_backend_interface
 		}
 		$this->db->sql_freeresult($result);
 
-		$id_ary = array_unique($id_ary);
-
 		// if the total result count is not cached yet, retrieve it from the db
 		if (!$result_count)
 		{
-			$sql_count = "SELECT COUNT(*) as result_count
+			$sql_count = "SELECT COUNT(DISTINCT " . (($type == 'posts') ? 'p.post_id' : 't.topic_id') . ") as result_count
 				$sql_from
 				$sql_where";
 			$result = $this->db->sql_query($sql_count);
@@ -508,9 +507,9 @@ class fulltext_postgres extends base implements search_backend_interface
 				$id_ary[] = $row[$field];
 			}
 			$this->db->sql_freeresult($result);
-
-			$id_ary = array_unique($id_ary);
 		}
+
+		$id_ary = array_unique($id_ary);
 
 		// store the ids, from start on then delete anything that isn't on the current page because we only need ids for one page
 		$this->save_ids($search_key, implode(' ', $this->split_words), $author_ary, $result_count, $id_ary, $start, $sort_dir);
@@ -682,6 +681,8 @@ class fulltext_postgres extends base implements search_backend_interface
 		// Build the query for really selecting the post_ids
 		if ($type == 'posts')
 		{
+			// For sorting by non-unique columns, add unique sort key to avoid duplicated rows in results
+			$sql_sort .= ', p.post_id' . (($sort_dir == 'a') ? ' ASC' : ' DESC');
 			$sql = "SELECT p.post_id
 				FROM " . $sql_sort_table . POSTS_TABLE . ' p' . (($firstpost_only) ? ', ' . TOPICS_TABLE . ' t ' : ' ') . "
 				WHERE $sql_author
@@ -752,8 +753,9 @@ class fulltext_postgres extends base implements search_backend_interface
 					GROUP BY t.topic_id, $sort_by_sql[$sort_key]";
 			}
 
-			$this->db->sql_query($sql_count);
-			$result_count = (int) $this->db->sql_fetchfield('result_count');
+			$result = $this->db->sql_query($sql_count);
+			$result_count = ($type == 'posts') ? (int) $this->db->sql_fetchfield('result_count') : count($this->db->sql_fetchrowset($result));
+			$this->db->sql_freeresult($result);
 
 			if (!$result_count)
 			{
@@ -773,9 +775,9 @@ class fulltext_postgres extends base implements search_backend_interface
 				$id_ary[] = (int) $row[$field];
 			}
 			$this->db->sql_freeresult($result);
-
-			$id_ary = array_unique($id_ary);
 		}
+
+		$id_ary = array_unique($id_ary);
 
 		if (count($id_ary))
 		{
@@ -865,12 +867,12 @@ class fulltext_postgres extends base implements search_backend_interface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function create_index(int &$post_counter = 0): ?array
+	public function create_index(int &$post_counter = 0): array|null
 	{
 		// Make sure we can actually use PostgreSQL with fulltext indexes
 		if ($error = $this->init())
 		{
-			throw new RuntimeException($error);
+			throw new search_exception($error);
 		}
 
 		if (empty($this->stats))
@@ -916,7 +918,7 @@ class fulltext_postgres extends base implements search_backend_interface
 			$this->db->sql_query($sql_query);
 		}
 
-		$this->db->sql_query('TRUNCATE TABLE ' . SEARCH_RESULTS_TABLE);
+		$this->db->sql_query('TRUNCATE TABLE ' . $this->search_results_table);
 
 		return null;
 	}
@@ -924,12 +926,12 @@ class fulltext_postgres extends base implements search_backend_interface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function delete_index(int &$post_counter = null): ?array
+	public function delete_index(int|null &$post_counter = null): array|null
 	{
 		// Make sure we can actually use PostgreSQL with fulltext indexes
 		if ($error = $this->init())
 		{
-			throw new RuntimeException($error);
+			throw new search_exception($error);
 		}
 
 		if (empty($this->stats))
@@ -975,7 +977,7 @@ class fulltext_postgres extends base implements search_backend_interface
 			$this->db->sql_query($sql_query);
 		}
 
-		$this->db->sql_query('TRUNCATE TABLE ' . SEARCH_RESULTS_TABLE);
+		$this->db->sql_query('TRUNCATE TABLE ' . $this->search_results_table);
 
 		return null;
 	}
@@ -1009,7 +1011,7 @@ class fulltext_postgres extends base implements search_backend_interface
 	}
 
 	/**
-	 * {@inheritdoc}
+	 * Computes the stats and store them in the $this->stats associative array
 	 */
 	protected function get_stats()
 	{

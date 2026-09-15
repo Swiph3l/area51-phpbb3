@@ -14,40 +14,58 @@
 namespace phpbb\notification\method;
 
 use phpbb\notification\type\type_interface;
+use phpbb\user;
+use phpbb\user_loader;
+use phpbb\config\config;
+use phpbb\db\driver\driver_interface;
+use phpbb\di\service_collection;
 
 /**
 * Email notification method class
 * This class handles sending emails for notifications
 */
 
-class email extends \phpbb\notification\method\messenger_base
+class email extends messenger_base
 {
-	/** @var \phpbb\user */
+	/** @var user */
 	protected $user;
 
-	/** @var \phpbb\config\config */
+	/** @var config */
 	protected $config;
 
-	/** @var \phpbb\db\driver\driver_interface */
+	/** @var driver_interface */
 	protected $db;
 
 	/** @var string Notification emails table */
 	protected $notification_emails_table;
 
+	/** @var service_collection */
+	protected $messenger;
+
 	/**
 	 * Notification Method email Constructor
 	 *
-	 * @param \phpbb\user_loader $user_loader
-	 * @param \phpbb\user $user
-	 * @param \phpbb\config\config $config
-	 * @param \phpbb\db\driver\driver_interface $db
+	 * @param user_loader $user_loader
+	 * @param user $user
+	 * @param config $config
+	 * @param driver_interface $db
 	 * @param string $phpbb_root_path
 	 * @param string $php_ext
 	 * @param string $notification_emails_table
+	 * @param service_collection $messenger
 	 */
-	public function __construct(\phpbb\user_loader $user_loader, \phpbb\user $user, \phpbb\config\config $config, \phpbb\db\driver\driver_interface $db, $phpbb_root_path, $php_ext, $notification_emails_table)
+	public function __construct(
+		user_loader $user_loader,
+		user $user,
+		config $config,
+		driver_interface $db,
+		$phpbb_root_path,
+		$php_ext,
+		$notification_emails_table,
+		service_collection $messenger
+	)
 	{
-		parent::__construct($user_loader, $phpbb_root_path, $php_ext);
+		parent::__construct($messenger, $user_loader, $phpbb_root_path, $php_ext);
 
 		$this->user = $user;
 		$this->config = $config;
@@ -73,7 +91,7 @@ class email extends \phpbb\notification\method\messenger_base
 	*											method additionally checks if the type provides an email template.
 	* @return bool
 	*/
-	public function is_available(type_interface $notification_type = null)
+	public function is_available(type_interface|null $notification_type = null)
 	{
 		return parent::is_available($notification_type) && $this->config['email_enable'] && !empty($this->user->data['user_email']);
 	}
@@ -117,7 +135,7 @@ class email extends \phpbb\notification\method\messenger_base
 
 		$insert_buffer->flush();
 
-		return $this->notify_using_messenger(NOTIFY_EMAIL);
+		$this->notify_using_messenger('messenger.method.email');
 	}
 
 	/**
@@ -126,7 +144,7 @@ class email extends \phpbb\notification\method\messenger_base
 	public function mark_notifications($notification_type_id, $item_id, $user_id, $time = false, $mark_read = true)
 	{
 		$sql = 'DELETE FROM ' . $this->notification_emails_table . '
-			WHERE ' . ($notification_type_id !== false ? $this->db->sql_in_set('notification_type_id', $notification_type_id) : '1=1') .
+			WHERE ' . ($notification_type_id !== false ? $this->db->sql_in_set('notification_type_id', is_array($notification_type_id) ? $notification_type_id : [$notification_type_id]) : '1=1') .
 			($user_id !== false ? ' AND ' . $this->db->sql_in_set('user_id', $user_id) : '') .
 			($item_id !== false ? ' AND ' . $this->db->sql_in_set('item_id', $item_id) : '');
 		$this->db->sql_query($sql);
@@ -138,7 +156,7 @@ class email extends \phpbb\notification\method\messenger_base
 	public function mark_notifications_by_parent($notification_type_id, $item_parent_id, $user_id, $time = false, $mark_read = true)
 	{
 		$sql = 'DELETE FROM ' . $this->notification_emails_table . '
-			WHERE ' . ($notification_type_id !== false ? $this->db->sql_in_set('notification_type_id', $notification_type_id) : '1=1') .
+			WHERE ' . ($notification_type_id !== false ? $this->db->sql_in_set('notification_type_id', is_array($notification_type_id) ? $notification_type_id : [$notification_type_id]) : '1=1') .
 			($user_id !== false ? ' AND ' . $this->db->sql_in_set('user_id', $user_id) : '') .
 			($item_parent_id !== false ? ' AND ' . $this->db->sql_in_set('item_parent_id', $item_parent_id, false, true) : '');
 		$this->db->sql_query($sql);

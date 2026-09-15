@@ -115,45 +115,33 @@ class redis extends \phpbb\cache\driver\memory
 	}
 
 	/**
-	* Fetch an item from the cache
-	*
-	* @access protected
-	* @param string $var Cache key
-	* @return mixed Cached data
-	*/
-	function _read($var)
+	 * {@inheritDoc}
+	 */
+	protected function _read(string $var)
 	{
 		return $this->redis->get($var);
 	}
 
 	/**
-	* Store data in the cache
-	*
-	* @access protected
-	* @param string $var Cache key
-	* @param mixed $data Data to store
-	* @param int $ttl Time-to-live of cached data
-	* @return bool True if the operation succeeded
-	*/
-	function _write($var, $data, $ttl = 2592000)
+	 * Store data in the cache
+	 *
+	 * For the info, see https://phpredis.github.io/phpredis/Redis.html#method_set,
+	 * https://redis.io/docs/latest/commands/set/
+	 * and https://redis.io/docs/latest/commands/expire/#appendix-redis-expires
+	 *
+	 * {@inheritDoc}
+	 */
+	protected function _write(string $var, $data, int $ttl = 2592000): bool
 	{
-		if ($ttl == 0)
-		{
-			return $this->redis->set($var, $data);
-		}
-		return $this->redis->setex($var, $ttl, $data);
+		return $this->redis->set($var, $data, ['EXAT' => time() + $ttl]);
 	}
 
 	/**
-	* Remove an item from the cache
-	*
-	* @access protected
-	* @param string $var Cache key
-	* @return bool True if the operation succeeded
-	*/
-	function _delete($var)
+	 * {@inheritDoc}
+	 */
+	protected function _delete(string $var): bool
 	{
-		if ($this->redis->delete($var) > 0)
+		if ($this->redis->del($var) > 0)
 		{
 			return true;
 		}

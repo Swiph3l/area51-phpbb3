@@ -14,6 +14,9 @@ services:
     config:
         synthetic: true
 
+    controller.helper:
+        synthetic: true
+
     dbal.conn:
         synthetic: true
 
@@ -38,10 +41,16 @@ services:
     groupposition.teampage:
         synthetic: true
 
+    request:
+        synthetic: true
+
     text_formatter.s9e.factory:
         synthetic: true
 
     text_formatter.s9e.quote_helper:
+        synthetic: true
+
+    text_formatter.s9e.mention_helper:
         synthetic: true
 
     text_formatter.parser:

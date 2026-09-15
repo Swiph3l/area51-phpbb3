@@ -15,6 +15,10 @@ require_once __DIR__ . '/../template/template_test_case.php';
 
 class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 {
+	protected $config;
+	protected $helper;
+	protected $routing_helper;
+	protected $pagination;
 	protected $test_path = 'tests/pagination';
 
 	public function return_callback_implode()
@@ -49,9 +53,9 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 		$router = new phpbb_mock_router(new phpbb_mock_container_builder(), $resources_locator, $loader, 'php', __DIR__ . '/', true, true);
 
 		$request = new phpbb_mock_request();
-		$request->overwrite('SCRIPT_NAME', '/app.php', \phpbb\request\request_interface::SERVER);
-		$request->overwrite('SCRIPT_FILENAME', 'app.php', \phpbb\request\request_interface::SERVER);
-		$request->overwrite('REQUEST_URI', '/app.php', \phpbb\request\request_interface::SERVER);
+		$request->overwrite('SCRIPT_NAME', '/index.php', \phpbb\request\request_interface::SERVER);
+		$request->overwrite('SCRIPT_FILENAME', 'index.php', \phpbb\request\request_interface::SERVER);
+		$request->overwrite('REQUEST_URI', '/index.php', \phpbb\request\request_interface::SERVER);
 
 		$symfony_request = new \phpbb\symfony_request(
 			$request
@@ -66,7 +70,7 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 			new \phpbb\auth\auth(),
 			new \phpbb\cache\driver\dummy(),
 			$this->config,
-			new \phpbb\cron\manager($mock_container, $this->routing_helper, '', 'php'),
+			new \phpbb\cron\manager($mock_container, $this->routing_helper, '', 'php', null),
 			$db,
 			new phpbb_mock_event_dispatcher(),
 			new \phpbb\language\language(new \phpbb\language\language_file_loader($phpbb_root_path, $phpEx)),
@@ -82,7 +86,7 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 		$this->pagination = new \phpbb\pagination($this->template, $this->user, $this->helper, $phpbb_dispatcher);
 	}
 
-	public function generate_template_pagination_data()
+	public static function generate_template_pagination_data()
 	{
 		return array(
 			array(
@@ -229,7 +233,7 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 		$this->assertEquals(str_replace("\t", '', $expect), $this->display('test'));
 	}
 
-	public function on_page_data()
+	public static function on_page_data()
 	{
 		return array(
 			array(
@@ -255,7 +259,7 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 		$this->assertEquals($expect_return, $this->pagination->on_page($num_items, $per_page, $start_item));
 	}
 
-	public function validate_start_data()
+	public static function validate_start_data()
 	{
 		return array(
 			array(
@@ -304,7 +308,7 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 		$this->assertEquals($expect, $this->pagination->validate_start($start, 10, $num_items));
 	}
 
-	public function reverse_start_data()
+	public static function reverse_start_data()
 	{
 		return array(
 			array(
@@ -330,7 +334,7 @@ class phpbb_pagination_pagination_test extends phpbb_template_template_test_case
 		$this->assertEquals($expect, $this->pagination->reverse_start($start, $limit, $num_items));
 	}
 
-	public function reverse_limit_data()
+	public static function reverse_limit_data()
 	{
 		return array(
 			array(

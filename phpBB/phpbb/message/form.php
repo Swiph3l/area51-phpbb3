@@ -22,6 +22,8 @@ abstract class form
 	protected $auth;
 	/** @var \phpbb\config\config */
 	protected $config;
+	/** @var \phpbb\controller\helper */
+	protected $controller_helper;
 	/** @var \phpbb\db\driver\driver_interface */
 	protected $db;
 	/** @var \phpbb\message\message */
@@ -47,17 +49,19 @@ abstract class form
 	* @param \phpbb\auth\auth $auth
 	* @param \phpbb\config\config $config
 	* @param \phpbb\db\driver\driver_interface $db
+	* @param \phpbb\controller\helper $controller_helper
 	* @param \phpbb\user $user
 	* @param string $phpbb_root_path
 	* @param string $phpEx
 	*/
-	public function __construct(\phpbb\auth\auth $auth, \phpbb\config\config $config, \phpbb\db\driver\driver_interface $db, \phpbb\user $user, $phpbb_root_path, $phpEx)
+	public function __construct(\phpbb\auth\auth $auth, \phpbb\config\config $config, \phpbb\db\driver\driver_interface $db, \phpbb\controller\helper $controller_helper, \phpbb\user $user, $phpbb_root_path, $phpEx)
 	{
 		$this->phpbb_root_path = $phpbb_root_path;
 		$this->phpEx = $phpEx;
 		$this->user = $user;
 		$this->auth = $auth;
 		$this->config = $config;
+		$this->controller_helper = $controller_helper;
 		$this->db = $db;
 
 		$this->message = new message($config['server_name']);
@@ -111,14 +115,14 @@ abstract class form
 	*/
 	public function get_return_message()
 	{
-		return sprintf($this->user->lang['RETURN_INDEX'], '<a href="' . append_sid($this->phpbb_root_path . 'index.' . $this->phpEx) . '">', '</a>');
+		return sprintf($this->user->lang['RETURN_INDEX'], '<a href="' . $this->controller_helper->route('phpbb_index_controller') . '">', '</a>');
 	}
 
 	/**
 	* Bind the values of the request to the form
 	*
 	* @param \phpbb\request\request_interface $request
-	* @return null
+	* @return void
 	*/
 	public function bind(\phpbb\request\request_interface $request)
 	{
@@ -129,10 +133,10 @@ abstract class form
 	/**
 	* Submit form, generate the email and send it
 	*
-	* @param \messenger $messenger
-	* @return null
+	* @param \phpbb\di\service_collection $messenger
+	* @return void
 	*/
-	public function submit(\messenger $messenger)
+	public function submit(\phpbb\di\service_collection $messenger)
 	{
 		if (!check_form_key('memberlist_email'))
 		{
@@ -153,7 +157,7 @@ abstract class form
 
 			$this->message->send($messenger, phpbb_get_board_contact($this->config, $this->phpEx));
 
-			meta_refresh(3, append_sid($this->phpbb_root_path . 'index.' . $this->phpEx));
+			meta_refresh(3, $this->controller_helper->route('phpbb_index_controller'));
 			trigger_error($this->user->lang['EMAIL_SENT'] . '<br /><br />' . $this->get_return_message());
 		}
 	}
@@ -162,7 +166,7 @@ abstract class form
 	* Render the template of the form
 	*
 	* @param \phpbb\template\template $template
-	* @return null
+	* @return void
 	*/
 	public function render(\phpbb\template\template $template)
 	{

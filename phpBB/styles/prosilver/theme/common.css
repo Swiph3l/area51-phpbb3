@@ -5,26 +5,24 @@
 /* stylelint-disable selector-no-qualifying-type */
 
 html {
-	font-size: 100%;
-
 	/* Always show a scrollbar for short pages - stops the jump when the scrollbar appears. non-IE browsers */
 	height: 101%;
 }
 
 body {
 	font-family: Verdana, Helvetica, Arial, sans-serif;
-	font-size: 16px;
+	font-size: var(--ps-font-normal);
 	line-height: normal;
 	word-wrap: break-word;
 	margin: 0;
-	padding: 12px 0;
+	padding: 0 0 12px;
 	-webkit-print-color-adjust: exact;
 }
 
 h1 {
 	/* Forum name */
 	font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
-	font-size: 20px;
+	font-size: var(--ps-font-h1);
 	font-weight: bold;
 	margin-top: 15px;
 	margin-right: 200px;
@@ -33,7 +31,7 @@ h1 {
 h2 {
 	/* Forum header titles */
 	font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
-	font-size: 20px;
+	font-size: var(--ps-font-h2);
 	font-weight: normal;
 	margin: 0.8em 0 0.2em;
 }
@@ -45,7 +43,7 @@ h2.solo {
 h3 {
 	/* Sub-headers (also used as post headers, but defined later) */
 	font-family: Arial, Helvetica, sans-serif;
-	font-size: 12px;
+	font-size: var(--ps-font-normal);
 	font-weight: bold;
 	text-transform: uppercase;
 	border-bottom: 1px solid transparent;
@@ -57,13 +55,13 @@ h3 {
 h4 {
 	/* Forum and topic list titles */
 	font-family: "Trebuchet MS", Verdana, Helvetica, Arial, sans-serif;
-	font-size: 13px;
+	font-size: var(--ps-font-h4);
 }
 
 p {
-	font-size: 11px;
-	line-height: 14px;
-	margin-bottom: 16px;
+	font-size: var(--ps-font-small);
+	line-height: calc(var(--ps-line-height) * 0.75);
+	margin-bottom: calc(var(--ps-line-height) / 1.2);
 }
 
 img {
@@ -151,17 +149,18 @@ a:hover {
 /* Main blocks
 ---------------------------------------- */
 .wrap {
-	border: 1px solid transparent;
-	border-radius: 8px;
-	min-width: 625px;
+	border: solid transparent;
+	border-width: 0 1px 1px;
+	border-radius: 0 0 8px 8px;
+	min-width: 320px;
 	max-width: 1152px;
 	margin: 0 auto;
-	padding: 15px;
+	padding: 0 15px 15px;
 }
 
 .page-body {
 	clear: both;
-	margin: 4px 0;
+	margin: 0.4rem 0;
 }
 
 .page-footer {
@@ -200,10 +199,10 @@ a:hover {
 /* Round cornered boxes and backgrounds
 ---------------------------------------- */
 .headerbar {
-	border-radius: 7px;
+	border-radius: 0 0 7px 7px;
 	display: flex;
 	flex-direction: column;
-	margin-bottom: 4px;
+	margin-bottom: 0.5rem;
 	padding: 5px;
 }
 
@@ -212,23 +211,28 @@ a:hover {
 	padding: 3px 10px;
 }
 
+.headerbar .navbar {
+	background: none;
+	padding: calc(var(--ps-line-height) * 0.25) 5px calc(var(--ps-line-height) * 0.5);
+}
+
 .forabg {
 	border-radius: 7px;
 	clear: both;
-	margin-bottom: 4px;
+	margin-bottom: 0.5rem;
 	padding: 5px;
 }
 
 .forumbg {
 	border-radius: 7px;
 	clear: both;
-	margin-bottom: 4px;
+	margin-bottom: 0.5rem;
 	padding: 5px;
 }
 
 .panel {
 	border-radius: 7px;
-	margin-bottom: 4px;
+	margin-bottom: calc(var(--ps-font-base) * 0.5);
 	padding: 5px 10px;
 }
 
@@ -262,8 +266,8 @@ ul.linklist {
 }
 
 ul.linklist > li {
-	font-size: 11px;
-	line-height: 24px;
+	font-size: var(--ps-font-small);
+	line-height: calc(var(--ps-line-height) * 1.25);
 	float: left;
 	width: auto;
 	margin-right: 7px;
@@ -314,6 +318,10 @@ ul.linklist li.responsive-menu {
 	margin: 0 5px 0 0;
 }
 
+.nav-footer .responsive-menu {
+	display: none;
+}
+
 .hasjs ul.linklist.leftside,
 .hasjs ul.linklist.rightside {
 	max-width: 48%;
@@ -338,6 +346,10 @@ ul.linklist .dropdown {
 ul.linklist .dropdown-up .dropdown {
 	top: auto;
 	bottom: 18px;
+}
+
+ul.nav-breadcrumbs {
+	margin: calc(var(--ps-line-height) * 0.75) 0;
 }
 
 /* Bulletin icons for list items
@@ -374,11 +386,18 @@ a.header-avatar:hover {
 	text-decoration: none;
 }
 
-a.header-avatar img {
+a.header-avatar img,
+a.header-avatar .avatar-placeholder {
 	vertical-align: middle;
 	width: auto;
 	max-height: 20px;
 	margin-bottom: 2px;
+}
+
+a.header-avatar .avatar-placeholder {
+	font-size: var(--ps-font-tiny);
+	display: inline-flex;
+	width: 20px;
 }
 
 /* Dropdown menu
@@ -434,12 +453,12 @@ a.header-avatar img {
 }
 
 .dropdown-button-control .dropdown {
-	top: 24px;
+	top: calc(var(--ps-line-height) * 1.25);
 }
 
 .dropdown-button-control.dropdown-up .dropdown {
 	top: auto;
-	bottom: 24px;
+	bottom: calc(var(--ps-line-height) * 1.25);
 }
 
 .dropdown .pointer,
@@ -556,11 +575,11 @@ a.header-avatar img {
 }
 
 .dropdown li {
-	font-size: 11px !important;
+	font-size: var(--ps-font-small) !important;
 	line-height: normal !important;
 	text-align: left;
 	white-space: nowrap;
-	border-top: 1px dotted transparent;
+	border-top: 1px solid transparent;
 	display: list-item;
 	float: none !important;
 	margin: 0;
@@ -615,13 +634,13 @@ a.header-avatar img {
 .breadcrumbs .crumb {
 	font-weight: bold;
 	word-wrap: normal;
-	float: left;
+	display: inline-block;
 }
 
 .breadcrumbs .crumb:before {
 	font-weight: bold;
-	padding: 0 0.5em;
-	content: "\2039";
+	padding: 0 0.1em;
+	content: "\203A";
 }
 
 .breadcrumbs .crumb:first-child:before {
@@ -678,9 +697,9 @@ table.table1 {
 }
 
 table.table1 thead th {
-	font-size: 10px;
+	font-size: var(--ps-font-tiny);
 	font-weight: normal;
-	line-height: 13px;
+	line-height: calc(var(--ps-line-height) / 1.5);
 	text-transform: uppercase;
 	padding: 0 0 4px 3px;
 }
@@ -694,7 +713,7 @@ table.table1 tbody tr {
 }
 
 table.table1 td {
-	font-size: 11px;
+	font-size: var(--ps-font-small);
 }
 
 table.table1 tbody td {
@@ -814,6 +833,10 @@ table.info tbody th {
 	max-width: 100%;
 }
 
+.avatar-rank-container {
+	max-width: 20%;
+}
+
 .left-box.profile-details {
 	width: 80%;
 }
@@ -827,7 +850,7 @@ table.info tbody th {
 
 dl.details {
 	font-family: "Lucida Grande", Verdana, Helvetica, Arial, sans-serif;
-	font-size: 11px;
+	font-size: var(--ps-font-small);
 }
 
 dl.details dt {
@@ -867,12 +890,6 @@ fieldset.fields1 dd.recipients {
 	margin-left: 11px;
 }
 
-fieldset.fields1 ul.recipients input.button2 {
-	font-size: 12px;
-	margin-right: 0;
-	padding: 0;
-}
-
 fieldset.fields1 dl.pmlist > dt {
 	width: auto !important;
 }
@@ -884,7 +901,7 @@ fieldset.fields1 dl.pmlist dd.recipients {
 /* Action-bars (container for post/reply buttons, pagination, etc.)
 ---------------------------------------- */
 .action-bar {
-	font-size: 11px;
+	font-size: var(--ps-font-small);
 	margin: 4px 0;
 }
 
@@ -940,7 +957,7 @@ fieldset.fields1 dl.pmlist dd.recipients {
 
 .pagination li.active span {
 	font-family: "Open Sans", "Droid Sans", Verdana, Arial, Helvetica;
-	font-size: 13px;
+	font-size: var(--ps-font-normal);
 	font-weight: normal;
 	line-height: 1.4;
 	text-align: center;
@@ -964,8 +981,7 @@ fieldset.fields1 dl.pmlist dd.recipients {
 }
 
 .pagination li.page-jump a i {
-	font-size: 21px;
-	line-height: 21px;
+	font-size: var(--ps-font-h3);
 }
 
 .pagination .arrow a {
@@ -985,10 +1001,10 @@ fieldset.fields1 dl.pmlist dd.recipients {
 
 .row .pagination li a,
 .row .pagination li span {
-	font-size: 9px;
+	font-size: var(--ps-font-tiny);
 	border-radius: 2px;
-	width: 14px;
-	height: 17px;
+	width: calc(var(--ps-font-tiny) + 6px);
+	height: calc(var(--ps-font-normal) + 6px);
 	padding: 1px 3px;
 }
 
@@ -1029,7 +1045,7 @@ fieldset.fields1 dl.pmlist dd.recipients {
 .phpbb_alert div.alert_text > select,
 .phpbb_alert div.alert_text > textarea,
 .phpbb_alert div.alert_text > input {
-	font-size: 11px;
+	font-size: var(--ps-font-small);
 }
 
 .darkenwrapper {
@@ -1144,13 +1160,13 @@ fieldset.fields1 dl.pmlist dd.recipients {
 /* Miscellaneous styles
 ---------------------------------------- */
 .copyright {
-	font-size: 10px;
+	font-size: var(--ps-font-tiny);
 	text-align: center;
 	padding: 10px;
 }
 
 .footer-row {
-	font-size: 10px;
+	font-size: var(--ps-font-tiny);
 	line-height: 1.8;
 	margin: 0;
 }
@@ -1168,12 +1184,12 @@ fieldset.fields1 dl.pmlist dd.recipients {
 }
 
 .error {
-	font-size: 10px;
+	font-size: 12px;
 	font-weight: bold;
 }
 
 div.rules {
-	font-size: 11px;
+	font-size: var(--ps-font-h4);
 	border-radius: 7px;
 	margin: 10px 0;
 	padding: 5px 10px;
@@ -1227,14 +1243,9 @@ ul.linklist:after,
 	content: "";
 }
 
-/* stylelint-disable declaration-property-unit-whitelist */
 .emoji {
-	width: 1em;
-	min-width: 18px;
-	height: 1em;
-	min-height: 18px;
+	font-size: 17px;
 }
-/* stylelint-enable declaration-property-unit-whitelist */
 
 .smilies {
 	vertical-align: text-bottom;
@@ -1251,7 +1262,7 @@ ul.linklist:after,
 }
 
 .member-search strong {
-	font-size: 11px;
+	font-size: var(--ps-font-small);
 }
 
 .dropdown-extended {
@@ -1327,7 +1338,7 @@ ul.linklist:after,
 }
 
 .dropdown-extended .footer {
-	font-size: 12px;
+	font-size: var(--ps-font-normal);
 	text-align: center;
 }
 
@@ -1345,6 +1356,15 @@ ul.linklist:after,
 .dropdown-extended .footer > a {
 	text-decoration: none;
 	display: block;
+}
+
+.dropdown-extended .webpush-subscribe {
+	white-space: nowrap;
+	display: flex;
+	flex-wrap: nowrap;
+	justify-content: space-between;
+	padding: 5px 10px;
+	gap: 20px;
 }
 
 .notification-avatar,
@@ -1371,7 +1391,7 @@ ul.linklist:after,
 }
 
 .notification-time {
-	font-size: 10px;
+	font-size: var(--ps-font-tiny);
 	text-align: right;
 	margin: 0;
 }
@@ -1387,7 +1407,7 @@ ul.linklist:after,
 
 .notifications-title {
 	font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
-	font-size: 13px !important;
+	font-size: var(--ps-font-normal) !important;
 }
 
 .notifications-title strong {
@@ -1395,7 +1415,7 @@ ul.linklist:after,
 }
 
 .notifications-time {
-	font-size: 10px !important;
+	font-size: 12px !important;
 }
 
 .notification-text {
@@ -1403,16 +1423,16 @@ ul.linklist:after,
 }
 
 .badge {
-	font-size: 10px;
+	font-size: var(--ps-font-tiny);
 	line-height: 1;
 	text-align: center;
 	white-space: nowrap;
 	border-radius: 10px;
 	opacity: 0.8;
 	position: relative;
-	top: 3px;
+	top: 5px;
 	float: right;
-	margin-left: 3px;
+	margin-left: 5px;
 	padding: 4px 6px;
 }
 

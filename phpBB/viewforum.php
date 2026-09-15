@@ -47,27 +47,45 @@ if (!$forum_id)
 	trigger_error('NO_FORUM');
 }
 
-$sql_from = FORUMS_TABLE . ' f';
+$sql_ary = [
+	'SELECT'	=> 'f.*',
+	'FROM'		=> [
+		FORUMS_TABLE		=> 'f',
+	],
+	'WHERE'		=> 'f.forum_id = ' . $forum_id,
+];
+
 $lastread_select = '';
 
 // Grab appropriate forum data
 if ($config['load_db_lastread'] && $user->data['is_registered'])
 {
-	$sql_from .= ' LEFT JOIN ' . FORUMS_TRACK_TABLE . ' ft ON (ft.user_id = ' . $user->data['user_id'] . '
-		AND ft.forum_id = f.forum_id)';
-	$lastread_select .= ', ft.mark_time';
+	$sql_ary['LEFT_JOIN'][] = [
+		'FROM' => [FORUMS_TRACK_TABLE => 'ft'],
+		'ON' => 'ft.user_id = ' . $user->data['user_id'] . ' AND ft.forum_id = f.forum_id',
+	];
+	$sql_ary['SELECT'] .= ', ft.mark_time';
 }
 
 if ($user->data['is_registered'])
 {
-	$sql_from .= ' LEFT JOIN ' . FORUMS_WATCH_TABLE . ' fw ON (fw.forum_id = f.forum_id AND fw.user_id = ' . $user->data['user_id'] . ')';
-	$lastread_select .= ', fw.notify_status';
+	$sql_ary['LEFT_JOIN'][] = [
+		'FROM' => [FORUMS_WATCH_TABLE => 'fw'],
+		'ON' => 'fw.forum_id = f.forum_id AND fw.user_id = ' . $user->data['user_id'],
+	];
+	$sql_ary['SELECT'] .= ', fw.notify_status';
 }
 
-$sql = "SELECT f.* $lastread_select
-	FROM $sql_from
-	WHERE f.forum_id = $forum_id";
-$result = $db->sql_query($sql);
+/**
+ * You can use this event to modify the sql that selects the forum on the viewforum page.
+ *
+ * @event core.viewforum_modify_sql
+ * @var array	sql_ary		The SQL array to get the data for a forum
+ * @since 3.3.14-RC1
+ */
+$vars = ['sql_ary'];
+extract($phpbb_dispatcher->trigger_event('core.viewforum_modify_sql', compact($vars)));
+$result = $db->sql_query($db->sql_build_query('SELECT', $sql_ary));
 $forum_data = $db->sql_fetchrow($result);
 $db->sql_freeresult($result);
 
@@ -244,8 +262,8 @@ if (!$config['use_system_cron'])
 
 	if ($task->is_ready())
 	{
-		$url = $task->get_url();
-		$template->assign_var('RUN_CRON_TASK', '<img src="' . $url . '" width="1" height="1" alt="cron" />');
+		$cron_task_tag = $task->get_html_tag();
+		$template->assign_var('RUN_CRON_TASK', $cron_task_tag);
 	}
 	else
 	{
@@ -255,8 +273,8 @@ if (!$config['use_system_cron'])
 
 		if ($task->is_ready())
 		{
-			$url = $task->get_url();
-			$template->assign_var('RUN_CRON_TASK', '<img src="' . $url . '" width="1" height="1" alt="cron" />');
+			$cron_task_tag = $task->get_html_tag();
+			$template->assign_var('RUN_CRON_TASK', $cron_task_tag);
 		}
 	}
 }
@@ -366,7 +384,18 @@ $post_alt = ($forum_data['forum_status'] == ITEM_LOCKED) ? $user->lang['FORUM_LO
 // Display active topics?
 $s_display_active = ($forum_data['forum_type'] == FORUM_CAT && ($forum_data['forum_flags'] & FORUM_FLAG_ACTIVE_TOPICS)) ? true : false;
 
-$s_search_hidden_fields = array('fid' => array($forum_id));
+// Send the forum id... and maybe some other fields, depending on permissions
+$s_search_hidden_fields = [
+	'fid' => [$forum_id],
+];
+
+if ($auth->acl_get('f_list_topics', $forum_id) && !$auth->acl_get('f_read', $forum_id))
+{
+	// If the user has list access but not read access, then force the search to only be a topic title search
+	$s_search_hidden_fields['sr'] = 'topics';
+	$s_search_hidden_fields['sf'] = 'titleonly';
+}
+
 if ($_SID)
 {
 	$s_search_hidden_fields['sid'] = $_SID;
@@ -428,7 +457,7 @@ $template->assign_vars(array(
 	'S_IS_LOCKED'			=> ($forum_data['forum_status'] == ITEM_LOCKED) ? true : false,
 	'S_VIEWFORUM'			=> true,
 
-	'U_MCP'				=> ($auth->acl_get('m_', $forum_id)) ? append_sid("{$phpbb_root_path}mcp.$phpEx", "f=$forum_id&amp;i=main&amp;mode=forum_view", true, $user->session_id) : '',
+	'U_MCP'				=> ($auth->acl_get('m_', $forum_id)) ? append_sid("{$phpbb_root_path}mcp.$phpEx", "f=$forum_id&amp;i=main&amp;mode=forum_view") : '',
 	'U_POST_NEW_TOPIC'	=> ($auth->acl_get('f_post', $forum_id) || $user->data['user_id'] == ANONYMOUS) ? append_sid("{$phpbb_root_path}posting.$phpEx", 'mode=post&amp;f=' . $forum_id) : '',
 	'U_VIEW_FORUM'		=> append_sid("{$phpbb_root_path}viewforum.$phpEx", "f=$forum_id" . ((strlen($u_sort_param)) ? "&amp;$u_sort_param" : '') . (($start == 0) ? '' : "&amp;start=$start")),
 	'U_CANONICAL'		=> generate_board_url() . '/' . append_sid("viewforum.$phpEx", "f=$forum_id" . (($start) ? "&amp;start=$start" : ''), true, ''),
@@ -940,15 +969,15 @@ if (count($topic_list))
 		topic_status($row, $replies, $unread_topic, $folder_img, $folder_alt, $topic_type);
 
 		// Generate all the URIs ...
-		$view_topic_url_params = 'f=' . $row['forum_id'] . '&amp;t=' . $topic_id;
+		$view_topic_url_params = 't=' . $topic_id;
 		$view_topic_url = $auth->acl_get('f_read', $forum_id) ? append_sid("{$phpbb_root_path}viewtopic.$phpEx", $view_topic_url_params) : false;
 
 		$topic_unapproved = (($row['topic_visibility'] == ITEM_UNAPPROVED || $row['topic_visibility'] == ITEM_REAPPROVE) && $auth->acl_get('m_approve', $row['forum_id']));
 		$posts_unapproved = ($row['topic_visibility'] == ITEM_APPROVED && $row['topic_posts_unapproved'] && $auth->acl_get('m_approve', $row['forum_id']));
 		$topic_deleted = $row['topic_visibility'] == ITEM_DELETED;
 
-		$u_mcp_queue = ($topic_unapproved || $posts_unapproved) ? append_sid("{$phpbb_root_path}mcp.$phpEx", 'i=queue&amp;mode=' . (($topic_unapproved) ? 'approve_details' : 'unapproved_posts') . "&amp;t=$topic_id", true, $user->session_id) : '';
-		$u_mcp_queue = (!$u_mcp_queue && $topic_deleted) ? append_sid("{$phpbb_root_path}mcp.$phpEx", 'i=queue&amp;mode=deleted_topics&amp;t=' . $topic_id, true, $user->session_id) : $u_mcp_queue;
+		$u_mcp_queue = ($topic_unapproved || $posts_unapproved) ? append_sid("{$phpbb_root_path}mcp.$phpEx", 'i=queue&amp;mode=' . (($topic_unapproved) ? 'approve_details' : 'unapproved_posts') . "&amp;t=$topic_id") : '';
+		$u_mcp_queue = (!$u_mcp_queue && $topic_deleted) ? append_sid("{$phpbb_root_path}mcp.$phpEx", 'i=queue&amp;mode=deleted_topics&amp;t=' . $topic_id) : $u_mcp_queue;
 
 		// Send vars to template
 		$topic_row = array(
@@ -1000,12 +1029,12 @@ if (count($topic_list))
 			'S_TOPIC_HOT'			=> $config['hot_threshold'] && ($replies + 1) >= $config['hot_threshold'] && $row['topic_status'] != ITEM_LOCKED,
 
 			'U_NEWEST_POST'			=> $auth->acl_get('f_read', $forum_id) ? append_sid("{$phpbb_root_path}viewtopic.$phpEx", $view_topic_url_params . '&amp;view=unread') . '#unread' : false,
-			'U_LAST_POST'			=> $auth->acl_get('f_read', $forum_id)  ? append_sid("{$phpbb_root_path}viewtopic.$phpEx", $view_topic_url_params . '&amp;p=' . $row['topic_last_post_id']) . '#p' . $row['topic_last_post_id'] : false,
+			'U_LAST_POST'			=> $auth->acl_get('f_read', $forum_id) ? append_sid("{$phpbb_root_path}viewtopic.$phpEx", 'p=' . $row['topic_last_post_id']) . '#p' . $row['topic_last_post_id'] : false,
 			'U_LAST_POST_AUTHOR'	=> get_username_string('profile', $row['topic_last_poster_id'], $row['topic_last_poster_name'], $row['topic_last_poster_colour']),
 			'U_TOPIC_AUTHOR'		=> get_username_string('profile', $row['topic_poster'], $row['topic_first_poster_name'], $row['topic_first_poster_colour']),
 			'U_VIEW_TOPIC'			=> $view_topic_url,
 			'U_VIEW_FORUM'			=> append_sid("{$phpbb_root_path}viewforum.$phpEx", 'f=' . $row['forum_id']),
-			'U_MCP_REPORT'			=> append_sid("{$phpbb_root_path}mcp.$phpEx", 'i=reports&amp;mode=reports&amp;f=' . $row['forum_id'] . '&amp;t=' . $topic_id, true, $user->session_id),
+			'U_MCP_REPORT'			=> append_sid("{$phpbb_root_path}mcp.$phpEx", 'i=reports&amp;mode=reports&amp;t=' . $topic_id),
 			'U_MCP_QUEUE'			=> $u_mcp_queue,
 
 			'S_TOPIC_TYPE_SWITCH'	=> ($s_type_switch == $s_type_switch_test) ? -1 : $s_type_switch_test,

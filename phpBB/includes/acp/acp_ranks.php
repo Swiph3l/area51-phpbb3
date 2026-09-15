@@ -22,6 +22,8 @@ if (!defined('IN_PHPBB'))
 class acp_ranks
 {
 	var $u_action;
+	var $tpl_name;
+	var $page_title;
 
 	function main($id, $mode)
 	{
@@ -55,8 +57,8 @@ class acp_ranks
 				$min_posts = ($special_rank) ? 0 : max(0, $request->variable('min_posts', 0));
 				$rank_image = $request->variable('rank_image', '');
 
-				// The rank image has to be a jpg, gif or png
-				if ($rank_image != '' && !preg_match('#(\.gif|\.png|\.jpg|\.jpeg)$#i', $rank_image))
+				// The rank image has to be a jp(e)g, gif, png, svg or webp
+				if ($rank_image != '' && !preg_match('#(\.gif|\.png|\.jpg|\.jpeg|\.svg|\.webp)$#i', $rank_image))
 				{
 					$rank_image = '';
 				}
@@ -70,7 +72,7 @@ class acp_ranks
 					'rank_title'		=> $rank_title,
 					'rank_special'		=> $special_rank,
 					'rank_min'			=> $min_posts,
-					'rank_image'		=> htmlspecialchars_decode($rank_image, ENT_COMPAT)
+					'rank_image'		=> html_entity_decode($rank_image, ENT_COMPAT)
 				);
 
 				/**

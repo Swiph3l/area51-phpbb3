@@ -22,6 +22,8 @@ if (!defined('IN_PHPBB'))
 class acp_styles
 {
 	public $u_action;
+	public $tpl_name;
+	public $page_title;
 
 	protected $u_base_action;
 	protected $s_hidden_fields;
@@ -64,6 +66,9 @@ class acp_styles
 
 	/** @var \phpbb\event\dispatcher_interface */
 	protected $dispatcher;
+
+	/** @var array|int[] */
+	protected $style_counters;
 
 	public function main($id, $mode)
 	{
@@ -331,7 +336,7 @@ class acp_styles
 		$rows = $this->db->sql_fetchrowset($result);
 		$this->db->sql_freeresult($result);
 
-		// Uinstall each style
+		// Uninstall each style
 		$uninstalled = array();
 		foreach ($rows as $style)
 		{

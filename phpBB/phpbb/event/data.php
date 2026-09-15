@@ -44,22 +44,26 @@ class data extends Event implements \ArrayAccess
 		return array_intersect_key($this->data, array_flip($keys));
 	}
 
-	public function offsetExists($offset)
+	#[\ReturnTypeWillChange]
+	public function offsetExists($offset): bool
 	{
 		return isset($this->data[$offset]);
 	}
 
-	public function offsetGet($offset)
+	#[\ReturnTypeWillChange]
+	public function offsetGet($offset): mixed
 	{
 		return isset($this->data[$offset]) ? $this->data[$offset] : null;
 	}
 
-	public function offsetSet($offset, $value)
+	#[\ReturnTypeWillChange]
+	public function offsetSet($offset, $value): void
 	{
 		$this->data[$offset] = $value;
 	}
 
-	public function offsetUnset($offset)
+	#[\ReturnTypeWillChange]
+	public function offsetUnset($offset): void
 	{
 		unset($this->data[$offset]);
 	}

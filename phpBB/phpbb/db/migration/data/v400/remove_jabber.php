@@ -1,0 +1,97 @@
+<?php
+/**
+ *
+ * This file is part of the phpBB Forum Software package.
+ *
+ * @copyright (c) phpBB Limited <https://www.phpbb.com>
+ * @license GNU General Public License, version 2 (GPL-2.0)
+ *
+ * For full copyright and license information, please see
+ * the docs/CREDITS.txt file.
+ *
+ */
+
+namespace phpbb\db\migration\data\v400;
+
+use phpbb\db\migration\migration;
+
+class remove_jabber extends migration
+{
+	public static function depends_on(): array
+	{
+		return [
+			'\phpbb\db\migration\data\v310\notifications_use_full_name',
+			'\phpbb\db\migration\data\v31x\add_jabber_ssl_context_config_options',
+			'\phpbb\db\migration\data\v400\dev',
+			'\phpbb\db\migration\data\v400\add_webpush',
+		];
+	}
+
+	public function update_schema(): array
+	{
+		return [
+			'drop_columns' => [
+				$this->table_prefix . 'users' => [
+					'user_jabber',
+				],
+			],
+			'add_columns' => [
+				$this->table_prefix . 'user_notifications' => [
+					'id' => ['ULINT', null, 'auto_increment'],
+				],
+			],
+			'add_primary_keys' => [
+				$this->table_prefix . 'user_notifications' => ['id'],
+			],
+		];
+	}
+
+	public function revert_schema(): array
+	{
+		return [
+			'add_columns' => [
+				$this->table_prefix . 'users' => [
+					'user_jabber' => ['VCHAR_UNI', ''],
+				],
+			],
+			'drop_columns' => [
+				$this->table_prefix . 'user_notifications' => [
+					'id',
+				],
+			],
+		];
+	}
+
+	public function update_data(): array
+	{
+		return [
+			['config.remove', ['jab_enable']],
+			['config.remove', ['jab_host']],
+			['config.remove', ['jab_package_size']],
+			['config.remove', ['jab_password']],
+			['config.remove', ['jab_port']],
+			['config.remove', ['jab_use_ssl']],
+			['config.remove', ['jab_username']],
+			['config.remove', ['jab_verify_peer']],
+			['config.remove', ['jab_verify_peer_name']],
+			['config.remove', ['jab_allow_self_signed']],
+			['module.remove', [
+				'acp',
+				'ACP_CLIENT_COMMUNICATION',
+				'ACP_JABBER_SETTINGS',
+			]],
+			['permission.remove', ['a_jabber']],
+			['permission.remove', ['u_sendim']],
+			['custom', [[$this, 'move_jabber_to_email_notifications']]],
+		];
+	}
+
+	public function move_jabber_to_email_notifications()
+	{
+		$sql = 'DELETE FROM ' . $this->tables['user_notifications'] . "
+			WHERE method = 'notification.method.jabber'";
+		$this->db->sql_query($sql);
+
+		return true;
+	}
+}

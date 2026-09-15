@@ -16,7 +16,7 @@ require_once __DIR__ . '/../../phpBB/includes/message_parser.php';
 
 class phpbb_bbcode_parser_test extends \phpbb_test_case
 {
-	public function bbcode_firstpass_data()
+	public static function bbcode_firstpass_data()
 	{
 		return array(
 			// Default bbcodes from in their simplest way
@@ -212,11 +212,6 @@ class phpbb_bbcode_parser_test extends \phpbb_test_case
 				'[quote=&quot;[img:]https&#58;//area51&#46;phpbb&#46;com/images/area51&#46;png[/img:]&quot;:]test[/quote:]',
 			),
 			array(
-				'Disallow flash bbcodes in usernames - Username displayed as [flash]http://www.phpbb.com/[/flash]',
-				'[quote=&quot;[flash]http://www.phpbb.com/[/flash]&quot;]test[/quote]',
-				'[quote=&quot;&#91;flash]http://www.phpbb.com/&#91;/flash]&quot;:]test[/quote:]',
-			),
-			array(
 				'Disallow quote bbcodes in usernames - Username displayed as [quote]test[/quote]',
 				'[quote=&quot;[quote]test[/quote]&quot;]test[/quote]',
 				'[quote=&quot;&#91;quote]test&#91;/quote]&quot;:]test[/quote:]',
@@ -254,10 +249,18 @@ class phpbb_bbcode_parser_test extends \phpbb_test_case
 			$this->markTestIncomplete($incomplete);
 		}
 
-		global $user, $request, $symfony_request;
+		global $user, $request, $symfony_request, $phpbb_dispatcher, $config, $phpEx;
+		$phpEx = 'php';
+		$config = new \phpbb\config\config([
+			'max_post_font_size' => 0,
+			'force_server_vars' => 0,
+			'server_name' => 'testhost',
+		]);
 		$user = new phpbb_mock_user;
+		$user->lang['UNAUTHORISED_BBCODE'] = 'UNAUTHORISED_BBCODE';
 		$request = new phpbb_mock_request;
 		$symfony_request = new \phpbb\symfony_request($request);
+		$phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 
 		$bbcode = new bbcode_firstpass();
 		$bbcode->mode = 'post';

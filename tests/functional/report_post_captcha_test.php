@@ -18,13 +18,13 @@ class phpbb_functional_report_post_captcha_test extends phpbb_functional_test_ca
 {
 	public function test_guest_report_post()
 	{
-		$crawler = self::request('GET', 'app.php/post/1/report', array(), false);
+		$crawler = self::request('GET', 'index.php/post/1/report', array(), false);
 		$this->assert_response_html(403);
 		$this->add_lang('mcp');
 		$this->assertStringContainsString($this->lang('USER_CANNOT_REPORT'), $crawler->filter('html')->text());
 
 		$this->set_reporting_guest(1);
-		$crawler = self::request('GET', 'app.php/post/1/report');
+		$crawler = self::request('GET', 'index.php/post/1/report');
 		$this->assertStringContainsString($this->lang('CONFIRM_CODE'), $crawler->filter('html')->text());
 		$this->set_reporting_guest(-1);
 	}
@@ -32,7 +32,7 @@ class phpbb_functional_report_post_captcha_test extends phpbb_functional_test_ca
 	public function test_user_report_post()
 	{
 		$this->login();
-		$crawler = self::request('GET', 'app.php/post/1/report');
+		$crawler = self::request('GET', 'index.php/post/1/report');
 		$this->assertStringNotContainsString($this->lang('CONFIRM_CODE'), $crawler->filter('html')->text());
 
 		$this->add_lang('mcp');
@@ -64,8 +64,8 @@ class phpbb_functional_report_post_captcha_test extends phpbb_functional_test_ca
 		$values = $form->getValues();
 		$values["setting[1][2][f_report]"] = $report_post_allowed;
 		$form->setValues($values);
-		$crawler = self::submit($form);
+		self::submit($form);
 
-		$crawler = self::request('GET', 'ucp.php?mode=logout&sid=' . $this->sid);
+		$this->logout();
 	}
 }

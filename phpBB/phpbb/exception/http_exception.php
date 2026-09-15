@@ -25,14 +25,14 @@ class http_exception extends runtime_exception implements HttpExceptionInterface
 	 *
 	 * @var integer
 	 */
-	private $status_code;
+	private int $status_code;
 
 	/**
 	 * Additional headers to set in the response.
 	 *
 	 * @var array
 	 */
-	private $headers;
+	private array $headers;
 
 	/**
 	 * Constructor
@@ -44,7 +44,7 @@ class http_exception extends runtime_exception implements HttpExceptionInterface
 	 * @param array			$headers		Additional headers to set in the response.
 	 * @param integer		$code			The Exception code.
 	 */
-	public function __construct($status_code, $message = "", array $parameters = array(), \Exception $previous = null, array $headers = array(), $code = 0)
+	public function __construct($status_code, $message = "", array $parameters = array(), \Exception|null $previous = null, array $headers = array(), $code = 0)
 	{
 		$this->status_code = $status_code;
 		$this->headers = $headers;
@@ -55,7 +55,7 @@ class http_exception extends runtime_exception implements HttpExceptionInterface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function getStatusCode()
+	public function getStatusCode(): int
 	{
 		return $this->status_code;
 	}
@@ -63,7 +63,7 @@ class http_exception extends runtime_exception implements HttpExceptionInterface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function getHeaders()
+	public function getHeaders(): array
 	{
 		return $this->headers;
 	}

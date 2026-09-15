@@ -61,36 +61,55 @@ class notification_method_email_test extends phpbb_tests_notification_base
 		$this->user = $user;
 		$this->user_loader = new \phpbb\user_loader($avatar_helper, $this->db, $phpbb_root_path, $phpEx, 'phpbb_users');
 		$auth = $this->auth = new phpbb_mock_notifications_auth();
+		$this->phpbb_dispatcher = new phpbb_mock_event_dispatcher();
 		$cache_driver = new \phpbb\cache\driver\dummy();
 		$cache = $this->cache = new \phpbb\cache\service(
 			$cache_driver,
 			$this->config,
 			$this->db,
+			$this->phpbb_dispatcher,
 			$phpbb_root_path,
 			$phpEx
 		);
 
-		$this->phpbb_dispatcher = new phpbb_mock_event_dispatcher();
-
 		$phpbb_container = $this->container = new ContainerBuilder();
 		$loader     = new YamlFileLoader($phpbb_container, new FileLocator(__DIR__ . '/fixtures'));
 		$loader->load('services_notification.yml');
+		$phpbb_container->set('avatar.helper', $avatar_helper);
 		$phpbb_container->set('user_loader', $this->user_loader);
 		$phpbb_container->set('user', $user);
 		$phpbb_container->set('language', $lang);
 		$phpbb_container->set('config', $this->config);
+		$phpbb_container->set('controller.helper', $this->createMock('\phpbb\controller\helper'));
 		$phpbb_container->set('dbal.conn', $this->db);
 		$phpbb_container->set('auth', $auth);
 		$phpbb_container->set('cache.driver', $cache_driver);
 		$phpbb_container->set('cache', $cache);
+		$phpbb_container->set('log', new \phpbb\log\dummy());
 		$phpbb_container->set('text_formatter.utils', new \phpbb\textformatter\s9e\utils());
-		$phpbb_container->set('dispatcher', $this->phpbb_dispatcher);
+		$phpbb_container->set('event_dispatcher', $this->phpbb_dispatcher);
 		$phpbb_container->setParameter('core.root_path', $phpbb_root_path);
 		$phpbb_container->setParameter('core.php_ext', $phpEx);
 		$phpbb_container->setParameter('tables.notifications', 'phpbb_notifications');
 		$phpbb_container->setParameter('tables.user_notifications', 'phpbb_user_notifications');
 		$phpbb_container->setParameter('tables.notification_types', 'phpbb_notification_types');
 		$phpbb_container->setParameter('tables.notification_emails', 'phpbb_notification_emails');
+		$phpbb_container->setParameter('tables.notification_push', 'phpbb_notification_push');
+		$phpbb_container->setParameter('tables.push_subscriptions', 'phpbb_push_subscriptions');
+		$phpbb_container->set(
+			'text_formatter.s9e.mention_helper',
+			new \phpbb\textformatter\s9e\mention_helper(
+				$this->db,
+				$auth,
+				$this->user,
+				$phpbb_root_path,
+				$phpEx
+			)
+		);
+
+		$messenger_method_collection = new \phpbb\di\service_collection($phpbb_container);
+		$messenger_method_collection->add('messenger.method.email');
+		$phpbb_container->set('messenger.method_collection', $messenger_method_collection);
 
 		$this->notification_method_email = $this->getMockBuilder('\phpbb\notification\method\email')
 			->setConstructorArgs([
@@ -100,15 +119,15 @@ class notification_method_email_test extends phpbb_tests_notification_base
 				$phpbb_container->get('dbal.conn'),
 				$phpbb_root_path,
 				$phpEx,
-				$phpbb_container->getParameter('tables.notification_emails')
+				$phpbb_container->getParameter('tables.notification_emails'),
+				$phpbb_container->get('messenger.method_collection')
 			])
-			->setMethods(['notify_using_messenger'])
+			->onlyMethods(['notify_using_messenger'])
 			->getMock();
 		$notification_method_email = $this->notification_method_email;
 
 		$class = new ReflectionClass($notification_method_email);
 		$empty_queue_method = $class->getMethod('empty_queue');
-		$empty_queue_method->setAccessible(true);
 
 		$this->notification_method_email->method('notify_using_messenger')
 			->will($this->returnCallback(function () use ($notification_method_email, $empty_queue_method) {
@@ -160,7 +179,7 @@ class notification_method_email_test extends phpbb_tests_notification_base
 		$this->notifications->set_var('notification_methods', $methods);
 	}
 
-	public function data_notification_email()
+	public static function data_notification_email()
 	{
 		return [
 			/**

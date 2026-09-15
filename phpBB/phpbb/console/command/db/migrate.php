@@ -45,7 +45,7 @@ class migrate extends \phpbb\console\command\db\migration_command
 	/**
 	 * {@inheritdoc}
 	 */
-	protected function configure()
+	protected function configure(): void
 	{
 		$this
 			->setName('db:migrate')
@@ -63,7 +63,7 @@ class migrate extends \phpbb\console\command\db\migration_command
 	 *
 	 * @return int
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output)
+	protected function execute(InputInterface $input, OutputInterface $output): int
 	{
 		$io = new SymfonyStyle($input, $output);
 
@@ -72,6 +72,10 @@ class migrate extends \phpbb\console\command\db\migration_command
 		$this->migrator->create_migrations_table();
 
 		$this->cache->purge();
+		if ($this->config instanceof \phpbb\config\db)
+		{
+			$this->config->initialise($this->cache->get_driver());
+		}
 
 		$this->load_migrations();
 		$orig_version = $this->config['version'];

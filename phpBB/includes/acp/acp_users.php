@@ -14,6 +14,11 @@
 /**
 * @ignore
 */
+
+use phpbb\controller\helper;
+use phpbb\language\language;
+use phpbb\messenger\method\messenger_interface;
+
 if (!defined('IN_PHPBB'))
 {
 	exit;
@@ -22,6 +27,8 @@ if (!defined('IN_PHPBB'))
 class acp_users
 {
 	var $u_action;
+	var $tpl_name;
+	var $page_title;
 	var $p_master;
 
 	function __construct($p_master)
@@ -35,6 +42,12 @@ class acp_users
 		global $phpbb_root_path, $phpbb_admin_path, $phpEx;
 		global $phpbb_dispatcher, $request;
 		global $phpbb_container, $phpbb_log;
+
+		/** @var helper $controller_helper */
+		$controller_helper = $phpbb_container->get('controller.helper');
+
+		/** @var language $language Language object */
+		$language = $phpbb_container->get('language');
 
 		$user->add_lang(array('posting', 'ucp', 'acp/users'));
 		$this->tpl_name = 'acp_users';
@@ -66,11 +79,10 @@ class acp_users
 			$this->tpl_name = 'simple_body';
 
 			$user_ip = phpbb_ip_normalise($request->variable('user_ip', ''));
-			$domain = gethostbyaddr($user_ip);
 			$ipwhois = user_ipwhois($user_ip);
 
 			$template->assign_vars(array(
-				'MESSAGE_TITLE'		=> sprintf($user->lang['IP_WHOIS_FOR'], $domain),
+				'MESSAGE_TITLE'		=> sprintf($user->lang['IP_WHOIS_FOR'], phpbb_get_host_for_ip($user_ip)),
 				'MESSAGE_TEXT'		=> nl2br($ipwhois))
 			);
 
@@ -358,11 +370,6 @@ class acp_users
 
 							if ($config['email_enable'])
 							{
-								if (!class_exists('messenger'))
-								{
-									include($phpbb_root_path . 'includes/functions_messenger.' . $phpEx);
-								}
-
 								$server_url = generate_board_url();
 
 								$user_actkey = gen_rand_string(mt_rand(6, 10));
@@ -385,29 +392,29 @@ class acp_users
 									$user_actkey = empty($user_activation_key) ? $user_actkey : $user_activation_key;
 								}
 
-								if ($user_row['user_type'] == USER_NORMAL || empty($user_activation_key))
-								{
-									$sql = 'UPDATE ' . USERS_TABLE . "
-										SET user_actkey = '" . $db->sql_escape($user_actkey) . "'
-										WHERE user_id = $user_id";
-									$db->sql_query($sql);
-								}
+								// Always update actkey even if same and also update actkey expiration to 24 hours from now
+								$sql_ary = [
+									'user_actkey'				=> $user_actkey,
+									'user_actkey_expiration'	=> $user::get_token_expiration(),
+								];
 
-								$messenger = new messenger(false);
+								$sql = 'UPDATE ' . USERS_TABLE . '
+									SET ' . $db->sql_build_array('UPDATE', $sql_ary) . '
+									WHERE user_id = ' . (int) $user_id;
+								$db->sql_query($sql);
 
-								$messenger->template($email_template, $user_row['user_lang']);
-
-								$messenger->set_addresses($user_row);
-
-								$messenger->anti_abuse_headers($config, $user);
-
-								$messenger->assign_vars(array(
-									'WELCOME_MSG'	=> htmlspecialchars_decode(sprintf($user->lang['WELCOME_SUBJECT'], $config['sitename']), ENT_COMPAT),
-									'USERNAME'		=> htmlspecialchars_decode($user_row['username'], ENT_COMPAT),
-									'U_ACTIVATE'	=> "$server_url/ucp.$phpEx?mode=activate&u={$user_row['user_id']}&k=$user_actkey")
-								);
-
-								$messenger->send(NOTIFY_EMAIL);
+								// Start sending email
+								$email_method = $phpbb_container->get('messenger.method.email');
+								$email_method->set_use_queue(false);
+								$email_method->template($email_template, $user_row['user_lang']);
+								$email_method->set_addresses($user_row);
+								$email_method->anti_abuse_headers($config, $user);
+								$email_method->assign_vars([
+									'WELCOME_MSG'	=> html_entity_decode(sprintf($user->lang['WELCOME_SUBJECT'], $config['sitename']), ENT_COMPAT),
+									'USERNAME'		=> html_entity_decode($user_row['username'], ENT_COMPAT),
+									'U_ACTIVATE'	=> "$server_url/ucp.$phpEx?mode=activate&u={$user_row['user_id']}&k=$user_actkey",
+								]);
+								$email_method->send();
 
 								$phpbb_log->add('admin', $user->data['user_id'], $user->ip, 'LOG_USER_REACTIVATE', false, array($user_row['username']));
 								$phpbb_log->add('user', $user->data['user_id'], $user->ip, 'LOG_USER_REACTIVATE_USER', false, array(
@@ -452,24 +459,15 @@ class acp_users
 									$phpbb_notifications = $phpbb_container->get('notification_manager');
 									$phpbb_notifications->delete_notifications('notification.type.admin_activate_user', $user_row['user_id']);
 
-									if (!class_exists('messenger'))
-									{
-										include($phpbb_root_path . 'includes/functions_messenger.' . $phpEx);
-									}
-
-									$messenger = new messenger(false);
-
-									$messenger->template('admin_welcome_activated', $user_row['user_lang']);
-
-									$messenger->set_addresses($user_row);
-
-									$messenger->anti_abuse_headers($config, $user);
-
-									$messenger->assign_vars(array(
-										'USERNAME'	=> htmlspecialchars_decode($user_row['username'], ENT_COMPAT))
-									);
-
-									$messenger->send(NOTIFY_EMAIL);
+									$email_method = $phpbb_container->get('messenger.method.email');
+									$email_method->set_use_queue(false);
+									$email_method->template('admin_welcome_activated', $user_row['user_lang']);
+									$email_method->set_addresses($user_row);
+									$email_method->anti_abuse_headers($config, $user);
+									$email_method->assign_vars([
+										'USERNAME'	=> html_entity_decode($user_row['username'], ENT_COMPAT),
+									]);
+									$email_method->send();
 								}
 							}
 
@@ -1084,7 +1082,7 @@ class acp_users
 					$s_action_options .= '<option value="' . $value . '">' . $user->lang['USER_ADMIN_' . $lang] . '</option>';
 				}
 
-				$last_active = (!empty($user_row['session_time'])) ? $user_row['session_time'] : $user_row['user_lastvisit'];
+				$last_active = $user_row['user_last_active'] ?: ($user_row['session_time'] ?? 0);
 
 				$inactive_reason = '';
 				if ($user_row['user_type'] == USER_INACTIVE)
@@ -1128,7 +1126,7 @@ class acp_users
 				$db->sql_freeresult($result);
 
 				$template->assign_vars(array(
-					'L_NAME_CHARS_EXPLAIN'		=> $user->lang($config['allow_name_chars'] . '_EXPLAIN', $user->lang('CHARACTERS', (int) $config['min_name_chars']), $user->lang('CHARACTERS', (int) $config['max_name_chars'])),
+					'L_NAME_CHARS_EXPLAIN'		=> $user->lang($config['allow_name_chars'] . '_EXPLAIN', $user->lang('CHARACTERS_XY', (int) $config['min_name_chars']), $user->lang('CHARACTERS_XY', (int) $config['max_name_chars'])),
 					'L_CHANGE_PASSWORD_EXPLAIN'	=> $user->lang($config['pass_complex'] . '_EXPLAIN', $user->lang('CHARACTERS', (int) $config['min_pass_chars'])),
 					'L_POSTS_IN_QUEUE'			=> $user->lang('NUM_POSTS_IN_QUEUE', $user_row['posts_in_queue']),
 					'S_FOUNDER'					=> ($user->data['user_type'] == USER_FOUNDER) ? true : false,
@@ -1142,7 +1140,7 @@ class acp_users
 
 					'U_SHOW_IP'		=> $this->u_action . "&amp;u=$user_id&amp;ip=" . (($ip == 'ip') ? 'hostname' : 'ip'),
 					'U_WHOIS'		=> $this->u_action . "&amp;action=whois&amp;user_ip={$user_row['user_ip']}",
-					'U_MCP_QUEUE'	=> ($auth->acl_getf_global('m_approve')) ? append_sid("{$phpbb_root_path}mcp.$phpEx", 'i=queue', true, $user->session_id) : '',
+					'U_MCP_QUEUE'	=> ($auth->acl_getf_global('m_approve')) ? append_sid("{$phpbb_root_path}mcp.$phpEx", 'i=queue') : '',
 					'U_SEARCH_USER'	=> ($config['load_search'] && $auth->acl_get('u_search')) ? append_sid("{$phpbb_root_path}search.$phpEx", "author_id={$user_row['user_id']}&amp;sr=posts") : '',
 
 					'U_SWITCH_PERMISSIONS'	=> ($auth->acl_get('a_switchperm') && $user->data['user_id'] != $user_row['user_id']) ? append_sid("{$phpbb_root_path}ucp.$phpEx", "mode=switch_perm&amp;u={$user_row['user_id']}&amp;hash=" . generate_link_hash('switchperm')) : '',
@@ -1150,7 +1148,7 @@ class acp_users
 					'POSTS_IN_QUEUE'	=> $user_row['posts_in_queue'],
 					'USER'				=> $user_row['username'],
 					'USER_REGISTERED'	=> $user->format_date($user_row['user_regdate']),
-					'REGISTERED_IP'		=> ($ip == 'hostname') ? gethostbyaddr($user_row['user_ip']) : $user_row['user_ip'],
+					'REGISTERED_IP'		=> ($ip == 'hostname') ? phpbb_get_host_for_ip($user_row['user_ip']) : $user_row['user_ip'],
 					'USER_LASTACTIVE'	=> ($last_active) ? $user->format_date($last_active) : ' - ',
 					'USER_EMAIL'		=> $user_row['user_email'],
 					'USER_WARNINGS'		=> $user_row['user_warnings'],
@@ -1433,7 +1431,6 @@ class acp_users
 				$user_row['iso_lang_id'] = $row['lang_id'];
 
 				$data = array(
-					'jabber'		=> $request->variable('jabber', $user_row['user_jabber'], true),
 					'bday_day'		=> 0,
 					'bday_month'	=> 0,
 					'bday_year'		=> 0,
@@ -1465,9 +1462,6 @@ class acp_users
 				if ($submit)
 				{
 					$error = validate_data($data, array(
-						'jabber'		=> array(
-							array('string', true, 5, 255),
-							array('jabber')),
 						'bday_day'		=> array('num', true, 1, 31),
 						'bday_month'	=> array('num', true, 1, 12),
 						'bday_year'		=> array('num', true, 1901, gmdate('Y', time())),
@@ -1503,7 +1497,6 @@ class acp_users
 					if (!count($error))
 					{
 						$sql_ary = array(
-							'user_jabber'	=> $data['jabber'],
 							'user_birthday'	=> $data['user_birthday'],
 						);
 
@@ -1560,7 +1553,6 @@ class acp_users
 				unset($now);
 
 				$template->assign_vars(array(
-					'JABBER'		=> $data['jabber'],
 					'S_BIRTHDAY_DAY_OPTIONS'	=> $s_birthday_day_options,
 					'S_BIRTHDAY_MONTH_OPTIONS'	=> $s_birthday_month_options,
 					'S_BIRTHDAY_YEAR_OPTIONS'	=> $s_birthday_year_options,
@@ -1590,7 +1582,6 @@ class acp_users
 					'viewemail'			=> $request->variable('viewemail', $user_row['user_allow_viewemail']),
 					'massemail'			=> $request->variable('massemail', $user_row['user_allow_massemail']),
 					'hideonline'		=> $request->variable('hideonline', !$user_row['user_allow_viewonline']),
-					'notifymethod'		=> $request->variable('notifymethod', $user_row['user_notify_type']),
 					'notifypm'			=> $request->variable('notifypm', $user_row['user_notify_pm']),
 					'allowpm'			=> $request->variable('allowpm', $user_row['user_allow_pm']),
 
@@ -1603,7 +1594,6 @@ class acp_users
 					'post_st'			=> $request->variable('post_st', ($user_row['user_post_show_days']) ? $user_row['user_post_show_days'] : 0),
 
 					'view_images'		=> $request->variable('view_images', $this->optionget($user_row, 'viewimg')),
-					'view_flash'		=> $request->variable('view_flash', $this->optionget($user_row, 'viewflash')),
 					'view_smilies'		=> $request->variable('view_smilies', $this->optionget($user_row, 'viewsmilies')),
 					'view_sigs'			=> $request->variable('view_sigs', $this->optionget($user_row, 'viewsigs')),
 					'view_avatars'		=> $request->variable('view_avatars', $this->optionget($user_row, 'viewavatars')),
@@ -1647,7 +1637,6 @@ class acp_users
 					if (!count($error))
 					{
 						$this->optionset($user_row, 'viewimg', $data['view_images']);
-						$this->optionset($user_row, 'viewflash', $data['view_flash']);
 						$this->optionset($user_row, 'viewsmilies', $data['view_smilies']);
 						$this->optionset($user_row, 'viewsigs', $data['view_sigs']);
 						$this->optionset($user_row, 'viewavatars', $data['view_avatars']);
@@ -1663,7 +1652,6 @@ class acp_users
 							'user_allow_viewemail'	=> $data['viewemail'],
 							'user_allow_massemail'	=> $data['massemail'],
 							'user_allow_viewonline'	=> !$data['hideonline'],
-							'user_notify_type'		=> $data['notifymethod'],
 							'user_notify_pm'		=> $data['notifypm'],
 
 							'user_dateformat'		=> $data['dateformat'],
@@ -1791,25 +1779,22 @@ class acp_users
 					${'s_sort_' . $sort_option . '_dir'} .= '</select>';
 				}
 
-				phpbb_timezone_select($template, $user, $data['tz'], true);
+				$timezone_select = phpbb_timezone_select($user, $data['tz'], true);
+				$lang_options = phpbb_language_select($db, $data['lang']);
+
 				$user_prefs_data = array(
 					'S_PREFS'			=> true,
-					'S_JABBER_DISABLED'	=> ($config['jab_enable'] && $user_row['user_jabber'] && @extension_loaded('xml')) ? false : true,
 
 					'VIEW_EMAIL'		=> $data['viewemail'],
 					'MASS_EMAIL'		=> $data['massemail'],
 					'ALLOW_PM'			=> $data['allowpm'],
 					'HIDE_ONLINE'		=> $data['hideonline'],
-					'NOTIFY_EMAIL'		=> ($data['notifymethod'] == NOTIFY_EMAIL) ? true : false,
-					'NOTIFY_IM'			=> ($data['notifymethod'] == NOTIFY_IM) ? true : false,
-					'NOTIFY_BOTH'		=> ($data['notifymethod'] == NOTIFY_BOTH) ? true : false,
 					'NOTIFY_PM'			=> $data['notifypm'],
 					'BBCODE'			=> $data['bbcode'],
 					'SMILIES'			=> $data['smilies'],
 					'ATTACH_SIG'		=> $data['sig'],
 					'NOTIFY'			=> $data['notify'],
 					'VIEW_IMAGES'		=> $data['view_images'],
-					'VIEW_FLASH'		=> $data['view_flash'],
 					'VIEW_SMILIES'		=> $data['view_smilies'],
 					'VIEW_SIGS'			=> $data['view_sigs'],
 					'VIEW_AVATARS'		=> $data['view_avatars'],
@@ -1828,8 +1813,21 @@ class acp_users
 					'DEFAULT_DATEFORMAT'	=> $config['default_dateformat'],
 					'A_DEFAULT_DATEFORMAT'	=> addslashes($config['default_dateformat']),
 
-					'S_LANG_OPTIONS'	=> language_select($data['lang']),
-					'S_STYLE_OPTIONS'	=> style_select($data['style']),
+					'LANG_OPTIONS'		=> [
+						'id'		=> 'lang',
+						'name'		=> 'lang',
+						'options'	=> $lang_options,
+					],
+					'S_STYLE_OPTIONS'	=> [
+						'id'		=> 'style',
+						'name'		=> 'style',
+						'options' => style_select($data['style'])
+					],
+					'TIMEZONE_OPTIONS'	=> [
+						'tag'		=> 'select',
+						'name'		=> 'tz',
+						'options'	=> $timezone_select,
+					],
 				);
 
 				/**
@@ -1896,9 +1894,27 @@ class acp_users
 									$sql = 'UPDATE ' . USERS_TABLE . '
 										SET ' . $db->sql_build_array('UPDATE', $result) . '
 										WHERE user_id = ' . (int) $user_id;
-
 									$db->sql_query($sql);
-									trigger_error($user->lang['USER_AVATAR_UPDATED'] . adm_back_link($this->u_action . '&amp;u=' . $user_id));
+
+									if ($request->is_ajax())
+									{
+										$json_response = new \phpbb\json_response;
+										$json_response->send([
+											'success' => true,
+
+											'MESSAGE_TITLE'	=> $language->lang('INFORMATION'),
+											'MESSAGE_TEXT'	=> $language->lang('USER_AVATAR_UPDATED'),
+											'REFRESH_DATA'	=> [
+												'time'	=> 3,
+												'url'		=> $this->u_action . '&amp;u=' . $user_id,
+												'text'		=> $language->lang('BACK_TO_PREV'),
+											]
+										]);
+									}
+									else
+									{
+										trigger_error($user->lang['USER_AVATAR_UPDATED'] . adm_back_link($this->u_action . '&amp;u=' . $user_id));
+									}
 								}
 							}
 						}
@@ -2067,7 +2083,6 @@ class acp_users
 					$enable_urls,
 					$enable_smilies,
 					$config['allow_sig_img'],
-					$config['allow_sig_flash'],
 					true,
 					$config['allow_sig_links'],
 					'sig'
@@ -2126,9 +2141,6 @@ class acp_users
 					$decoded_message = generate_text_for_edit($signature, $bbcode_uid, $bbcode_flags);
 				}
 
-				/** @var \phpbb\controller\helper $controller_helper */
-				$controller_helper = $phpbb_container->get('controller.helper');
-
 				$template->assign_vars(array(
 					'S_SIGNATURE'		=> true,
 
@@ -2142,7 +2154,6 @@ class acp_users
 					'BBCODE_STATUS'			=> $user->lang(($config['allow_sig_bbcode'] ? 'BBCODE_IS_ON' : 'BBCODE_IS_OFF'), '<a href="' . $controller_helper->route('phpbb_help_bbcode_controller') . '">', '</a>'),
 					'SMILIES_STATUS'		=> ($config['allow_sig_smilies']) ? $user->lang['SMILIES_ARE_ON'] : $user->lang['SMILIES_ARE_OFF'],
 					'IMG_STATUS'			=> ($config['allow_sig_img']) ? $user->lang['IMAGES_ARE_ON'] : $user->lang['IMAGES_ARE_OFF'],
-					'FLASH_STATUS'			=> ($config['allow_sig_flash']) ? $user->lang['FLASH_IS_ON'] : $user->lang['FLASH_IS_OFF'],
 					'URL_STATUS'			=> ($config['allow_sig_links']) ? $user->lang['URL_IS_ON'] : $user->lang['URL_IS_OFF'],
 
 					'L_SIGNATURE_EXPLAIN'	=> $user->lang('SIGNATURE_EXPLAIN', (int) $config['max_sig_chars']),
@@ -2150,7 +2161,6 @@ class acp_users
 					'S_BBCODE_ALLOWED'		=> $config['allow_sig_bbcode'],
 					'S_SMILIES_ALLOWED'		=> $config['allow_sig_smilies'],
 					'S_BBCODE_IMG'			=> ($config['allow_sig_img']) ? true : false,
-					'S_BBCODE_FLASH'		=> ($config['allow_sig_flash']) ? true : false,
 					'S_LINKS_ALLOWED'		=> ($config['allow_sig_links']) ? true : false)
 				);
 
@@ -2280,7 +2290,7 @@ class acp_users
 					}
 					else
 					{
-						$view_topic = append_sid("{$phpbb_root_path}viewtopic.$phpEx", "t={$row['topic_id']}&amp;p={$row['post_msg_id']}") . '#p' . $row['post_msg_id'];
+						$view_topic = append_sid("{$phpbb_root_path}viewtopic.$phpEx", "p={$row['post_msg_id']}") . '#p' . $row['post_msg_id'];
 					}
 
 					$template->assign_block_vars('attach', array(
@@ -2298,7 +2308,13 @@ class acp_users
 
 						'S_IN_MESSAGE'		=> $row['in_message'],
 
-						'U_DOWNLOAD'		=> append_sid("{$phpbb_root_path}download/file.$phpEx", 'mode=view&amp;id=' . $row['attach_id']),
+						'U_DOWNLOAD'		=> $controller_helper->route(
+							'phpbb_storage_attachment',
+							[
+								'id'		=> (int) $row['attach_id'],
+								'filename'	=> $row['real_filename'],
+							]
+						),
 						'U_VIEW_TOPIC'		=> $view_topic)
 					);
 				}
@@ -2518,7 +2534,7 @@ class acp_users
 							'U_EDIT_GROUP'		=> append_sid("{$phpbb_admin_path}index.$phpEx", "i=groups&amp;mode=manage&amp;action=edit&amp;u=$user_id&amp;g={$data['group_id']}&amp;back_link=acp_users_groups"),
 							'U_DEFAULT'			=> $this->u_action . "&amp;action=default&amp;u=$user_id&amp;g=" . $data['group_id'] . '&amp;hash=' . generate_link_hash('acp_users'),
 							'U_DEMOTE_PROMOTE'	=> $this->u_action . '&amp;action=' . (($data['group_leader']) ? 'demote' : 'promote') . "&amp;u=$user_id&amp;g=" . $data['group_id'] . '&amp;hash=' . generate_link_hash('acp_users'),
-							'U_DELETE'			=> $this->u_action . "&amp;action=delete&amp;u=$user_id&amp;g=" . $data['group_id'],
+							'U_DELETE'			=> count($id_ary) > 1 ? $this->u_action . "&amp;action=delete&amp;u=$user_id&amp;g=" . $data['group_id'] : '',
 							'U_APPROVE'			=> ($group_type == 'pending') ? $this->u_action . "&amp;action=approve&amp;u=$user_id&amp;g=" . $data['group_id'] : '',
 
 							'GROUP_NAME'		=> $group_helper->get_name($data['group_name']),

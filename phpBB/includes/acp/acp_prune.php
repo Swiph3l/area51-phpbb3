@@ -22,6 +22,8 @@ if (!defined('IN_PHPBB'))
 class acp_prune
 {
 	var $u_action;
+	var $tpl_name;
+	var $page_title;
 
 	function main($id, $mode)
 	{
@@ -110,6 +112,7 @@ class acp_prune
 				if ($row = $db->sql_fetchrow($result))
 				{
 					$prune_ids = array();
+					$p_result = [];
 					$p_result['topics'] = 0;
 					$p_result['posts'] = 0;
 					$log_data = '';
@@ -327,7 +330,7 @@ class acp_prune
 						'USERNAME'			=> $usernames[$user_id],
 						'USER_ID'           => $user_id,
 						'U_PROFILE'			=> get_username_string('profile', $user_id, $usernames[$user_id]),
-						'U_USER_ADMIN'		=> ($auth->acl_get('a_user')) ? append_sid("{$phpbb_admin_path}index.$phpEx", 'i=users&amp;mode=overview&amp;u=' . $user_id, true, $user->session_id) : '',
+						'U_USER_ADMIN'		=> ($auth->acl_get('a_user')) ? append_sid("{$phpbb_admin_path}index.$phpEx", 'i=users&amp;mode=overview&amp;u=' . $user_id) : '',
 					));
 				}
 

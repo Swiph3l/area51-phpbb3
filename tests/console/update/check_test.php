@@ -24,8 +24,6 @@ require_once __DIR__ . '/../../../phpBB/includes/utf/utf_tools.php';
 */
 class phpbb_console_command_check_test extends phpbb_test_case
 {
-	protected $command_name;
-
 	protected $version_helper;
 
 	/** @var \phpbb\language\language */
@@ -34,7 +32,7 @@ class phpbb_console_command_check_test extends phpbb_test_case
 	public function test_up_to_date()
 	{
 		$command_tester = $this->get_command_tester('100000');
-		$status = $command_tester->execute(array('command' => $this->command_name, '--no-ansi' => true));
+		$status = $command_tester->execute(array('--no-ansi' => true));
 		$this->assertSame('', $command_tester->getDisplay());
 		$this->assertSame($status, 0);
 	}
@@ -42,7 +40,7 @@ class phpbb_console_command_check_test extends phpbb_test_case
 	public function test_up_to_date_verbose()
 	{
 		$command_tester = $this->get_command_tester('100000');
-		$status = $command_tester->execute(array('command' => $this->command_name, '--no-ansi' => true, '--verbose' => true));
+		$status = $command_tester->execute(array('--no-ansi' => true, '--verbose' => true));
 		$this->assertStringContainsString($this->language->lang('UPDATE_NOT_NEEDED'), $command_tester->getDisplay());
 		$this->assertSame($status, 0);
 	}
@@ -51,7 +49,7 @@ class phpbb_console_command_check_test extends phpbb_test_case
 	public function test_not_up_to_date()
 	{
 		$command_tester = $this->get_command_tester('0');
-		$status = $command_tester->execute(array('command' => $this->command_name, '--no-ansi' => true));
+		$status = $command_tester->execute(array('--no-ansi' => true));
 		$this->assertStringContainsString($this->language->lang('UPDATE_NEEDED'), $command_tester->getDisplay());
 		$this->assertSame($status, 1);
 	}
@@ -59,7 +57,7 @@ class phpbb_console_command_check_test extends phpbb_test_case
 	public function test_not_up_to_date_verbose()
 	{
 		$command_tester = $this->get_command_tester('0');
-		$status = $command_tester->execute(array('command' => $this->command_name, '--no-ansi' => true, '--verbose' => true));
+		$status = $command_tester->execute(array('--no-ansi' => true, '--verbose' => true));
 		$this->assertStringContainsString($this->language->lang('UPDATE_NEEDED'), $command_tester->getDisplay());
 		$this->assertStringContainsString($this->language->lang('UPDATES_AVAILABLE'), $command_tester->getDisplay());
 		$this->assertSame($status, 1);
@@ -72,7 +70,7 @@ class phpbb_console_command_check_test extends phpbb_test_case
 		$command_tester = $this->get_command_tester('1');
 		$this->version_helper->set_file_location('acme.corp','foo', 'bar.json');
 
-		$status = $command_tester->execute(array('command' => $this->command_name, '--no-ansi' => true));
+		$status = $command_tester->execute(array('--no-ansi' => true));
 		$this->assertStringContainsString('VERSIONCHECK_FAIL', $command_tester->getDisplay());
 		$this->assertSame($status, 2);
 	}
@@ -91,7 +89,33 @@ class phpbb_console_command_check_test extends phpbb_test_case
 			->getMock();
 
 		$config = new \phpbb\config\config(array('version' => $current_version));
-		$this->version_helper = new \phpbb\version_helper($cache, $config, new \phpbb\file_downloader());
+		$this->version_helper = $this->getMockBuilder('\phpbb\version_helper')
+			->setConstructorArgs([$cache, $config, new \phpbb\file_downloader()])
+			->onlyMethods(['get_suggested_updates'])
+			->getMock();
+		$this->version_helper->method('get_suggested_updates')
+			->willReturnCallback(function($force_update = false, $force_cache = false) use ($config)
+			{
+				if ($config['version'] === '100000')
+				{
+					return [];
+				}
+				else if ($config['version'] === '0')
+				{
+					return [
+						[
+							'current'		=> '100000',
+							'announcement'	=> 'https://www.phpbb.com/downloads/',
+							'eol'			=> null,
+							'security'		=> false,
+						],
+					];
+				}
+				else
+				{
+					throw new \phpbb\exception\runtime_exception('VERSIONCHECK_FAIL');
+				}
+			});
 
 		$container = new phpbb_mock_container_builder;
 		$container->set('version_helper', $this->version_helper);
@@ -100,7 +124,6 @@ class phpbb_console_command_check_test extends phpbb_test_case
 		$application->add(new check($user, $config, $container, $this->language));
 
 		$command = $application->find('update:check');
-		$this->command_name = $command->getName();
 		return new CommandTester($command);
 	}
 }

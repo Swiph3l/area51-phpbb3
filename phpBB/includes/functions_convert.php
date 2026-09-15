@@ -377,40 +377,6 @@ function mimetype($filename)
 	}
 }
 
-/**
-* Obtain the dimensions of all remotely hosted avatars
-* This should only be called from execute_last
-* There can be significant network overhead if there are a large number of remote avatars
-* @todo Look at the option of allowing the user to decide whether this is called or to force the dimensions
-*/
-function remote_avatar_dims()
-{
-	global $db;
-
-	$sql = 'SELECT user_id, user_avatar
-		FROM ' . USERS_TABLE . '
-		WHERE user_avatar_type = ' . AVATAR_REMOTE;
-	$result = $db->sql_query($sql);
-
-	$remote_avatars = array();
-	while ($row = $db->sql_fetchrow($result))
-	{
-		$remote_avatars[(int) $row['user_id']] = $row['user_avatar'];
-	}
-	$db->sql_freeresult($result);
-
-	foreach ($remote_avatars as $user_id => $avatar)
-	{
-		$width = (int) get_remote_avatar_dim($avatar, 0);
-		$height = (int) get_remote_avatar_dim($avatar, 1);
-
-		$sql = 'UPDATE ' . USERS_TABLE . '
-			SET user_avatar_width = ' . (int) $width . ', user_avatar_height = ' . (int) $height . '
-			WHERE user_id = ' . $user_id;
-		$db->sql_query($sql);
-	}
-}
-
 function import_avatar_gallery($gallery_name = '', $subdirs_as_galleries = false)
 {
 	global $config, $convert, $user;
@@ -810,23 +776,15 @@ function get_avatar_dim($src, $axis, $func = false, $arg1 = false, $arg2 = false
 	{
 		case AVATAR_UPLOAD:
 			return get_upload_avatar_dim($src, $axis);
-		break;
 
 		case AVATAR_GALLERY:
 			return get_gallery_avatar_dim($src, $axis);
-		break;
-
-		case AVATAR_REMOTE:
-			// see notes on this functions usage and (hopefully) model $func to avoid this accordingly
-			return get_remote_avatar_dim($src, $axis);
-		break;
 
 		default:
 			$default_x = (defined('DEFAULT_AVATAR_X_CUSTOM')) ? DEFAULT_AVATAR_X_CUSTOM : DEFAULT_AVATAR_X;
 			$default_y = (defined('DEFAULT_AVATAR_Y_CUSTOM')) ? DEFAULT_AVATAR_Y_CUSTOM : DEFAULT_AVATAR_Y;
 
 			return $axis ? $default_y : $default_x;
-		break;
 	}
 }
 
@@ -922,88 +880,6 @@ function get_gallery_avatar_dim($source, $axis)
 	return $avatar_cache[$orig_source][$axis];
 }
 
-/**
-* Obtain the size of the specified remote avatar (using the cache if possible) and cache the value
-* Whilst it's unlikely that remote avatars will be duplicated, it is possible so caching seems the best option
-* This should only be called from a post processing step due to the possibility of network timeouts
-*/
-function get_remote_avatar_dim($src, $axis)
-{
-	if (empty($src))
-	{
-		return 0;
-	}
-
-	static $remote_avatar_cache = array();
-
-	// an ugly hack: we assume that the dimensions of each remote avatar are accessed exactly twice (x and y)
-	if (isset($remote_avatar_cache[$src]))
-	{
-		$retval = $remote_avatar_cache[$src][$axis];
-		unset($remote_avatar_cache);
-		return $retval;
-	}
-
-	$url_info = @parse_url($src);
-	if (empty($url_info['host']))
-	{
-		return 0;
-	}
-	$host = $url_info['host'];
-	$port = (isset($url_info['port'])) ? $url_info['port'] : 0;
-	$protocol = (isset($url_info['scheme'])) ? $url_info['scheme'] : 'http';
-	if (empty($port))
-	{
-		switch (strtolower($protocol))
-		{
-			case 'ftp':
-				$port = 21;
-				break;
-
-			case 'https':
-				$port = 443;
-				break;
-
-			default:
-				$port = 80;
-		}
-	}
-
-	$timeout = @ini_get('default_socket_timeout');
-	@ini_set('default_socket_timeout', 2);
-
-	// We're just trying to reach the server to avoid timeouts
-	$fp = @fsockopen($host, $port, $errno, $errstr, 1);
-	if ($fp)
-	{
-		$remote_avatar_cache[$src] = @getimagesize($src);
-		fclose($fp);
-	}
-
-	$default_x 	= (defined('DEFAULT_AVATAR_X_CUSTOM')) ? DEFAULT_AVATAR_X_CUSTOM : DEFAULT_AVATAR_X;
-	$default_y 	= (defined('DEFAULT_AVATAR_Y_CUSTOM')) ? DEFAULT_AVATAR_Y_CUSTOM : DEFAULT_AVATAR_Y;
-	$default 	= array($default_x, $default_y);
-
-	if (empty($remote_avatar_cache[$src]) || empty($remote_avatar_cache[$src][0]) || empty($remote_avatar_cache[$src][1]))
-	{
-		$remote_avatar_cache[$src] = $default;
-	}
-	else
-	{
-		// We trust gallery and uploaded avatars to conform to the size settings; we might have to adjust here
-		if ($remote_avatar_cache[$src][0] > $default_x || $remote_avatar_cache[$src][1] > $default_y)
-		{
-			$bigger = ($remote_avatar_cache[$src][0] > $remote_avatar_cache[$src][1]) ? 0 : 1;
-			$ratio = $default[$bigger] / $remote_avatar_cache[$src][$bigger];
-			$remote_avatar_cache[$src][0] = (int) ($remote_avatar_cache[$src][0] * $ratio);
-			$remote_avatar_cache[$src][1] = (int) ($remote_avatar_cache[$src][1] * $ratio);
-		}
-	}
-
-	@ini_set('default_socket_timeout', $timeout);
-	return $remote_avatar_cache[$src][$axis];
-}
-
 function set_user_options()
 {
 	global $convert_row;
@@ -1011,7 +887,6 @@ function set_user_options()
 	// Key need to be set in row, else default value is chosen
 	$keyoptions = array(
 		'viewimg'		=> array('bit' => 0, 'default' => 1),
-		'viewflash'		=> array('bit' => 1, 'default' => 1),
 		'viewsmilies'	=> array('bit' => 2, 'default' => 1),
 		'viewsigs'		=> array('bit' => 3, 'default' => 1),
 		'viewavatars'	=> array('bit' => 4, 'default' => 1),
@@ -1147,7 +1022,7 @@ function user_group_auth($group, $select_query, $use_src_db)
 /**
 * Retrieves configuration information from the source forum and caches it as an array
 * Both database and file driven configuration formats can be handled
-* (the type used is specified in $config_schema, see convert_phpbb20.php for more details)
+* (the type used is specified in $config_schema)
 */
 function get_config()
 {
@@ -1235,7 +1110,7 @@ function get_config()
 
 /**
 * Transfers the relevant configuration information from the source forum
-* The mapping of fields is specified in $config_schema, see convert_phpbb20.php for more details
+* The mapping of fields is specified in $config_schema
 */
 function restore_config($schema)
 {
@@ -1249,9 +1124,9 @@ function restore_config($schema)
 		{
 			$var = (empty($m[2]) || empty($convert_config[$m[2]])) ? "''" : "'" . addslashes($convert_config[$m[2]]) . "'";
 			$exec = '$config_value = ' . $m[1] . '(' . $var . ');';
-			// @codingStandardsIgnoreStart
+			// phpcs:disable Squiz.PHP.Eval
 			eval($exec);
-			// @codingStandardsIgnoreEnd
+			// phpcs:enable Squiz.PHP.Eval
 		}
 		else
 		{
@@ -1808,10 +1683,12 @@ function add_bots()
 
 	$bots = array(
 		'AdsBot [Google]'			=> array('AdsBot-Google', ''),
+		'Ahrefs [Bot]'				=> array('AhrefsBot/', ''),
 		'Alexa [Bot]'				=> array('ia_archiver', ''),
 		'Alta Vista [Bot]'			=> array('Scooter/', ''),
+		'Amazon [Bot]'				=> array('Amazonbot/', ''),
 		'Ask Jeeves [Bot]'			=> array('Ask Jeeves', ''),
-		'Baidu [Spider]'			=> array('Baiduspider+(', ''),
+		'Baidu [Spider]'			=> array('Baiduspider', ''),
 		'Bing [Bot]'				=> array('bingbot/', ''),
 		'DuckDuckGo [Bot]'			=> array('DuckDuckBot/', ''),
 		'Exabot [Bot]'				=> array('Exabot/', ''),
@@ -1827,7 +1704,7 @@ function add_bots()
 		'Heritrix [Crawler]'		=> array('heritrix/1.', ''),
 		'IBM Research [Bot]'		=> array('ibm.com/cs/crawler', ''),
 		'ICCrawler - ICjobs'		=> array('ICCrawler - ICjobs', ''),
-		'ichiro [Crawler]'			=> array('ichiro/2', ''),
+		'ichiro [Crawler]'			=> array('ichiro/', ''),
 		'Majestic-12 [Bot]'			=> array('MJ12bot/', ''),
 		'Metager [Bot]'				=> array('MetagerBot/', ''),
 		'MSN NewsBlogs'				=> array('msnbot-NewsBlogs/', ''),
@@ -1840,6 +1717,7 @@ function add_bots()
 		'Online link [Validator]'	=> array('online link validator', ''),
 		'psbot [Picsearch]'			=> array('psbot/0', ''),
 		'Seekport [Bot]'			=> array('Seekbot/', ''),
+		'Semrush [Bot]'				=> array('SemrushBot/', ''),
 		'Sensis [Crawler]'			=> array('Sensis Web Crawler', ''),
 		'SEO Crawler'				=> array('SEO search Crawler/', ''),
 		'Seoma [Crawler]'			=> array('Seoma [SEO Crawler]', ''),
@@ -1849,7 +1727,7 @@ function add_bots()
 		'Synoo [Bot]'				=> array('SynooBot/', ''),
 		'Telekom [Bot]'				=> array('crawleradmin.t-info@telekom.de', ''),
 		'TurnitinBot [Bot]'			=> array('TurnitinBot/', ''),
-		'Voyager [Bot]'				=> array('voyager/1.0', ''),
+		'Voyager [Bot]'				=> array('voyager/', ''),
 		'W3 [Sitesearch]'			=> array('W3 SiteSearch Crawler', ''),
 		'W3C [Linkcheck]'			=> array('W3C-checklink/', ''),
 		'W3C [Validator]'			=> array('W3C_*Validator', ''),
@@ -1967,7 +1845,7 @@ function update_dynamic_config()
 	$config->set('num_files', (int) $db->sql_fetchfield('stat'), false);
 	$db->sql_freeresult($result);
 
-	$sql = 'SELECT SUM(filesize) as stat
+	$sql = 'SELECT SUM(' . $db->cast_expr_to_bigint('filesize') . ') as stat
 		FROM ' . ATTACHMENTS_TABLE . '
 		WHERE is_orphan = 0';
 	$result = $db->sql_query($sql);
@@ -1995,18 +1873,11 @@ function update_dynamic_config()
 */
 function update_topics_posted()
 {
-	global $db;
+	global $db, $phpbb_container;
 
-	switch ($db->get_sql_layer())
-	{
-		case 'sqlite3':
-			$db->sql_query('DELETE FROM ' . TOPICS_POSTED_TABLE);
-		break;
-
-		default:
-			$db->sql_query('TRUNCATE TABLE ' . TOPICS_POSTED_TABLE);
-		break;
-	}
+	/** @var \phpbb\db\tools\tools_interface $db_tools */
+	$db_tools = $phpbb_container->get('dbal.tools');
+	$db_tools->sql_truncate_table(TOPICS_POSTED_TABLE);
 
 	// This can get really nasty... therefore we only do the last six months
 	$get_from_time = time() - (6 * 4 * 7 * 24 * 60 * 60);

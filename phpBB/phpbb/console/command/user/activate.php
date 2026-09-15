@@ -17,6 +17,7 @@ use phpbb\config\config;
 use phpbb\console\command\command;
 use phpbb\language\language;
 use phpbb\log\log_interface;
+use phpbb\messenger\method\email;
 use phpbb\notification\manager;
 use phpbb\user;
 use phpbb\user_loader;
@@ -31,6 +32,9 @@ class activate extends command
 {
 	/** @var config */
 	protected $config;
+
+	/** @var email */
+	protected $email_method;
 
 	/** @var language */
 	protected $language;
@@ -65,14 +69,16 @@ class activate extends command
 	 * @param config           $config
 	 * @param language         $language
 	 * @param log_interface    $log
+	 * @param email            $email_method
 	 * @param manager          $notifications
 	 * @param user_loader      $user_loader
 	 * @param string           $phpbb_root_path
 	 * @param string           $php_ext
 	 */
-	public function __construct(user $user, config $config, language $language, log_interface $log, manager $notifications, user_loader $user_loader, $phpbb_root_path, $php_ext)
+	public function __construct(user $user, config $config, language $language, log_interface $log, email $email_method, manager $notifications, user_loader $user_loader, $phpbb_root_path, $php_ext)
 	{
 		$this->config = $config;
+		$this->email_method = $email_method;
 		$this->language = $language;
 		$this->log = $log;
 		$this->notifications = $notifications;
@@ -87,9 +93,9 @@ class activate extends command
 	/**
 	 * Sets the command name and description
 	 *
-	 * @return null
+	 * @return void
 	 */
-	protected function configure()
+	protected function configure(): void
 	{
 		$this
 			->setName('user:activate')
@@ -125,7 +131,7 @@ class activate extends command
 	 *
 	 * @return int 0 if all is well, 1 if any errors occurred
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output)
+	protected function execute(InputInterface $input, OutputInterface $output): int
 	{
 		$io = new SymfonyStyle($input, $output);
 
@@ -186,7 +192,7 @@ class activate extends command
 	 *
 	 * @param array           $user_row The user data array
 	 * @param InputInterface  $input    The input stream used to get the options
-	 * @return null
+	 * @return void
 	 */
 	protected function send_notification($user_row, InputInterface $input)
 	{
@@ -194,20 +200,14 @@ class activate extends command
 
 		if ($input->getOption('send-email'))
 		{
-			if (!class_exists('messenger'))
-			{
-				require($this->phpbb_root_path . 'includes/functions_messenger.' . $this->php_ext);
-			}
-
-			$messenger = new \messenger(false);
-			$messenger->template('admin_welcome_activated', $user_row['user_lang']);
-			$messenger->set_addresses($user_row);
-			$messenger->anti_abuse_headers($this->config, $this->user);
-			$messenger->assign_vars(array(
-					'USERNAME'	=> htmlspecialchars_decode($user_row['username'], ENT_COMPAT))
-			);
-
-			$messenger->send(NOTIFY_EMAIL);
+			$this->email_method->set_use_queue(false);
+			$this->email_method->template('admin_welcome_activated', $user_row['user_lang']);
+			$this->email_method->set_addresses($user_row);
+			$this->email_method->anti_abuse_headers($this->config, $this->user);
+			$this->email_method->assign_vars([
+				'USERNAME'	=> html_entity_decode($user_row['username'], ENT_COMPAT),
+			]);
+			$this->email_method->send();
 		}
 	}
 }

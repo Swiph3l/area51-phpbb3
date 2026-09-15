@@ -11,6 +11,8 @@
 *
 */
 
+use phpbb\messenger\method\messenger_interface;
+
 /**
 * @ignore
 */
@@ -26,6 +28,8 @@ if (!defined('IN_PHPBB'))
 class ucp_prefs
 {
 	var $u_action;
+	var $page_title;
+	var $tpl_name;
 
 	function main($id, $mode)
 	{
@@ -40,7 +44,6 @@ class ucp_prefs
 			case 'personal':
 				add_form_key('ucp_prefs_personal');
 				$data = array(
-					'notifymethod'	=> $request->variable('notifymethod', $user->data['user_notify_type']),
 					'dateformat'	=> $request->variable('dateformat', $user->data['user_dateformat'], true),
 					'lang'			=> basename($request->variable('lang', $user->data['user_lang'])),
 					'user_style'		=> $request->variable('user_style', (int) $user->data['user_style']),
@@ -51,12 +54,6 @@ class ucp_prefs
 					'hideonline'	=> $request->variable('hideonline', (bool) !$user->data['user_allow_viewonline']),
 					'allowpm'		=> $request->variable('allowpm', (bool) $user->data['user_allow_pm']),
 				);
-
-				if ($data['notifymethod'] == NOTIFY_IM && (!$config['jab_enable'] || !$user->data['user_jabber'] || !@extension_loaded('xml')))
-				{
-					// Jabber isnt enabled, or no jabber field filled in. Update the users table to be sure its correct.
-					$data['notifymethod'] = NOTIFY_BOTH;
-				}
 
 				/**
 				* Add UCP edit global settings data before they are assigned to the template or submitted
@@ -103,7 +100,6 @@ class ucp_prefs
 							'user_allow_viewemail'	=> $data['viewemail'],
 							'user_allow_massemail'	=> $data['massemail'],
 							'user_allow_viewonline'	=> ($auth->acl_get('u_hideonline')) ? !$data['hideonline'] : $user->data['user_allow_viewonline'],
-							'user_notify_type'		=> $data['notifymethod'],
 							'user_options'			=> $user->data['user_options'],
 
 							'user_dateformat'		=> $data['dateformat'],
@@ -156,43 +152,32 @@ class ucp_prefs
 				}
 				$dateformat_options .= '>' . $user->lang['CUSTOM_DATEFORMAT'] . '</option>';
 
-				phpbb_timezone_select($template, $user, $data['tz'], true);
+				$timezone_select = phpbb_timezone_select($user, $data['tz'], true);
 
 				// check if there are any user-selectable languages
-				$sql = 'SELECT COUNT(lang_id) as languages_count
-								FROM ' . LANG_TABLE;
+				$sql = 'SELECT lang_iso, lang_local_name
+					FROM ' . LANG_TABLE . '
+					ORDER BY lang_english_name';
 				$result = $db->sql_query($sql);
-				if ($db->sql_fetchfield('languages_count') > 1)
-				{
-					$s_more_languages = true;
-				}
-				else
-				{
-					$s_more_languages = false;
-				}
+				$lang_row = (array) $db->sql_fetchrowset($result);
 				$db->sql_freeresult($result);
+				$s_more_languages = count($lang_row) > 1;
 
 				// check if there are any user-selectable styles
-				$sql = 'SELECT COUNT(style_id) as styles_count
-								FROM ' . STYLES_TABLE . '
-								WHERE style_active = 1';
+				$sql = 'SELECT style_id, style_name
+					FROM ' . STYLES_TABLE . '
+					WHERE style_active = 1
+					ORDER BY style_name';
 				$result = $db->sql_query($sql);
-				if ($db->sql_fetchfield('styles_count') > 1)
-				{
-					$s_more_styles = true;
-				}
-				else
-				{
-					$s_more_styles = false;
-				}
+				$styles_row = (array) $db->sql_fetchrowset($result);
 				$db->sql_freeresult($result);
+				$s_more_styles = count($styles_row) > 1;
 
-				$template->assign_vars(array(
+				$lang_options = phpbb_language_select($db, $data['lang'], $lang_row);
+
+				$template->assign_vars([
 					'ERROR'				=> (count($error)) ? implode('<br />', $error) : '',
 
-					'S_NOTIFY_EMAIL'	=> ($data['notifymethod'] == NOTIFY_EMAIL) ? true : false,
-					'S_NOTIFY_IM'		=> ($data['notifymethod'] == NOTIFY_IM) ? true : false,
-					'S_NOTIFY_BOTH'		=> ($data['notifymethod'] == NOTIFY_BOTH) ? true : false,
 					'S_VIEW_EMAIL'		=> $data['viewemail'],
 					'S_MASS_EMAIL'		=> $data['massemail'],
 					'S_ALLOW_PM'		=> $data['allowpm'],
@@ -205,14 +190,26 @@ class ucp_prefs
 					'DEFAULT_DATEFORMAT'	=> $config['default_dateformat'],
 					'A_DEFAULT_DATEFORMAT'	=> addslashes($config['default_dateformat']),
 
-					'S_MORE_LANGUAGES'	=> $s_more_languages,
+					'S_MORE_LANGUAGES'		=> $s_more_languages,
 					'S_MORE_STYLES'			=> $s_more_styles,
 
-					'S_LANG_OPTIONS'		=> language_select($data['lang']),
-					'S_STYLE_OPTIONS'		=> ($config['override_user_style']) ? '' : style_select($data['user_style']),
-					'S_CAN_HIDE_ONLINE'		=> ($auth->acl_get('u_hideonline')) ? true : false,
-					'S_SELECT_NOTIFY'		=> ($config['jab_enable'] && $user->data['user_jabber'] && @extension_loaded('xml')) ? true : false)
-				);
+					'LANG_OPTIONS'			=> [
+						'id'		=> 'lang',
+						'name'		=> 'lang',
+						'options'	=> $lang_options,
+					],
+					'S_STYLE_OPTIONS'		=> ($config['override_user_style']) ? '' : [
+						'id'		=> 'user_style',
+						'name'		=> 'user_style',
+						'options'	=> style_select($data['user_style'], false, $styles_row)
+					],
+					'TIMEZONE_OPTIONS'	=> [
+						'tag'		=> 'select',
+						'name'		=> 'tz',
+						'options'	=> $timezone_select,
+					],
+					'S_CAN_HIDE_ONLINE'	=> (bool) $auth->acl_get('u_hideonline'),
+				]);
 
 			break;
 
@@ -230,7 +227,6 @@ class ucp_prefs
 					'post_st'		=> $request->variable('post_st', (!empty($user->data['user_post_show_days'])) ? (int) $user->data['user_post_show_days'] : 0),
 
 					'images'		=> $request->variable('images', (bool) $user->optionget('viewimg')),
-					'flash'			=> $request->variable('flash', (bool) $user->optionget('viewflash')),
 					'smilies'		=> $request->variable('smilies', (bool) $user->optionget('viewsmilies')),
 					'sigs'			=> $request->variable('sigs', (bool) $user->optionget('viewsigs')),
 					'avatars'		=> $request->variable('avatars', (bool) $user->optionget('viewavatars')),
@@ -280,7 +276,6 @@ class ucp_prefs
 					if (!count($error))
 					{
 						$user->optionset('viewimg', $data['images']);
-						$user->optionset('viewflash', $data['flash']);
 						$user->optionset('viewsmilies', $data['smilies']);
 						$user->optionset('viewsigs', $data['sigs']);
 						$user->optionset('viewavatars', $data['avatars']);
@@ -415,7 +410,6 @@ class ucp_prefs
 					'ERROR'				=> (count($error)) ? implode('<br />', $error) : '',
 
 					'S_IMAGES'			=> $data['images'],
-					'S_FLASH'			=> $data['flash'],
 					'S_SMILIES'			=> $data['smilies'],
 					'S_SIGS'			=> $data['sigs'],
 					'S_AVATARS'			=> $data['avatars'],
@@ -498,6 +492,8 @@ class ucp_prefs
 				}
 
 				$template->assign_vars(array(
+					'S_SIG_ALLOWED'	=> $config['allow_sig'] && $auth->acl_get('u_sig'),
+
 					'S_BBCODE'	=> $data['bbcode'],
 					'S_SMILIES'	=> $data['smilies'],
 					'S_SIG'		=> $data['sig'],

@@ -14,7 +14,7 @@
 /**
 * @group functional
 */
-class phpbb_functional_visibility_unapproved_test extends phpbb_functional_test_case
+class phpbb_functional_visibility_unapproved_posts_test extends phpbb_functional_test_case
 {
 	protected $data = [];
 
@@ -256,8 +256,6 @@ class phpbb_functional_visibility_unapproved_test extends phpbb_functional_test_
 
 	protected function assert_forum_details($forum_id, $details, $additional_error_message = '')
 	{
-		$this->db = $this->get_db();
-
 		$sql = 'SELECT ' . implode(', ', array_keys($details)) . '
 			FROM phpbb_forums
 			WHERE forum_id = ' . (int) $forum_id;
@@ -268,23 +266,8 @@ class phpbb_functional_visibility_unapproved_test extends phpbb_functional_test_
 		$this->assertEquals($details, $data, "Forum {$forum_id} does not match expected {$additional_error_message}");
 	}
 
-	protected function set_flood_interval($flood_interval)
-	{
-		$crawler = self::request('GET', "adm/index.php?sid={$this->sid}&i=acp_board&mode=post");
-
-		$form = $crawler->selectButton('Submit')->form();
-		$values = $form->getValues();
-
-		$values['config[flood_interval]'] = $flood_interval;
-		$form->setValues($values);
-		$crawler = self::submit($form);
-		$this->assertGreaterThan(0, $crawler->filter('.successbox')->count());
-	}
-
 	protected function load_ids($data)
 	{
-		$this->db = $this->get_db();
-
 		if (!empty($data['forums']))
 		{
 			$sql = 'SELECT forum_id, forum_name

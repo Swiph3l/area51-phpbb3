@@ -34,7 +34,7 @@ class user_form extends form
 	*/
 	protected function get_user_row($user_id)
 	{
-		$sql = 'SELECT user_id, username, user_colour, user_email, user_allow_viewemail, user_lang, user_jabber, user_notify_type
+		$sql = 'SELECT user_id, username, user_colour, user_email, user_allow_viewemail, user_lang
 			FROM ' . USERS_TABLE . '
 			WHERE user_id = ' . (int) $user_id . '
 				AND user_type IN (' . USER_NORMAL . ', ' . USER_FOUNDER . ')';
@@ -96,7 +96,7 @@ class user_form extends form
 	/**
 	* {inheritDoc}
 	*/
-	public function submit(\messenger $messenger)
+	public function submit(\phpbb\di\service_collection $messenger)
 	{
 		if (!$this->subject)
 		{

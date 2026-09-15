@@ -18,6 +18,9 @@ class event extends \Twig\TokenParser\AbstractTokenParser
 	/** @var \phpbb\template\twig\environment */
 	protected $environment;
 
+	/** @var array */
+	protected $template_event_priority_array;
+
 	/**
 	* Constructor
 	*
@@ -26,6 +29,25 @@ class event extends \Twig\TokenParser\AbstractTokenParser
 	public function __construct(\phpbb\template\twig\environment $environment)
 	{
 		$this->environment = $environment;
+		$phpbb_dispatcher = $this->environment->get_phpbb_dispatcher();
+
+		$template_event_priority_array = [];
+		/**
+		 * Allows assigning priority to template event listeners
+		 *
+		 * @event core.twig_event_tokenparser_constructor
+		 * @var	array	template_event_priority_array	Array with template event priority assignments per extension namespace
+		 *
+		 * @since 4.0.0-a1
+		 */
+		if ($phpbb_dispatcher)
+		{
+			$vars = ['template_event_priority_array'];
+			extract($phpbb_dispatcher->trigger_event('core.twig_event_tokenparser_constructor', compact($vars)));
+		}
+
+		$this->template_event_priority_array = $template_event_priority_array;
+		unset($template_event_priority_array);
 	}
 
 	/**
@@ -37,12 +59,12 @@ class event extends \Twig\TokenParser\AbstractTokenParser
 	*/
 	public function parse(\Twig\Token $token)
 	{
-		$expr = $this->parser->getExpressionParser()->parseExpression();
+		$expr = $this->parser->parseExpression();
 
 		$stream = $this->parser->getStream();
 		$stream->expect(\Twig\Token::BLOCK_END_TYPE);
 
-		return new \phpbb\template\twig\node\event($expr, $this->environment, $token->getLine(), $this->getTag());
+		return new \phpbb\template\twig\node\event($expr, $this->environment, $token->getLine(), $this->template_event_priority_array);
 	}
 
 	/**

@@ -45,14 +45,12 @@ class list_all extends \phpbb\console\command\command
 	/**
 	* Sets the command name and description
 	*
-	* @return null
+	* @return void
 	*/
-	protected function configure()
+	protected function configure(): void
 	{
-		$this
-			->setName('reparser:list')
-			->setDescription($this->user->lang('CLI_DESCRIPTION_REPARSER_LIST'))
-		;
+		$this->setName('reparser:list')
+			->setDescription($this->user->lang('CLI_DESCRIPTION_REPARSER_LIST'));
 	}
 
 	/**
@@ -62,7 +60,7 @@ class list_all extends \phpbb\console\command\command
 	* @param OutputInterface $output
 	* @return int
 	*/
-	protected function execute(InputInterface $input, OutputInterface $output)
+	protected function execute(InputInterface $input, OutputInterface $output): int
 	{
 		$io = new SymfonyStyle($input, $output);
 		$io->section($this->user->lang('CLI_DESCRIPTION_REPARSER_AVAILABLE'));

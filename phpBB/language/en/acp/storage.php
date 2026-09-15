@@ -36,18 +36,26 @@ if (empty($lang) || !is_array($lang))
 // equally where a string contains only two placeholders which are used to wrap text
 // in a url you again do not need to specify an order e.g., 'Click %sHERE%s' is fine
 
-$lang = array_merge($lang, array(
+$lang = array_merge($lang, [
 
 	// Template
-	'STORAGE_TITLE'					=> 'Storage Settings',
-	'STORAGE_TITLE_EXPLAIN'			=> 'Change storage providers for the file storage types of phpBB. Choose local or remote providers to store files added to or created by phpBB.',
-	'STORAGE_SELECT'				=> 'Select storage',
-	'STORAGE_SELECT_DESC'			=> 'Select a storage from the list.',
-	'STORAGE_NAME'					=> 'Storage name',
-	'STORAGE_NUM_FILES'				=> 'Number of files',
-	'STORAGE_SIZE'					=> 'Size',
-	'STORAGE_FREE'					=> 'Available space',
-	'STORAGE_UNKNOWN'				=> 'Unknown',
+	'STORAGE_TITLE'							=> 'Storage Settings',
+	'STORAGE_TITLE_EXPLAIN'					=> 'Change storage providers for the file storage types of phpBB. Choose local or remote providers to store files added to or created by phpBB.',
+	'STORAGE_SELECT'						=> 'Select storage',
+	'STORAGE_SELECT_DESC'					=> 'Select a storage from the list.',
+	'STORAGE_NAME'							=> 'Storage name',
+	'STORAGE_NUM_FILES'						=> 'Number of files',
+	'STORAGE_SIZE'							=> 'Size',
+	'STORAGE_FREE'							=> 'Available space',
+	'STORAGE_UNKNOWN'						=> 'Unknown',
+	'STORAGE_UPDATE_TYPE'					=> 'Update type',
+	'STORAGE_UPDATE_TYPE_CONFIG'			=> 'Update configuration only',
+	'STORAGE_UPDATE_TYPE_COPY'				=> 'Update configuration and copy files',
+	'STORAGE_UPDATE_TYPE_MOVE'				=> 'Update configuration and move files',
+
+	// Template progress bar
+	'STORAGE_UPDATE_IN_PROGRESS'			=> 'Storage update in progress',
+	'STORAGE_UPDATE_IN_PROGRESS_EXPLAIN'	=> 'Files are being moved between storages. This can take some minutes.',
 
 	// Storage names
 	'STORAGE_ATTACHMENT_TITLE'		=> 'Attachments storage',
@@ -57,8 +65,7 @@ $lang = array_merge($lang, array(
 	// Local adapter
 	'STORAGE_ADAPTER_LOCAL_NAME'						=> 'Local',
 	'STORAGE_ADAPTER_LOCAL_OPTION_PATH'					=> 'Path',
-	'STORAGE_ADAPTER_LOCAL_OPTION_SUBFOLDERS'			=> 'Organize in subfolders',
-	'STORAGE_ADAPTER_LOCAL_OPTION_SUBFOLDERS_EXPLAIN'	=> 'Some web servers may have problems storing large number of files in a single directory. Enable this option to distribute files in different directories.',
+	'STORAGE_ADAPTER_LOCAL_OPTION_PATH_EXPLAIN'			=> 'Storage path for files.<br>For example: <samp>files</samp>, <samp>images/avatars/upload</samp> or <samp>store</samp>.',
 
 	// Form validation
 	'STORAGE_UPDATE_SUCCESSFUL' 				=>	'All storage types were successfully updated.',
@@ -71,4 +78,4 @@ $lang = array_merge($lang, array(
 
 	'STORAGE_PATH_NOT_EXISTS'		=> '“%1$s” path does not exist or is not writable.',
 	'STORAGE_PATH_NOT_SET'			=> '“%1$s” path is not set.',
-));
+]);

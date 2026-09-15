@@ -44,6 +44,13 @@ class kernel_exception_subscriber implements EventSubscriberInterface
 	*/
 	protected $language;
 
+	/**
+	* User object
+	*
+	* @var \phpbb\user
+	*/
+	protected $user;
+
 	/** @var \phpbb\request\type_cast_helper */
 	protected $type_caster;
 
@@ -52,13 +59,15 @@ class kernel_exception_subscriber implements EventSubscriberInterface
 	*
 	* @param \phpbb\template\template	$template	Template object
 	* @param \phpbb\language\language	$language	Language object
+	* @param \phpbb\user				$user		User object
 	* @param bool						$debug		Set to true to show full exception messages
 	*/
-	public function __construct(\phpbb\template\template $template, \phpbb\language\language $language, $debug = false)
+	public function __construct(\phpbb\template\template $template, \phpbb\language\language $language, \phpbb\user $user, $debug = false)
 	{
 		$this->debug = $debug || defined('DEBUG');
 		$this->template = $template;
 		$this->language = $language;
+		$this->user = $user;
 		$this->type_caster = new \phpbb\request\type_cast_helper();
 	}
 
@@ -66,7 +75,7 @@ class kernel_exception_subscriber implements EventSubscriberInterface
 	* This listener is run when the KernelEvents::EXCEPTION event is triggered
 	*
 	* @param ExceptionEvent $event
-	* @return null
+	* @return void
 	*/
 	public function on_kernel_exception(ExceptionEvent $event)
 	{
@@ -82,6 +91,12 @@ class kernel_exception_subscriber implements EventSubscriberInterface
 		else if (!$this->debug && $exception instanceof NotFoundHttpException)
 		{
 			$message = $this->language->lang('PAGE_NOT_FOUND');
+		}
+
+		// Do not update user session page if it does not exist
+		if ($exception instanceof NotFoundHttpException)
+		{
+			$this->user->update_session_page = false;
 		}
 
 		// Show <strong> text in bold
@@ -130,7 +145,7 @@ class kernel_exception_subscriber implements EventSubscriberInterface
 		$event->setResponse($response);
 	}
 
-	public static function getSubscribedEvents()
+	public static function getSubscribedEvents(): array
 	{
 		return array(
 			KernelEvents::EXCEPTION		=> 'on_kernel_exception',

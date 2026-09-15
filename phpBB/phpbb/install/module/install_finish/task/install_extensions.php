@@ -42,7 +42,7 @@ class install_extensions extends database_task
 	protected $iohandler;
 
 	/**
-	 * @var db
+	 * @var \phpbb\config\config
 	 */
 	protected $config;
 
@@ -106,9 +106,9 @@ class install_extensions extends database_task
 		// Make sure asset version exists in config. Otherwise we might try to
 		// insert the assets_version setting into the database and cause a
 		// duplicate entry error.
-		if (!isset($this->config['assets_version']))
+		if (!$this->config->offsetExists('assets_version'))
 		{
-			$this->config['assets_version'] = 0;
+			$this->config->offsetSet('assets_version', 0);
 		}
 
 		parent::__construct(
@@ -157,7 +157,7 @@ class install_extensions extends database_task
 			if (isset($extensions[$key]) && $extensions[$key]['ext_active'])
 			{
 				// Create log
-				$this->log->add('admin', ANONYMOUS, '', 'LOG_EXT_ENABLE', time(), array($key));
+				$this->log->add('admin', ANONYMOUS, $this->user->ip, 'LOG_EXT_ENABLE', time(), array($key));
 				$this->iohandler->add_success_message(array('CLI_EXTENSION_ENABLE_SUCCESS', $key));
 			}
 			else

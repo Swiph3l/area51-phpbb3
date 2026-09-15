@@ -30,13 +30,13 @@ class phpbb_console_user_add_test extends phpbb_console_user_base
 			$this->db,
 			$this->config,
 			$this->language,
+			$this->email,
 			$this->passwords_manager,
 			$this->phpbb_root_path,
 			$this->php_ext
 		));
 
 		$command = $application->find('user:add');
-		$this->command_name = $command->getName();
 
 		if (!empty($question_answers))
 		{
@@ -62,7 +62,7 @@ class phpbb_console_user_add_test extends phpbb_console_user_base
 				return $response;
 			};
 			$helper = $this->getMockBuilder('\Symfony\Component\Console\Helper\QuestionHelper')
-				->setMethods(['ask'])
+				->onlyMethods(['ask'])
 				->disableOriginalConstructor()
 				->getMock();
 			$helper->expects($this->any())
@@ -86,7 +86,6 @@ class phpbb_console_user_add_test extends phpbb_console_user_base
 		$this->assertEquals(2, $this->get_user_id('Admin'));
 
 		$command_tester->execute(array(
-			'command'		=> $this->command_name,
 			'--username'	=> 'foo',
 			'--password'	=> 'bar',
 			'--email'		=> 'foo@test.com'
@@ -108,9 +107,7 @@ class phpbb_console_user_add_test extends phpbb_console_user_base
 
 		$command_tester->setInputs(['bar', 'password', 'password', 'bar@test.com']);
 
-		$command_tester->execute(array(
-			'command'		=> $this->command_name,
-		));
+		$command_tester->execute([]);
 
 		$this->assertNotEquals(null, $this->get_user_id('bar'));
 		$this->assertStringContainsString('CLI_USER_ADD_SUCCESS', $command_tester->getDisplay());
@@ -124,7 +121,6 @@ class phpbb_console_user_add_test extends phpbb_console_user_base
 		$this->assertEquals(3, $this->get_user_id('Test'));
 
 		$command_tester->execute(array(
-			'command'		=> $this->command_name,
 			'--username'	=> 'Test',
 			'--password'	=> '1',
 			'--email'		=> 'foo'

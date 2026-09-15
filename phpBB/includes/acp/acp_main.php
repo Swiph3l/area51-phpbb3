@@ -22,6 +22,8 @@ if (!defined('IN_PHPBB'))
 class acp_main
 {
 	var $u_action;
+	var $tpl_name;
+	var $page_title;
 	private $php_ini;
 
 	function main($id, $mode)
@@ -60,8 +62,15 @@ class acp_main
 		{
 			if ($action === 'admlogout')
 			{
-				$user->unset_admin();
-				redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
+				if (check_link_hash($request->variable('hash', ''), 'acp_logout'))
+				{
+					$user->unset_admin();
+					redirect(append_sid("{$phpbb_root_path}index.$phpEx"));
+				}
+				else
+				{
+					redirect(append_sid("{$phpbb_admin_path}index.$phpEx"));
+				}
 			}
 
 			if (!confirm_box(true))
@@ -100,6 +109,20 @@ class acp_main
 					default:
 						$confirm = true;
 						$confirm_lang = 'CONFIRM_OPERATION';
+
+						/**
+						 * Event to add confirm box for custom ACP quick actions
+						 *
+						 * @event core.acp_main_add_actions_confirm
+						 * @var	string	id				The module ID
+						 * @var	string	mode			The module mode
+						 * @var	string	action			Custom action type name
+						 * @var	boolean	confirm			Do we display the confirm box to run the custom action
+						 * @var	string	confirm_lang	Lang var name to display in confirm box
+						 * @since 3.3.15-RC1
+						 */
+						$vars = ['id', 'mode', 'action', 'confirm', 'confirm_lang'];
+						extract($phpbb_dispatcher->trigger_event('core.acp_main_add_actions_confirm', compact($vars)));
 				}
 
 				if ($confirm)
@@ -168,7 +191,7 @@ class acp_main
 						$config->set('num_files', (int) $db->sql_fetchfield('stat'), false);
 						$db->sql_freeresult($result);
 
-						$sql = 'SELECT SUM(filesize) as stat
+						$sql = 'SELECT SUM(' . $db->cast_expr_to_bigint('filesize') . ') as stat
 							FROM ' . ATTACHMENTS_TABLE . '
 							WHERE is_orphan = 0';
 						$result = $db->sql_query($sql);
@@ -197,7 +220,6 @@ class acp_main
 						}
 
 						// Resync post counts
-						$start = $max_post_id = 0;
 
 						// Find the maximum post ID, we can only stop the cycle when we've reached it
 						$sql = 'SELECT MAX(forum_last_post_id) as max_post_id
@@ -226,6 +248,7 @@ class acp_main
 						$step = ($config['num_posts']) ? (max((int) ($config['num_posts'] / 5), 20000)) : 20000;
 						$db->sql_query('UPDATE ' . USERS_TABLE . ' SET user_posts = 0');
 
+						$start = 0;
 						while ($start < $max_post_id)
 						{
 							$sql = 'SELECT COUNT(post_id) AS num_posts, poster_id
@@ -274,16 +297,8 @@ class acp_main
 					break;
 
 					case 'db_track':
-						switch ($db->get_sql_layer())
-						{
-							case 'sqlite3':
-								$db->sql_query('DELETE FROM ' . TOPICS_POSTED_TABLE);
-							break;
-
-							default:
-								$db->sql_query('TRUNCATE TABLE ' . TOPICS_POSTED_TABLE);
-							break;
-						}
+						$db_tools = $phpbb_container->get('dbal.tools');
+						$db_tools->sql_truncate_table(TOPICS_POSTED_TABLE);
 
 						// This can get really nasty... therefore we only do the last six months
 						$get_from_time = time() - (6 * 4 * 7 * 24 * 60 * 60);
@@ -363,7 +378,7 @@ class acp_main
 
 						// Clear permissions
 						$auth->acl_clear_prefetch();
-						phpbb_cache_moderators($db, $cache, $auth);
+						phpbb_cache_moderators($db, $phpbb_container->get('dbal.tools'), $cache, $auth);
 
 						$phpbb_log->add('admin', $user->data['user_id'], $user->ip, 'LOG_PURGE_CACHE');
 
@@ -381,19 +396,11 @@ class acp_main
 						}
 
 						$tables = array(CONFIRM_TABLE, SESSIONS_TABLE);
+						$db_tools = $phpbb_container->get('dbal.tools');
 
 						foreach ($tables as $table)
 						{
-							switch ($db->get_sql_layer())
-							{
-								case 'sqlite3':
-									$db->sql_query("DELETE FROM $table");
-								break;
-
-								default:
-									$db->sql_query("TRUNCATE TABLE $table");
-								break;
-							}
+							$db_tools->sql_truncate_table($table);
 						}
 
 						// let's restore the admin session
@@ -423,6 +430,19 @@ class acp_main
 							trigger_error('PURGE_SESSIONS_SUCCESS');
 						}
 					break;
+
+					default:
+						/**
+						 * Event to add custom ACP quick actions
+						 *
+						 * @event core.acp_main_add_actions
+						 * @var	string	id				The module ID
+						 * @var	string	mode			The module mode
+						 * @var	string	action			Custom action type name
+						 * @since 3.3.15-RC1
+						 */
+						$vars = ['id', 'mode', 'action'];
+						extract($phpbb_dispatcher->trigger_event('core.acp_main_add_actions', compact($vars)));
 				}
 			}
 		}
@@ -430,16 +450,17 @@ class acp_main
 		// Version check
 		$user->add_lang('install');
 
-		if ($auth->acl_get('a_server') && version_compare(PHP_VERSION, '7.1.3', '<'))
+		if ($auth->acl_get('a_server') && version_compare(PHP_VERSION, '7.2.0', '<'))
 		{
 			$template->assign_vars(array(
 				'S_PHP_VERSION_OLD'	=> true,
-				'L_PHP_VERSION_OLD'	=> sprintf($user->lang['PHP_VERSION_OLD'], PHP_VERSION, '7.1.3', '<a href="https://www.phpbb.com/support/docs/en/3.3/ug/quickstart/requirements">', '</a>'),
+				'L_PHP_VERSION_OLD'	=> sprintf($user->lang['PHP_VERSION_OLD'], PHP_VERSION, '7.2.0', '<a href="https://www.phpbb.com/support/docs/en/3.3/ug/quickstart/requirements">', '</a>'),
 			));
 		}
 
 		if ($auth->acl_get('a_board'))
 		{
+			/** @var \phpbb\version_helper $version_helper */
 			$version_helper = $phpbb_container->get('version_helper');
 			try
 			{
@@ -454,10 +475,11 @@ class acp_main
 				$template->assign_vars(array(
 					'S_VERSION_UP_TO_DATE'		=> empty($updates_available),
 					'S_VERSION_UPGRADEABLE'		=> !empty($upgrades_available),
+					'S_VERSIONCHECK_FORCE'		=> (bool) $recheck,
 					'UPGRADE_INSTRUCTIONS'		=> !empty($upgrades_available) ? $user->lang('UPGRADE_INSTRUCTIONS', $upgrades_available['current'], $upgrades_available['announcement']) : false,
 				));
 			}
-			catch (\RuntimeException $e)
+			catch (\phpbb\exception\runtime_exception $e)
 			{
 				$message = call_user_func_array(array($user, 'lang'), array_merge(array($e->getMessage()), $e->get_parameters()));
 				$template->assign_vars(array(
@@ -504,7 +526,7 @@ class acp_main
 		$upload_dir_size = get_formatted_filesize($config['upload_dir_size']);
 
 		$storage_avatar = $phpbb_container->get('storage.avatar');
-		$avatar_dir_size = get_formatted_filesize($storage_avatar->get_size());
+		$avatar_dir_size = get_formatted_filesize($storage_avatar->total_size());
 
 		if ($posts_per_day > $total_posts)
 		{
@@ -526,20 +548,13 @@ class acp_main
 			$files_per_day = $total_files;
 		}
 
-		if ($config['allow_attachments'] || $config['allow_pm_attach'])
-		{
-			$sql = 'SELECT COUNT(attach_id) AS total_orphan
-				FROM ' . ATTACHMENTS_TABLE . '
-				WHERE is_orphan = 1
-					AND filetime < ' . (time() - 3*60*60);
-			$result = $db->sql_query($sql);
-			$total_orphan = (int) $db->sql_fetchfield('total_orphan');
-			$db->sql_freeresult($result);
-		}
-		else
-		{
-			$total_orphan = false;
-		}
+		$sql = 'SELECT COUNT(attach_id) AS total_orphan
+			FROM ' . ATTACHMENTS_TABLE . '
+			WHERE is_orphan = 1
+				AND filetime < ' . (time() - 3*60*60);
+		$result = $db->sql_query($sql);
+		$total_orphan = (int) $db->sql_fetchfield('total_orphan');
+		$db->sql_freeresult($result);
 
 		$dbsize = get_database_size();
 
@@ -557,7 +572,6 @@ class acp_main
 			'DBSIZE'			=> $dbsize,
 			'UPLOAD_DIR_SIZE'	=> $upload_dir_size,
 			'TOTAL_ORPHAN'		=> $total_orphan,
-			'S_TOTAL_ORPHAN'	=> ($total_orphan === false) ? false : true,
 			'GZIP_COMPRESSION'	=> ($config['gzip_compress'] && @extension_loaded('zlib')) ? $user->lang['ON'] : $user->lang['OFF'],
 			'DATABASE_INFO'		=> $db->sql_server_info(),
 			'PHP_VERSION_INFO'	=> PHP_VERSION,
@@ -627,16 +641,7 @@ class acp_main
 				));
 			}
 
-			$option_ary = array('activate' => 'ACTIVATE', 'delete' => 'DELETE');
-			if ($config['email_enable'])
-			{
-				$option_ary += array('remind' => 'REMIND');
-			}
-
-			$template->assign_vars(array(
-				'S_INACTIVE_USERS'		=> true,
-				'S_INACTIVE_OPTIONS'	=> build_select($option_ary))
-			);
+			$template->assign_var('S_INACTIVE_USERS', true);
 		}
 
 		// Warn if install is still present
@@ -653,16 +658,9 @@ class acp_main
 				$search_backend_factory = $phpbb_container->get('search.backend_factory');
 				$search = $search_backend_factory->get_active();
 			}
-			catch (RuntimeException $e)
+			catch (\phpbb\search\exception\no_search_backend_found_exception $e)
 			{
-				if (strpos($e->getMessage(), 'No service found') === 0)
-				{
-					trigger_error('NO_SUCH_SEARCH_MODULE');
-				}
-				else
-				{
-					throw $e;
-				}
+				trigger_error('NO_SUCH_SEARCH_MODULE');
 			}
 
 			if (!$search->index_created())
@@ -673,6 +671,9 @@ class acp_main
 				));
 			}
 		}
+
+		// Warn if incomplete captcha is enabled
+		$this->check_captcha_type($config, $template);
 
 		if (!defined('PHPBB_DISABLE_CONFIG_CHECK'))
 		{
@@ -705,5 +706,28 @@ class acp_main
 
 		$this->tpl_name = 'acp_main';
 		$this->page_title = 'ACP_MAIN';
+	}
+
+	/**
+	 * Check CAPTCHA type and output warning if incomplete type or unsafe config is used
+	 *
+	 * @param \phpbb\config\config $config
+	 * @param \phpbb\template\template $template
+	 * @return void
+	 */
+	protected function check_captcha_type(\phpbb\config\config $config, \phpbb\template\template $template): void
+	{
+		$template_vars = [];
+
+		if (!$config['enable_confirm'])
+		{
+			$template_vars['S_CAPTCHA_UNSAFE'] = true;
+		}
+		else if ($config['captcha_plugin'] == 'core.captcha.plugins.incomplete')
+		{
+			$template_vars['S_CAPTCHA_INCOMPLETE'] = true;
+		}
+
+		$template->assign_vars($template_vars);
 	}
 }

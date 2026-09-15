@@ -12,15 +12,14 @@ svg {
 
 .o-icon {
 	vertical-align: middle !important;
-	width: 14px;
-	height: 14px;
-	margin-top: -4px;
+	width: var(--ps-font-h4);
+	height: var(--ps-font-h4);
 }
 
 .o-icon-src-mdi,
 .o-icon-src-ic {
-	width: 18px;
-	height: 18px;
+	width: calc(var(--ps-font-h4) + 4px); /* icon + 2 * 2px padding */
+	height: calc(var(--ps-font-h4) + 4px); /* icon + 2 * 2px padding */
 }
 
 .o-icon-src-fa {
@@ -28,9 +27,8 @@ svg {
 }
 
 .o-icon-font {
-	font-family: "Font Awesome 5 Free", "Font Awesome 5 Brands";
-	font-size: 14px;
-	font-weight: normal;
+	font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands";
+	font-size: var(--ps-font-h4);
 	font-style: normal;
 	font-variant: normal;
 	-webkit-font-smoothing: antialiased;
@@ -40,7 +38,16 @@ svg {
 	/* stylelint-disable order/properties-order */
 	-moz-osx-font-smoothing: grayscale;
 	/* stylelint-enable order/properties-order */
+	padding: 2px;
 	text-rendering: auto; /* optimizelegibility throws things off #1094 */
+}
+
+.o-icon-baseline {
+	vertical-align: baseline !important;
+}
+
+.format-buttons .fa-fw {
+	width: 125%;
 }
 
 .o-icon + span,
@@ -50,7 +57,7 @@ span + .o-icon {
 
 blockquote cite:before,
 .uncited:before {
-	font-size: 36px;
+	font-size: calc(var(--ps-font-normal) * 2.5);
 	vertical-align: bottom;
 	display: inline-block;
 	margin-top: 8px;
@@ -65,8 +72,9 @@ blockquote cite:before,
 
 .c-forum-row-icon,
 .c-notification-check-icon {
-	width: 20px;
-	height: 20px;
+	font-size: var(--ps-font-h1);
+	width: var(--ps-font-h1);
+	height: var(--ps-font-h1);
 	margin-top: 0;
 }
 
@@ -78,8 +86,8 @@ blockquote cite:before,
 	display: inline-flex;
 	justify-content: center;
 	align-items: center;
-	width: 32px;
-	height: 32px;
+	width: calc(var(--ps-font-normal) * 2.25);
+	height: calc(var(--ps-font-normal) * 2.25);
 	margin-top: -17px;
 	margin-left: 9px;
 }
@@ -90,11 +98,13 @@ blockquote cite:before,
 	border-radius: 50%;
 	position: absolute;
 	z-index: 101;
+	top: 50%;
 	left: 32px;
 	display: block;
 	float: left;
 	width: 8px;
 	height: 8px;
+	margin-top: -17px;
 }
 
 .row-item-sub {
@@ -113,23 +123,27 @@ blockquote cite:before,
 	height: 18px;
 }
 
+.push-subscribe-toggle-icon {
+	width: 20px;
+	height: 20px;
+	cursor: pointer;
+}
+
 /* Contact icons
 ---------------------------------------- */
 .contact-icon {
 	background-repeat: no-repeat;
-	display: block;
-	width: 24px;
-	height: 24px;
+	display: inline-block;
 }
 
 .c-button-icon {
 	margin-top: 0;
 }
 
-.c-subscribe-icon {
+.c-watch-icon {
 	display: none !important;
 }
 
-.c-subscribe-icon.is-active {
+.c-watch-icon.is-active {
 	display: inline !important;
 }

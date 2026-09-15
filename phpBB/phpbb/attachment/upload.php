@@ -46,6 +46,9 @@ class upload
 	/** @var dispatcher */
 	protected $phpbb_dispatcher;
 
+	/** @var string */
+	protected $phpbb_root_path;
+
 	/** @var plupload Plupload */
 	protected $plupload;
 
@@ -131,7 +134,7 @@ class upload
 		}
 
 		// Whether the uploaded file is in the image category
-		$is_image = (isset($this->extensions[$this->file->get('extension')]['display_cat'])) ? $this->extensions[$this->file->get('extension')]['display_cat'] == ATTACHMENT_CATEGORY_IMAGE : false;
+		$is_image = (isset($this->extensions[$this->file->get('extension')]['display_cat'])) ? $this->extensions[$this->file->get('extension')]['display_cat'] == \phpbb\attachment\attachment_category::IMAGE : false;
 
 		if (!$this->auth->acl_get('a_') && !$this->auth->acl_get('m_', $forum_id))
 		{
@@ -216,6 +219,7 @@ class upload
 				$this->storage->delete($thumbnail_file);
 			}
 
+			/** @psalm-suppress NoValue */
 			$this->file_data['error'] = array_merge($this->file_data['error'], $this->file->error);
 			$this->file_data['post_attach'] = false;
 
@@ -241,12 +245,7 @@ class upload
 				// Move the thumbnail from temp folder to the storage
 				$fp = fopen($destination, 'rb');
 
-				$this->storage->write_stream($destination_name, $fp);
-
-				if (is_resource($fp))
-				{
-					fclose($fp);
-				}
+				$this->storage->write($destination_name, $fp);
 			}
 			else
 			{
@@ -347,7 +346,7 @@ class upload
 				return false;
 			}
 		}
-		catch (\phpbb\storage\exception\exception $e)
+		catch (\phpbb\storage\exception\storage_exception $e)
 		{
 			// Do nothing
 		}

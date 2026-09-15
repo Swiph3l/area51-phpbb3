@@ -4,7 +4,7 @@ services:
         arguments:
             - '@auth'
             - '@config'
-            - '@dispatcher'
+            - '@event_dispatcher'
             - '@dbal.conn'
             - '@user'
             - '%core.root_path%'
@@ -32,8 +32,9 @@ services:
             - '@config'
             - '@config_text'
             - '@dbal.conn'
+            - '@controller.helper'
             - '@user'
-            - '@dispatcher'
+            - '@event_dispatcher'
             - '%core.root_path%'
             - '%core.php_ext%'
 
@@ -43,6 +44,7 @@ services:
             - '@auth'
             - '@config'
             - '@dbal.conn'
+            - '@controller.helper'
             - '@user'
             - '%core.root_path%'
             - '%core.php_ext%'
@@ -53,6 +55,7 @@ services:
             - '@auth'
             - '@config'
             - '@dbal.conn'
+            - '@controller.helper'
             - '@user'
             - '%core.root_path%'
             - '%core.php_ext%'
@@ -63,7 +66,16 @@ services:
             - '@template'
             - '@user'
             - '@controller.helper'
-            - '@dispatcher'
+            - '@event_dispatcher'
+
+    posting.lock:
+        class: phpbb\lock\posting
+        shared: false
+        arguments:
+            - '@cache.driver'
+            - '@config'
 
     viewonline_helper:
         class: phpbb\viewonline_helper
+        arguments:
+            - '@dbal.conn'

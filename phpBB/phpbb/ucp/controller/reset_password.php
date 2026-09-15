@@ -22,9 +22,10 @@ use phpbb\exception\http_exception;
 use phpbb\language\language;
 use phpbb\log\log_interface;
 use phpbb\passwords\manager;
-use phpbb\request\request_interface;
+use phpbb\request\request;
 use phpbb\template\template;
 use phpbb\user;
+use phpbb\messenger\method\email;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -50,10 +51,13 @@ class reset_password
 	/** @var log_interface */
 	protected $log;
 
+	/** @var email */
+	protected $email_method;
+
 	/** @var manager */
 	protected $passwords_manager;
 
-	/** @var request_interface */
+	/** @var request */
 	protected $request;
 
 	/** @var template */
@@ -80,8 +84,9 @@ class reset_password
 	 * @param helper $helper
 	 * @param language $language
 	 * @param log_interface $log
+	 * @param email $email_method
 	 * @param manager $passwords_manager
-	 * @param request_interface $request
+	 * @param request $request
 	 * @param template $template
 	 * @param user $user
 	 * @param string $users_table
@@ -89,8 +94,8 @@ class reset_password
 	 * @param string $php_ext
 	 */
 	public function __construct(config $config, driver_interface $db, dispatcher $dispatcher, helper $helper,
-								language $language, log_interface $log, manager $passwords_manager,
-								request_interface $request, template $template, user $user, string $users_table,
+								language $language, log_interface $log, email $email_method, manager $passwords_manager,
+								request $request, template $template, user $user, string $users_table,
 								string $root_path, string $php_ext)
 	{
 		$this->config = $config;
@@ -99,6 +104,7 @@ class reset_password
 		$this->helper = $helper;
 		$this->language = $language;
 		$this->log = $log;
+		$this->email_method = $email_method;
 		$this->passwords_manager = $passwords_manager;
 		$this->request = $request;
 		$this->template = $template;
@@ -170,7 +176,7 @@ class reset_password
 			}
 
 			$sql_array = [
-				'SELECT'	=> 'user_id, username, user_permissions, user_email, user_jabber, user_notify_type, user_type,'
+				'SELECT'	=> 'user_id, username, user_permissions, user_email, user_type,'
 								. ' user_lang, user_inactive_reason, reset_token, reset_token_expiration',
 				'FROM'		=> [$this->users_table => 'u'],
 				'WHERE'		=> "user_email = '" . $this->db->sql_escape($email) . "'" .
@@ -208,7 +214,7 @@ class reset_password
 			}
 			else
 			{
-				$message = $this->language->lang('PASSWORD_RESET_LINK_SENT') . '<br /><br />' . $this->language->lang('RETURN_INDEX', '<a href="' . append_sid("{$this->root_path}index.{$this->php_ext}") . '">', '</a>');
+				$message = $this->language->lang('PASSWORD_RESET_LINK_SENT') . '<br /><br />' . $this->language->lang('RETURN_INDEX', '<a href="' . $this->helper->route('phpbb_index_controller') . '">', '</a>');
 
 				if (empty($rowset))
 				{
@@ -242,7 +248,7 @@ class reset_password
 
 				$sql_ary = [
 					'reset_token'				=> $reset_token,
-					'reset_token_expiration'	=> strtotime('+1 day'),
+					'reset_token_expiration'	=> $this->user::get_token_expiration(),
 				];
 
 				$sql = 'UPDATE ' . $this->users_table . '
@@ -250,29 +256,18 @@ class reset_password
 					WHERE user_id = ' . $user_row['user_id'];
 				$this->db->sql_query($sql);
 
-				if (!class_exists('messenger'))
-				{
-					include($this->root_path . 'includes/functions_messenger.' . $this->php_ext);
-				}
-
-				/** @var \messenger $messenger */
-				$messenger = new \messenger(false);
-
-				$messenger->template('user_forgot_password', $user_row['user_lang']);
-
-				$messenger->set_addresses($user_row);
-
-				$messenger->anti_abuse_headers($this->config, $this->user);
-
-				$messenger->assign_vars([
-						'USERNAME'			=> htmlspecialchars_decode($user_row['username'], ENT_COMPAT),
-						'U_RESET_PASSWORD'	=> generate_board_url(true) . $this->helper->route('phpbb_ucp_reset_password_controller', [
-							'u'		=> $user_row['user_id'],
-							'token'	=> $reset_token,
-						], false)
+				$this->email_method->set_use_queue(false);
+				$this->email_method->template('user_forgot_password', $user_row['user_lang']);
+				$this->email_method->set_addresses($user_row);
+				$this->email_method->anti_abuse_headers($this->config, $this->user);
+				$this->email_method->assign_vars([
+					'USERNAME'			=> html_entity_decode($user_row['username'], ENT_COMPAT),
+					'U_RESET_PASSWORD'	=> generate_board_url(true) . $this->helper->route('phpbb_ucp_reset_password_controller', [
+						'u'		=> $user_row['user_id'],
+						'token'	=> $reset_token,
+					], false)
 				]);
-
-				$messenger->send($user_row['user_notify_type']);
+				$this->email_method->send();
 
 				return $this->helper->message($message);
 			}
@@ -313,7 +308,7 @@ class reset_password
 		add_form_key('ucp_reset_password');
 
 		$sql_array = [
-			'SELECT'	=> 'user_id, username, user_permissions, user_email, user_jabber, user_notify_type, user_type,'
+			'SELECT'	=> 'user_id, username, user_permissions, user_email, user_type,'
 				. ' user_lang, user_inactive_reason, reset_token, reset_token_expiration',
 			'FROM'		=> [$this->users_table => 'u'],
 			'WHERE'		=> 'user_id = ' . $user_id,
@@ -340,7 +335,7 @@ class reset_password
 		$user_row = $this->db->sql_fetchrow($result);
 		$this->db->sql_freeresult($result);
 
-		$message = $this->language->lang('RESET_TOKEN_EXPIRED_OR_INVALID') . '<br /><br />' . $this->language->lang('RETURN_INDEX', '<a href="' . append_sid("{$this->root_path}index.{$this->php_ext}") . '">', '</a>');
+		$message = $this->language->lang('RESET_TOKEN_EXPIRED_OR_INVALID') . '<br /><br />' . $this->language->lang('RETURN_INDEX', '<a href="' . $this->helper->route('phpbb_index_controller') . '">', '</a>');
 
 		if (empty($user_row))
 		{
@@ -407,6 +402,7 @@ class reset_password
 			{
 				$sql_ary = [
 					'user_password'				=> $this->passwords_manager->hash($data['new_password']),
+					'user_passchg'				=> time(),
 					'user_login_attempts'		=> 0,
 					'reset_token'				=> '',
 					'reset_token_expiration'	=> 0,
@@ -415,11 +411,12 @@ class reset_password
 							SET ' . $this->db->sql_build_array('UPDATE', $sql_ary) . '
 							WHERE user_id = ' . (int) $user_row['user_id'];
 				$this->db->sql_query($sql);
+				$this->user->reset_login_keys($user_row['user_id']);
 				$this->log->add('user', $user_row['user_id'], $this->user->ip, 'LOG_USER_NEW_PASSWORD', false, [
 					'reportee_id' => $user_row['user_id'],
 					$user_row['username']
 				]);
-				meta_refresh(3, append_sid("{$this->root_path}index.{$this->php_ext}"));
+				meta_refresh(3, $this->helper->route('phpbb_index_controller'));
 				return $this->helper->message($this->language->lang('PASSWORD_RESET'));
 			}
 		}

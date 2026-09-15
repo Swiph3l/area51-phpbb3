@@ -6,6 +6,7 @@ services:
             - '@routing.helper'
             - '%core.root_path%'
             - '%core.php_ext%'
+            - '@template'
 
     cron.lock_db:
         class: phpbb\lock\db
@@ -85,10 +86,9 @@ services:
     cron.task.core.queue:
         class: phpbb\cron\task\core\queue
         arguments:
-            - '%core.root_path%'
-            - '%core.php_ext%'
             - '@config'
-            - '%core.cache_dir%'
+            - '@messenger.queue'
+            - '%core.messenger_queue_file%'
         calls:
             - [set_name, [cron.task.core.queue]]
         tags:
@@ -130,13 +130,8 @@ services:
     cron.task.core.tidy_search:
         class: phpbb\cron\task\core\tidy_search
         arguments:
-            - '%core.root_path%'
-            - '%core.php_ext%'
-            - '@auth'
             - '@config'
-            - '@dbal.conn'
-            - '@user'
-            - '@dispatcher'
+            - '@search.backend_factory'
         calls:
             - [set_name, [cron.task.core.tidy_search]]
         tags:
@@ -149,6 +144,17 @@ services:
             - '@user'
         calls:
             - [set_name, [cron.task.core.tidy_sessions]]
+        tags:
+            - { name: cron.task }
+
+    cron.task.core.purge_oauth_states:
+        class: phpbb\cron\task\core\purge_oauth_states
+        arguments:
+            - '@config'
+            - '@dbal.conn'
+            - '%tables.auth_provider_oauth_states%'
+        calls:
+            - [set_name, [cron.task.core.purge_oauth_states]]
         tags:
             - { name: cron.task }
 

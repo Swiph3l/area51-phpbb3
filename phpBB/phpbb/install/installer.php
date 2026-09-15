@@ -179,6 +179,7 @@ class installer
 
 		try
 		{
+			/** @psalm-suppress InvalidTemplateParam */
 			$iterator = $this->installer_modules->getIterator();
 
 			if ($module_index < $iterator->count())
@@ -279,7 +280,9 @@ class installer
 		}
 		catch (\Exception $e)
 		{
-			$this->iohandler->add_error_message($e->getMessage());
+			$stack_trace = phpbb_filter_root_path(str_replace("\n", '<br>', $e->getTraceAsString()));
+			$message = $e->getMessage();
+			$this->iohandler->add_error_message($message, $stack_trace);
 			$this->iohandler->send_response(true);
 			$fail_cleanup = true;
 		}
@@ -340,11 +343,11 @@ class installer
 	/**
 	 * Recover install progress
 	 *
-	 * @return string	Index of the next installer module to execute
+	 * @return int	Index of the next installer module to execute
 	 */
-	protected function recover_progress()
+	protected function recover_progress(): int
 	{
 		$progress_array = $this->install_config->get_progress_data();
-		return $progress_array['last_task_module_index'];
+		return (int) $progress_array['last_task_module_index'];
 	}
 }

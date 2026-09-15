@@ -22,6 +22,8 @@ if (!defined('IN_PHPBB'))
 class acp_help_phpbb
 {
 	var $u_action;
+	var $tpl_name;
+	var $page_title;
 
 	function main($id, $mode)
 	{
@@ -90,7 +92,7 @@ class acp_help_phpbb
 
 			if (!empty($response))
 			{
-				$decoded_response = json_decode(htmlspecialchars_decode($response, ENT_COMPAT), true);
+				$decoded_response = json_decode(html_entity_decode($response, ENT_COMPAT), true);
 
 				if ($decoded_response && isset($decoded_response['status']) && $decoded_response['status'] == 'ok')
 				{

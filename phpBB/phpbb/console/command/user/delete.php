@@ -19,6 +19,7 @@ use phpbb\log\log_interface;
 use phpbb\user;
 use phpbb\user_loader;
 use Symfony\Component\Console\Command\Command as symfony_command;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -76,9 +77,9 @@ class delete extends command
 	/**
 	 * Sets the command name and description
 	 *
-	 * @return null
+	 * @return void
 	 */
-	protected function configure()
+	protected function configure(): void
 	{
 		$this
 			->setName('user:delete')
@@ -108,7 +109,7 @@ class delete extends command
 	 *
 	 * @return int 0 if all is well, 1 if any errors occurred
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output)
+	protected function execute(InputInterface $input, OutputInterface $output): int
 	{
 		$name = $input->getArgument('username');
 		$mode = ($input->getOption('delete-posts')) ? 'remove' : 'retain';
@@ -148,9 +149,13 @@ class delete extends command
 	 * @param InputInterface  $input  An InputInterface instance
 	 * @param OutputInterface $output An OutputInterface instance
 	 */
-	protected function interact(InputInterface $input, OutputInterface $output)
+	protected function interact(InputInterface $input, OutputInterface $output): void
 	{
 		$helper = $this->getHelper('question');
+		if (!$helper instanceof QuestionHelper)
+		{
+			return;
+		}
 
 		$question = new ConfirmationQuestion(
 			$this->language->lang('CLI_USER_DELETE_CONFIRM', $input->getArgument('username')),

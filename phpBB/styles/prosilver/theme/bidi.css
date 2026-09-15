@@ -143,6 +143,12 @@
 	margin-left: 5px;
 }
 
+.rtl .notification-block .avatar-placeholder,
+.rtl .notification-list .topiclist .notification-item .avatar-placeholder,
+.rtl .notification-list .topiclist .notification-item .avatar {
+	float: right;
+}
+
 .rtl .notification-menu .notifications {
 	margin-right: 50px;
 	margin-left: 0;
@@ -161,6 +167,12 @@
 ---------------------------------------- */
 .rtl .breadcrumbs .crumb {
 	float: right;
+}
+
+.rtl .breadcrumbs .crumb:before {
+	font-weight: bold;
+	padding: 0 0.5em;
+	content: "\2039";
 }
 
 /* Table styles
@@ -366,6 +378,24 @@
 }
 
 /**
+* mentions.css
+*/
+
+/* Mention block
+---------------------------------------- */
+
+/* Mention dropdown
+---------------------------------------- */
+.rtl .mention-container { /* mention-container */
+	text-align: right;
+}
+
+.rtl .mention-media {
+	margin-right: 0;
+	margin-left: 16px;
+}
+
+/**
 * content.css
 */
 .rtl ul.topiclist dt,
@@ -415,11 +445,6 @@
 	border-right-style: solid;
 	border-left: none;
 	float: right;
-}
-
-.rtl ul.topiclist dfn {
-	right: -999px;
-	left: auto;
 }
 
 .rtl ul.topiclist li.row dt a.subforum {
@@ -488,7 +513,7 @@
 
 .rtl .postbody,
 .rtl .postbody h3 {
-	float: right;
+	float: right !important;
 }
 
 .rtl .has-profile .postbody h3 {
@@ -617,8 +642,6 @@
 .rtl .postprofile {
 	border-width: 0 1px 0 0;
 	float: left;
-
-	/*	text-align: right; */
 }
 
 .rtl .pm .postprofile {
@@ -634,7 +657,7 @@
 }
 
 .rtl .postprofile .avatar {
-	float: right;
+	float: left;
 }
 
 .rtl dl.pmlist dd {

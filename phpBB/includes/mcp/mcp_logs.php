@@ -27,6 +27,8 @@ class mcp_logs
 {
 	var $u_action;
 	var $p_master;
+	var $page_title;
+	var $tpl_name;
 
 	function __construct($p_master)
 	{
@@ -181,7 +183,7 @@ class mcp_logs
 		$sql_sort = $sort_by_sql[$sort_key] . ' ' . (($sort_dir == 'd') ? 'DESC' : 'ASC');
 
 		$keywords = $request->variable('keywords', '', true);
-		$keywords_param = !empty($keywords) ? '&amp;keywords=' . urlencode(htmlspecialchars_decode($keywords, ENT_COMPAT)) : '';
+		$keywords_param = !empty($keywords) ? '&amp;keywords=' . urlencode(html_entity_decode($keywords, ENT_COMPAT)) : '';
 
 		// Grab log data
 		$log_data = array();

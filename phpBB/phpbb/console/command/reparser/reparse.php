@@ -79,9 +79,9 @@ class reparse extends \phpbb\console\command\command
 	/**
 	* Sets the command name and description
 	*
-	* @return null
+	* @return void
 	*/
-	protected function configure()
+	protected function configure(): void
 	{
 		$this
 			->setName('reparser:reparse')
@@ -92,6 +92,12 @@ class reparse extends \phpbb\console\command\command
 				null,
 				InputOption::VALUE_NONE,
 				$this->user->lang('CLI_DESCRIPTION_REPARSER_REPARSE_OPT_DRY_RUN')
+			)
+			->addOption(
+				'force-bbcode-reparsing',
+				null,
+				InputOption::VALUE_NONE,
+				$this->user->lang('CLI_DESCRIPTION_REPARSER_REPARSE_OPT_FORCE_BBCODE')
 			)
 			->addOption(
 				'resume',
@@ -129,7 +135,7 @@ class reparse extends \phpbb\console\command\command
 	* @param OutputInterface $output
 	* @return int
 	*/
-	protected function execute(InputInterface $input, OutputInterface $output)
+	protected function execute(InputInterface $input, OutputInterface $output): int
 	{
 		$this->input = $input;
 		$this->output = $output;
@@ -223,13 +229,15 @@ class reparse extends \phpbb\console\command\command
 
 		// Start from $max and decrement $current by $size until we reach $min
 		$current = $max;
+
+		$force_bbcode_reparsing = (bool) $this->get_option('force-bbcode-reparsing');
 		while ($current >= $min)
 		{
 			$start = max($min, $current + 1 - $size);
 			$end   = max($min, $current);
 
 			$progress->setMessage($this->user->lang('CLI_REPARSER_REPARSE_REPARSING', $reparser->get_name(), $start, $end));
-			$reparser->reparse_range($start, $end);
+			$reparser->reparse_range($start, $end, $force_bbcode_reparsing);
 
 			$current = $start - 1;
 			$progress->setProgress($max + 1 - $start);

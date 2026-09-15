@@ -72,7 +72,6 @@ $f_permissions = array(
 	'f_bbcode'	=> array(1, 0),
 	'f_smilies'	=> array(1, 0),
 	'f_img'		=> array(1, 0),
-	'f_flash'	=> array(1, 0),
 	'f_sigs'	=> array(1, 0),
 	'f_search'	=> array(1, 0),
 	'f_email'	=> array(1, 0),
@@ -141,7 +140,6 @@ $u_permissions = array(
 	'u_sendemail'	=> array(0, 1),
 	'u_readpm'		=> array(0, 1),
 	'u_sendpm'		=> array(0, 1),
-	'u_sendim'		=> array(0, 1),
 	'u_hideonline'	=> array(0, 1),
 	'u_viewonline'	=> array(0, 1),
 	'u_viewprofile'	=> array(0, 1),
@@ -167,7 +165,6 @@ $u_permissions = array(
 	'u_pm_forward'	=> array(0, 1),
 	'u_pm_delete'	=> array(0, 1),
 	'u_pm_img'		=> array(0, 1),
-	'u_pm_flash'	=> array(0, 1),
 );
 
 echo "<p><b>Determining existing permissions</b></p>\n";
@@ -249,7 +246,7 @@ function mass_auth($ug_type, $forum_id, $ug_id, $acl_list, $setting)
 	{
 		if (!isset($group_ids[$ug_id]))
 		{
-			$sql = 'SELECT group_id FROM ' . GROUPS_TABLE . " 
+			$sql = 'SELECT group_id FROM ' . GROUPS_TABLE . "
 				WHERE group_name = '" . strtoupper($ug_id) . "'";
 			$result = $db->sql_query_limit($sql, 1);
 			$id = (int) $db->sql_fetchfield('group_id', 0, $result);
@@ -342,7 +339,7 @@ function mass_auth($ug_type, $forum_id, $ug_id, $acl_list, $setting)
 				case ACL_NO:
 					if (isset($cur_auth[$forum][$auth_option_id]))
 					{
-						$sql_ary['delete'][] = "DELETE FROM $table 
+						$sql_ary['delete'][] = "DELETE FROM $table
 							WHERE forum_id = $forum
 								AND auth_option_id = $auth_option_id
 								AND $id_field = $ug_id";
@@ -356,10 +353,10 @@ function mass_auth($ug_type, $forum_id, $ug_id, $acl_list, $setting)
 					}
 					else if ($cur_auth[$forum][$auth_option_id] != $setting)
 					{
-						$sql_ary['update'][] = "UPDATE " . $table . " 
-							SET auth_setting = $setting 
-							WHERE $id_field = $ug_id 
-								AND forum_id = $forum 
+						$sql_ary['update'][] = "UPDATE " . $table . "
+							SET auth_setting = $setting
+							WHERE $id_field = $ug_id
+								AND forum_id = $forum
 								AND auth_option_id = $auth_option_id";
 					}
 			}

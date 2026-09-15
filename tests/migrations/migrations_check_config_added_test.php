@@ -13,6 +13,39 @@
 
 class migrations_check_config_added_test extends phpbb_test_case
 {
+	/** @var \phpbb\config\config */
+	protected $config;
+
+	/** @var \Symfony\Component\DependencyInjection\ContainerInterface */
+	protected $container;
+
+	/** @var \phpbb\db\driver\driver_interface */
+	protected $db;
+
+	/** @var \Doctrine\DBAL\Connection */
+	protected $db_doctrine;
+
+	/** @var \phpbb\db\tools\tools_interface */
+	protected $db_tools;
+
+	/** @var \phpbb\extension\manager */
+	protected $extension_manager;
+
+	/** @var \phpbb\db\migrator */
+	protected $migrator;
+
+	/** @var string */
+	protected $table_prefix;
+
+	/** @var string */
+	protected $phpbb_root_path;
+
+	/** @var string */
+	protected $php_ext;
+
+	/** @var string */
+	protected $schema_data;
+
 	protected function setUp(): void
 	{
 		global $phpbb_root_path;
@@ -21,20 +54,23 @@ class migrations_check_config_added_test extends phpbb_test_case
 		$this->schema_data = file_get_contents($phpbb_root_path . 'install/schemas/schema_data.sql');
 	}
 
-	public function get_config_options_from_migrations()
+	protected function get_config_names()
 	{
 		global $phpbb_root_path, $phpEx;
+
+		$this->table_prefix = 'phpbb_';
+		$this->phpbb_root_path = $phpbb_root_path;
+		$this->php_ext = $phpEx;
 
 		$this->config = new \phpbb\config\config([
 			'search_type'		=> '\phpbb\search\fulltext_mysql',
 		]);
 
 		$this->db = $this->createMock('\phpbb\db\driver\driver_interface');
+		$this->db_doctrine = $this->createMock(\Doctrine\DBAL\Connection::class);
 		$factory = new \phpbb\db\tools\factory();
-		$this->db_tools = $factory->get($this->db);
-		$this->table_prefix = 'phpbb_';
-		$this->phpbb_root_path = $phpbb_root_path;
-		$this->php_ext = $phpEx;
+		$this->db_tools = $factory->get($this->db_doctrine);
+		$this->db_tools->set_table_prefix($this->table_prefix);
 
 		$tools = [
 			new \phpbb\db\migration\tool\config($this->config),
@@ -111,7 +147,7 @@ class migrations_check_config_added_test extends phpbb_test_case
 					continue;
 				}
 
-				// Fill error entries for configuration options which were not added to shema_data.sql
+				// Fill error entries for configuration options which were not added to schema_data.sql
 				if (!isset($config_names[$config_name]))
 				{
 					$config_names[$config_name] = [$config_name, $class];
@@ -121,18 +157,18 @@ class migrations_check_config_added_test extends phpbb_test_case
 
 		// Drop configuration options which were removed by config.remove
 		$config_names = array_diff_key($config_names, $config_removed);
-		return $config_names;
+
+		return array_combine(array_column($config_names, 0), array_column($config_names, 1));
 	}
 
-	/**
-	* @dataProvider get_config_options_from_migrations
-	*/
-	public function test_config_option_exists_in_schema_data($config_name, $class)
+	public function test_config_option_exists_in_schema_data()
 	{
-		$message = 'Migration: %1$s, config_name: %2$s; not added to shema_data.sql';
-
-		$this->assertNotFalse(strpos($this->schema_data, $config_name),
-			sprintf($message, $class, $config_name)
-		);
+		$message = 'Migration: %1$s, config_name: %2$s; not added to schema_data.sql';
+		foreach ($this->get_config_names() as $config_name => $class)
+		{
+			$this->assertNotFalse(strpos($this->schema_data, $config_name),
+				sprintf($message, $class, $config_name)
+			);
+		}
 	}
 }

@@ -4,7 +4,7 @@
 	"type": "phpbb-language",
 	"version": "4.0.0-a1-dev",
 	"homepage": "https://www.phpbb.com",
-	"license": "GPL-2.0",
+	"license": "GPL-2.0-only",
 	"authors": [
 		{
 			"name": "phpBB Limited",
@@ -22,6 +22,11 @@
 		"language-iso": "en",
 		"english-name": "British English",
 		"local-name": "British English",
-		"phpbb-version": "4.0.0-a1-dev"
+		"phpbb-version": "4.0.0-a1-dev",
+		"direction": "ltr",
+		"user-lang": "en-gb",
+		"plural-rule": 1,
+		"recaptcha-lang": "en-GB",
+		"turnstile-lang": "en"
 	}
 }

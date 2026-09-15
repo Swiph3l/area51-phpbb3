@@ -1,16 +1,17 @@
 /* global phpbb, statsData */
+/* eslint no-var: 0 */
 
 (function($) {  // Avoid conflicts with other libraries
 
 'use strict';
 
 
-phpbb.prepareSendStats = function () {
+phpbb.prepareSendStats = function() {
 	var $form = $('#acp_help_phpbb');
 	var $dark = $('#darkenwrapper');
 	var $loadingIndicator;
 
-	$form.on('submit', function (event) {
+	$form.on('submit', function(event) {
 		var $this = $(this),
 			currentTime = Math.floor(new Date().getTime() / 1000),
 			statsTime = parseInt($this.find('input[name=help_send_statistics_time]').val(), 10);
@@ -23,7 +24,7 @@ phpbb.prepareSendStats = function () {
 		if (!$this.find('input[name=help_send_statistics]').is(':checked') ||
 			statsTime > currentTime) {
 			$form.find('input[type=submit]').click();
-			setTimeout(function () {
+			setTimeout(function() {
 				$form.find('input[type=submit]').click();
 			}, 300);
 			return;
@@ -74,7 +75,7 @@ phpbb.prepareSendStats = function () {
 			var $sendStatisticsSuccess = $('<input />', {
 				type: 'hidden',
 				name: 'send_statistics_response',
-				value: JSON.stringify(res)
+				value: JSON.stringify(res),
 			});
 			$sendStatisticsSuccess.appendTo('p.submit-buttons');
 
@@ -90,7 +91,7 @@ phpbb.prepareSendStats = function () {
 			data: statsData,
 			success: returnHandler,
 			error: errorHandler,
-			cache: false
+			cache: false,
 		}).always(function() {
 			if ($loadingIndicator && $loadingIndicator.is(':visible')) {
 				$loadingIndicator.fadeOut(phpbb.alertTime);
@@ -158,6 +159,55 @@ phpbb.addAjaxCallback('row_delete', function(res) {
 });
 
 /**
+ * This callback generates the VAPID keys for the web push notification service.
+ */
+phpbb.addAjaxCallback('generate_vapid_keys', () => {
+
+	/**
+	 * Generate VAPID keypair with public and private key string
+	 *
+	 * @returns {Promise<{privateKey: string, publicKey: string}|null>}
+	 */
+	async function generateVAPIDKeys() {
+		try {
+			// Generate a new key pair using the Subtle Crypto API
+			const keyPair = await crypto.subtle.generateKey(
+				{
+					name: 'ECDH',
+					namedCurve: 'P-256',
+				},
+				true,
+				[ 'deriveKey', 'deriveBits' ],
+			);
+
+			const privateKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+			const privateKeyString = privateKeyJwk.d;
+
+			const publicKeyBuffer = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+			const publicKeyString = phpbb.base64UrlEncode(phpbb.rawKeyToBase64(publicKeyBuffer));
+
+			return {
+				privateKey: privateKeyString,
+				publicKey: publicKeyString,
+			};
+		} catch (error) {
+			console.error('Error generating keys with SubtleCrypto:', error);
+			return null;
+		}
+	}
+
+	generateVAPIDKeys().then(keyPair => {
+		if (!keyPair) {
+			return;
+		}
+		const publicKeyInput = document.querySelector('#webpush_vapid_public');
+		const privateKeyInput = document.querySelector('#webpush_vapid_private');
+		publicKeyInput.value = keyPair.publicKey;
+		privateKeyInput.value = keyPair.privateKey;
+	});
+});
+
+/**
  * Handler for submitting permissions form in chunks
  * This call will submit permissions forms in chunks of 5 fieldsets.
  */
@@ -181,7 +231,7 @@ function submitPermissions() {
 		fieldsetList = $form.find('fieldset#' + $submitButton.closest('fieldset.permissions').id);
 	}
 
-	$.each(fieldsetList, function (key, value) {
+	$.each(fieldsetList, function(key, value) {
 		dataSetIndex = Math.floor(key / 5);
 		var $fieldset = $('fieldset#' + value.id);
 		if (key % 5 === 0) {
@@ -203,7 +253,7 @@ function submitPermissions() {
 	permissionSubmitSize = formDataSets.length;
 
 	// Add each forum ID to forum ID list to preserve selected forums
-	$.each($form.find('input[type=hidden][name^=forum_id]'), function (key, value) {
+	$.each($form.find('input[type=hidden][name^=forum_id]'), function(key, value) {
 		if (value.name.match(/^forum_id\[([0-9]+)\]$/)) {
 			forumIds.push(value.value);
 		}
@@ -235,14 +285,20 @@ function submitPermissions() {
 				if ($alertBoxLink) {
 					// Remove forum_id[] from URL
 					$alertBoxLink.attr('href', $alertBoxLink.attr('href').replace(/(&forum_id\[\]=[0-9]+)/g, ''));
-					var previousPageForm = '<form action="' + $alertBoxLink.attr('href') + '" method="post">';
-					$.each(forumIds, function (key, value) {
-						previousPageForm += '<input type="text" name="forum_id[]" value="' + value + '" />';
+					const $previousPageForm = $('<form>').attr({
+						action: $alertBoxLink.attr('href'),
+						method: 'post',
 					});
-					previousPageForm += '</form>';
 
-					$alertBoxLink.on('click', function (e) {
-						var $previousPageForm = $(previousPageForm);
+					$.each(forumIds, function(key, value) {
+						$previousPageForm.append($('<input>').attr({
+							type: 'text',
+							name: 'forum_id[]',
+							value: value,
+						}));
+					});
+
+					$alertBoxLink.on('click', function(e) {
 						$('body').append($previousPageForm);
 						e.preventDefault();
 						$previousPageForm.submit();
@@ -254,20 +310,27 @@ function submitPermissions() {
 				$alert.find('.alert_close').hide();
 
 				if (typeof res.REFRESH_DATA !== 'undefined') {
-					setTimeout(function () {
+					setTimeout(function() {
 						// Create forum to submit using POST. This will prevent
 						// exceeding the maximum length of URLs
-						var form = '<form action="' + res.REFRESH_DATA.url.replace(/(&forum_id\[\]=[0-9]+)/g, '') + '" method="post">';
-						$.each(forumIds, function (key, value) {
-							form += '<input type="text" name="forum_id[]" value="' + value + '" />';
+						const $form = $('<form>').attr({
+							action: res.REFRESH_DATA.url.replace(/(&forum_id\[\]=[0-9]+)/g, ''),
+							method: 'post',
 						});
-						form += '</form>';
-						$form = $(form);
+
+						$.each(forumIds, function(key, value) {
+							$form.append($('<input>').attr({
+								type: 'text',
+								name: 'forum_id[]',
+								value: value,
+							}));
+						});
+
 						$('body').append($form);
 
 						// Hide the alert even if we refresh the page, in case the user
 						// presses the back button.
-						$dark.fadeOut(phpbb.alertTime, function () {
+						$dark.fadeOut(phpbb.alertTime, function() {
 							if (typeof $alert !== 'undefined') {
 								$alert.hide();
 							}
@@ -293,7 +356,7 @@ function submitPermissions() {
 	}
 
 	// Create AJAX request for each form data set
-	$.each(formDataSets, function (key, formData) {
+	$.each(formDataSets, function(key, formData) {
 		$.ajax({
 			url: $form.action,
 			type: 'POST',
@@ -303,7 +366,7 @@ function submitPermissions() {
 				'&' + $form.children('input[type=hidden]').serialize() +
 				'&' + $form.find('input[type=checkbox][name^=inherit]').serialize(),
 			success: handlePermissionReturn,
-			error: handlePermissionReturn
+			error: handlePermissionReturn,
 		});
 	});
 }
@@ -317,7 +380,7 @@ $('[data-ajax]').each(function() {
 		phpbb.ajaxify({
 			selector: this,
 			refresh: $this.attr('data-refresh') !== undefined,
-			callback: fn
+			callback: fn,
 		});
 	}
 });
@@ -326,17 +389,30 @@ $('[data-ajax]').each(function() {
 * Automatically resize textarea
 */
 $(function() {
-	phpbb.resizeTextArea($('textarea:not(.no-auto-resize)'), {minHeight: 75});
+	phpbb.resizeTextArea($('textarea:not(.no-auto-resize)'), { minHeight: 75 });
 
 	var $setPermissionsForm = $('form#set-permissions');
 	if ($setPermissionsForm.length) {
-		$setPermissionsForm.on('submit', function (e) {
+		$setPermissionsForm.on('submit', function(e) {
 			submitPermissions();
 			e.preventDefault();
 		});
 		$setPermissionsForm.find('input[type=submit]').click(function() {
 			$('input[type=submit]', $(this).parents($('form#set-permissions'))).removeAttr('data-clicked');
 			$(this).attr('data-clicked', true);
+		});
+	}
+
+	// Handle date option changes
+	const dateoptionSelect = document.getElementById('dateoptions');
+	if (dateoptionSelect) {
+		dateoptionSelect.addEventListener('change', function() {
+			const dateoptionInput = document.getElementById(this.getAttribute('data-dateoption'));
+			if (this.value === 'custom') {
+				dateoptionInput.value = this.getAttribute('data-dateoption-default');
+			} else {
+				dateoptionInput.value = this.value;
+			}
 		});
 	}
 

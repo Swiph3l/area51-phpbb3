@@ -49,9 +49,9 @@ class remove extends \phpbb\console\command\command
 	/**
 	* Sets the command name and description
 	*
-	* @return null
+	* @return void
 	*/
-	protected function configure()
+	protected function configure(): void
 	{
 		$this
 			->setName('extension:remove')
@@ -75,7 +75,7 @@ class remove extends \phpbb\console\command\command
 	* @param OutputInterface $output
 	* @return integer
 	*/
-	protected function execute(InputInterface $input, OutputInterface $output)
+	protected function execute(InputInterface $input, OutputInterface $output): int
 	{
 		$output->getFormatter()->setStyle('warning', new OutputFormatterStyle('black', 'yellow'));
 

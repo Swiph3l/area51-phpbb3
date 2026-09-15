@@ -205,6 +205,23 @@ class helper
 	}
 
 	/**
+	 * Handle installer restart
+	 */
+	public function handle_installer_restart(): void
+	{
+		$restart = $this->phpbb_request->variable('install_restart', false);
+		if ($restart)
+		{
+			// Clean up config file to restart installer
+			$this->installer_config->clean_up_config_file();
+		}
+		else if ($this->installer_config->exists())
+		{
+			$this->template->assign_var('SHOW_RESTART_BUTTON', true);
+		}
+	}
+
+	/**
 	 * Process navigation data to reflect active/completed stages
 	 *
 	 * @param \phpbb\install\helper\iohandler\iohandler_interface|null	$iohandler
@@ -266,8 +283,8 @@ class helper
 			'L_SELECT_LANG'			=> $this->language->lang('SELECT_LANG'),
 			'L_SKIP'				=> $this->language->lang('SKIP'),
 			'PAGE_TITLE'			=> $this->language->lang($page_title),
-			'T_IMAGE_PATH'			=> $this->path_helper->get_web_root_path() . $path . 'images',
-			'T_JQUERY_LINK'			=> $this->path_helper->get_web_root_path() . $path . '../assets/javascript/jquery-3.5.1.min.js',
+			'T_JQUERY_LINK'			=> $this->path_helper->get_web_root_path() . $path . '../assets/javascript/jquery-3.7.1.min.js',
+			'T_FONT_AWESOME_LINK'	=> $this->path_helper->get_web_root_path() . $path . '../assets/css/font-awesome.min.css',
 			'T_TEMPLATE_PATH'		=> $this->path_helper->get_web_root_path() . $path . 'style',
 			'T_ASSETS_PATH'			=> $this->path_helper->get_web_root_path() . $path . '../assets',
 
@@ -322,7 +339,7 @@ class helper
 					{
 						$this->template->assign_block_vars('l_block1', array(
 							'L_TITLE' => $this->language->lang($sub_entry['label']),
-							'S_SELECTED' => (isset($sub_entry['route']) && $sub_entry['route'] === $this->request->get('_route')),
+							'S_SELECTED' => (isset($sub_entry['route']) && $sub_entry['route'] === $this->request->attributes->get('_route')),
 							'U_TITLE' => $this->route($sub_entry['route']),
 						));
 					}
@@ -339,6 +356,14 @@ class helper
 	protected function render_language_select($selected_language = null)
 	{
 		$langs = $this->lang_helper->get_available_languages();
+
+		// The first language will be selected by default. Unless a user has consciously included
+		// other languages in the installation process, it will be British English anyway.
+		if ($selected_language === null && count($langs))
+		{
+			$selected_language = $langs[0]['iso'];
+		}
+
 		foreach ($langs as $lang)
 		{
 			$this->template->assign_block_vars('language_select_item', array(
@@ -358,7 +383,7 @@ class helper
 	 */
 	protected function get_active_main_menu($nav_array)
 	{
-		$active_route = $this->request->get('_route');
+		$active_route = $this->request->attributes->get('_route');
 
 		foreach ($nav_array as $nav_name => $nav_options)
 		{

@@ -1,5 +1,5 @@
 services:
-    dispatcher:
+    event_dispatcher:
         class: phpbb\event\dispatcher
         arguments:
             - '@service_container'
@@ -9,6 +9,7 @@ services:
         arguments:
             - '@template'
             - '@language'
+            - '@user'
             - '%debug.exceptions%'
         tags:
             - { name: kernel.event_subscriber }

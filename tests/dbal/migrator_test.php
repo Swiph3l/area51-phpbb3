@@ -24,11 +24,16 @@ require_once __DIR__ . '/migration/revert_table_with_dependency.php';
 require_once __DIR__ . '/migration/fail.php';
 require_once __DIR__ . '/migration/installed.php';
 require_once __DIR__ . '/migration/schema.php';
+require_once __DIR__ . '/migration/schema_index.php';
+require_once __DIR__ . '/migration/schema_add_autoincrement.php';
 
 class phpbb_dbal_migrator_test extends phpbb_database_test_case
 {
 	/** @var \phpbb\db\driver\driver_interface */
 	protected $db;
+
+	/** @var \Doctrine\DBAL\Connection */
+	protected $doctrine_db;
 
 	/** @var \phpbb\db\tools\tools_interface */
 	protected $db_tools;
@@ -39,6 +44,12 @@ class phpbb_dbal_migrator_test extends phpbb_database_test_case
 	/** @var \phpbb\config\config */
 	protected $config;
 
+	/** @var \phpbb\extension\manager */
+	protected $extension_manager;
+
+	/** @var string */
+	protected $table_prefix;
+
 	public function getDataSet()
 	{
 		return $this->createXMLDataSet(__DIR__.'/fixtures/migrator.xml');
@@ -46,13 +57,20 @@ class phpbb_dbal_migrator_test extends phpbb_database_test_case
 
 	protected function setUp(): void
 	{
+		global $table_prefix;
+
 		parent::setUp();
 
+		$this->table_prefix = $table_prefix;
 		$this->db = $this->new_dbal();
+		$this->doctrine_db = $this->new_doctrine_dbal();
 		$factory = new \phpbb\db\tools\factory();
-		$this->db_tools = $factory->get($this->db);
+		$this->db_tools = $factory->get($this->doctrine_db);
+		$this->db_tools->set_table_prefix($this->table_prefix);
 
 		$this->config = new \phpbb\config\db($this->db, new phpbb_mock_cache, 'phpbb_config');
+
+		$finder_factory = $this->createMock('\phpbb\finder\factory');
 
 		$tools = array(
 			new \phpbb\db\migration\tool\config($this->config),
@@ -74,15 +92,15 @@ class phpbb_dbal_migrator_test extends phpbb_database_test_case
 			new \phpbb\db\migration\helper()
 		);
 		$container->set('migrator', $this->migrator);
-		$container->set('dispatcher', new phpbb_mock_event_dispatcher());
+		$container->set('event_dispatcher', new phpbb_mock_event_dispatcher());
 
 		$this->extension_manager = new \phpbb\extension\manager(
 			$container,
 			$this->db,
 			$this->config,
+			$finder_factory,
 			'phpbb_ext',
 			__DIR__ . '/../../phpBB/',
-			'php',
 			null
 		);
 	}
@@ -92,6 +110,7 @@ class phpbb_dbal_migrator_test extends phpbb_database_test_case
 		$this->migrator->set_migrations(array('phpbb_dbal_migration_dummy'));
 
 		// schema
+		$start_time = time();
 		$this->migrator->update();
 		$this->assertFalse($this->migrator->finished());
 
@@ -100,12 +119,13 @@ class phpbb_dbal_migrator_test extends phpbb_database_test_case
 			"SELECT 1 as success
 				FROM phpbb_migrations
 				WHERE migration_name = 'phpbb_dbal_migration_dummy'
-					AND migration_start_time >= " . (time() - 1) . "
+					AND migration_start_time >= " . ($start_time - 1) . "
 					AND migration_start_time <= " . (time() + 1),
 			'Start time set correctly'
 		);
 
 		// data
+		$start_time = time();
 		$this->migrator->update();
 		$this->assertTrue($this->migrator->finished());
 
@@ -121,7 +141,7 @@ class phpbb_dbal_migrator_test extends phpbb_database_test_case
 				FROM phpbb_migrations
 				WHERE migration_name = 'phpbb_dbal_migration_dummy'
 					AND migration_start_time <= migration_end_time
-					AND migration_end_time >= " . (time() - 1) . "
+					AND migration_end_time >= " . ($start_time - 1) . "
 					AND migration_end_time <= " . (time() + 1),
 			'End time set correctly'
 		);
@@ -397,6 +417,64 @@ class phpbb_dbal_migrator_test extends phpbb_database_test_case
 		$this->assertTrue($this->db_tools->sql_column_exists('phpbb_config', 'test_column1'));
 		$this->assertTrue($this->db_tools->sql_table_exists('phpbb_foobar'));
 
+		$short_table_name = \phpbb\db\doctrine\table_helper::generate_shortname('foobar');
+		$index_data_row = $this->db_tools->sql_get_table_index_data('phpbb_foobar');
+		$this->assertEquals(4, count($index_data_row));
+		$this->assertTrue(isset($index_data_row[$short_table_name . '_i_simple']));
+		$this->assertTrue(isset($index_data_row[$short_table_name . '_i_uniq']));
+		$this->assertTrue(isset($index_data_row[$short_table_name . '_i_auth']));
+
+		$is_mysql = $this->db->get_sql_layer() === 'mysqli'; // Key 'lengths' option only applies to MySQL indexes
+
+		// MSSQL primary index key has 'clustered' flag, 'nonclustered' otherwise
+		// See https://learn.microsoft.com/en-us/sql/relational-databases/indexes/clustered-and-nonclustered-indexes-described?view=sql-server-ver17#indexes-and-constraints 
+		$is_mssql = in_array($this->db->get_sql_layer(), ['mssqlnative', 'mssql_odbc']);
+
+		foreach ($index_data_row as $index_name => $index_data)
+		{
+			switch ($index_name)
+			{
+				case $short_table_name . '_i_simple':
+					$this->assertEquals(['user_id', 'endpoint'], $index_data['columns']);
+					$this->assertEquals($is_mssql ? ['nonclustered'] : [], $index_data['flags']);
+					$this->assertFalse($index_data['is_primary']);
+					$this->assertFalse($index_data['is_unique']);
+					$this->assertTrue($index_data['is_simple']);
+					$this->assertEquals(2, count($index_data['options']['lengths']));
+					$this->assertEmpty($index_data['options']['lengths'][0]);
+					$this->assertEquals($is_mysql ? 191 : null, $index_data['options']['lengths'][1]);
+				break;
+				case $short_table_name . '_i_uniq':
+					$this->assertEquals(['expiration_time', 'p256dh'], $index_data['columns']);
+					$this->assertEquals($is_mssql ? ['nonclustered'] : [], $index_data['flags']);
+					$this->assertFalse($index_data['is_primary']);
+					$this->assertTrue($index_data['is_unique']);
+					$this->assertFalse($index_data['is_simple']);
+					$this->assertEquals(2, count($index_data['options']['lengths']));
+					$this->assertEmpty($index_data['options']['lengths'][0]);
+					$this->assertEquals($is_mysql ? 100 : null, $index_data['options']['lengths'][1]);
+				break;
+				case $short_table_name . '_i_auth':
+					$this->assertEquals(['auth'], $index_data['columns']);
+					$this->assertEquals($is_mssql ? ['nonclustered'] : [], $index_data['flags']);
+					$this->assertFalse($index_data['is_primary']);
+					$this->assertFalse($index_data['is_unique']);
+					$this->assertTrue($index_data['is_simple']);
+					$this->assertEquals(1, count($index_data['options']['lengths']));
+					$this->assertEmpty($index_data['options']['lengths'][0]);
+				break;
+				default: // Primary key
+					$this->assertEquals(['module_id'], $index_data['columns']);
+					$this->assertEquals($is_mssql ? ['clustered'] : [], $index_data['flags']);
+					$this->assertTrue($index_data['is_primary']);
+					$this->assertTrue($index_data['is_unique']);
+					$this->assertFalse($index_data['is_simple']);
+					$this->assertEquals(1, count($index_data['options']['lengths']));
+					$this->assertEmpty($index_data['options']['lengths'][0]);
+				break;
+			}
+		}
+
 		while ($this->migrator->migration_state('phpbb_dbal_migration_schema'))
 		{
 			$this->migrator->revert('phpbb_dbal_migration_schema');
@@ -404,5 +482,107 @@ class phpbb_dbal_migrator_test extends phpbb_database_test_case
 
 		$this->assertFalse($this->db_tools->sql_column_exists('phpbb_config', 'test_column1'));
 		$this->assertFalse($this->db_tools->sql_table_exists('phpbb_foobar'));
+	}
+
+	public function test_rename_index()
+	{
+		$this->migrator->set_migrations(array('phpbb_dbal_migration_schema_index'));
+
+		while (!$this->migrator->finished())
+		{
+			$this->migrator->update();
+		}
+
+		$this->assertTrue($this->db_tools->sql_unique_index_exists('phpbb_foobar1', 'fbr1_user_id'));
+		$this->assertTrue($this->db_tools->sql_index_exists('phpbb_foobar1', 'fbr1_username'));
+		$this->assertTrue($this->db_tools->sql_unique_index_exists('phpbb_foobar2', 'fbr2_ban_userid'));
+		$this->assertTrue($this->db_tools->sql_index_exists('phpbb_foobar2', 'fbr2_ban_data'));
+
+		while ($this->migrator->migration_state('phpbb_dbal_migration_schema_index'))
+		{
+			$this->migrator->revert('phpbb_dbal_migration_schema_index');
+		}
+
+		$this->assertFalse($this->db_tools->sql_table_exists('phpbb_foobar1'));
+		$this->assertFalse($this->db_tools->sql_table_exists('phpbb_foobar2'));
+	}
+
+	public function test_schema_generator(): array
+	{
+		global $phpbb_root_path, $phpEx;
+
+		$finder_factory = new \phpbb\finder\factory(null, false, $phpbb_root_path, $phpEx);
+		$finder = $finder_factory->get();
+		$migrator_classes = $finder->core_path('phpbb/db/migration/data/')->get_classes();
+
+		$schema_generator = new \phpbb\db\migration\schema_generator(
+			$migrator_classes,
+			$this->config,
+			$this->db,
+			$this->db_tools,
+			$phpbb_root_path,
+			$phpEx,
+			'phpbb_',
+			self::get_core_tables()
+		);
+		$db_table_schema = $schema_generator->get_schema();
+
+		$this->assertNotEmpty($db_table_schema);
+
+		return $db_table_schema;
+	}
+
+    /**
+     * @depends test_schema_generator
+     */
+	public function test_table_indexes(array $db_table_schema)
+	{
+		$table_keys = [];
+		foreach ($db_table_schema as $table_name => $table_data)
+		{
+			if (isset($table_data['KEYS']))
+			{
+				foreach ($table_data['KEYS'] as $key_name => $key_data)
+				{
+					$table_keys[$table_name][] = $key_name;
+				}
+			}
+		}
+
+		$this->assertNotEmpty($table_keys);
+
+		$table_names = array_merge(array_keys($db_table_schema), ['phpbb_custom_table']);
+		$short_table_names = \phpbb\db\doctrine\table_helper::map_short_table_names($table_names, 'phpbb_');
+		$this->assertEquals('phpbb_custom_table', array_search(\phpbb\db\doctrine\table_helper::generate_shortname('custom_table'), $short_table_names));
+		$this->assertEquals($short_table_names['phpbb_custom_table'], \phpbb\db\doctrine\table_helper::generate_shortname('custom_table'));
+
+		foreach ($table_keys as $table_name => $key_names)
+		{
+			$index_prefix = $short_table_names[$table_name] . '_';
+			foreach ($key_names as $key_name)
+			{
+				$this->assertEquals(0, strpos($key_name, $index_prefix), "$key_name does not contain $index_prefix");
+			}
+		}
+	}
+
+	public function test_add_autoincrement_column()
+	{
+		$this->migrator->set_migrations(['schema_add_autoincrement']);
+
+		while (!$this->migrator->finished())
+		{
+			$this->migrator->update();
+		}
+
+		$this->assertTrue($this->db_tools->sql_table_exists('phpbb_noid'));
+		$this->assertTrue($this->db_tools->sql_column_exists('phpbb_noid', 'id'));
+
+		while ($this->migrator->migration_state('schema_add_autoincrement'))
+		{
+			$this->migrator->revert('schema_add_autoincrement');
+		}
+
+		$this->assertFalse($this->db_tools->sql_table_exists('phpbb_noid'));
 	}
 }

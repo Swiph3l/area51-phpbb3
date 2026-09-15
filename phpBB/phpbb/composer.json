@@ -4,7 +4,7 @@
 	"type": "library",
 	"keywords": ["phpbb", "forum"],
 	"homepage": "https://www.phpbb.com",
-	"license": "GPL-2.0",
+	"license": "GPL-2.0-only",
 	"authors": [
 		{
 			"name": "phpBB Limited",
@@ -15,18 +15,19 @@
 	"support": {
 		"issues": "https://tracker.phpbb.com",
 		"forum": "https://www.phpbb.com/community/",
-		"wiki": "https://wiki.phpbb.com",
-		"irc": "irc://irc.freenode.org/phpbb"
+		"docs": "https://www.phpbb.com/support/docs/",
+		"irc": "irc://irc.libera.chat/phpbb",
+		"chat": "https://www.phpbb.com/support/chat/"
 	},
 	"autoload": {
 		"classmap": [""]
 	},
 	"require": {
-		"php": ">=5.4"
+		"php": "^8.2"
 	},
 	"extra": {
 		"branch-alias": {
-			"dev-master": "3.3.x-dev"
+			"dev-master": "4.0.x-dev"
 		}
 	}
 }

@@ -11,6 +11,8 @@
 *
 */
 
+use phpbb\messenger\method\messenger_interface;
+
 /**
 * @ignore
 */
@@ -28,16 +30,21 @@ if (!defined('IN_PHPBB'))
 class ucp_profile
 {
 	var $u_action;
+	var $page_title;
+	var $tpl_name;
 
 	function main($id, $mode)
 	{
 		global $config, $db, $user, $auth, $template, $phpbb_root_path, $phpEx;
-		global $request, $phpbb_container, $phpbb_log, $phpbb_dispatcher;
+		global $request, $phpbb_container, $phpbb_log, $phpbb_dispatcher, $language;
+
+		/** @var \phpbb\controller\helper $controller_helper */
+		$controller_helper = $phpbb_container->get('controller.helper');
 
 		$user->add_lang('posting');
 
 		$submit		= $request->variable('submit', false, false, \phpbb\request\request_interface::POST);
-		$error = $data = array();
+		$error = array();
 		$s_hidden_fields = '';
 
 		switch ($mode)
@@ -143,7 +150,7 @@ class ucp_profile
 							));
 						}
 
-						if ($auth->acl_get('u_chgpasswd') && $data['new_password'] && !$passwords_manager->check($data['new_password'], $user->data['user_password']))
+						if ($auth->acl_get('u_chgpasswd') && $data['new_password'])
 						{
 							$sql_ary['user_passchg'] = time();
 
@@ -170,35 +177,29 @@ class ucp_profile
 						{
 							$message = ($config['require_activation'] == USER_ACTIVATION_SELF) ? 'ACCOUNT_EMAIL_CHANGED' : 'ACCOUNT_EMAIL_CHANGED_ADMIN';
 
-							include_once($phpbb_root_path . 'includes/functions_messenger.' . $phpEx);
-
 							$server_url = generate_board_url();
 
 							$user_actkey = gen_rand_string(mt_rand(6, 10));
 
-							$messenger = new messenger(false);
-
+							$email_method = $phpbb_container->get('messenger.method.email');
 							$template_file = ($config['require_activation'] == USER_ACTIVATION_ADMIN) ? 'user_activate_inactive' : 'user_activate';
-							$messenger->template($template_file, $user->data['user_lang']);
-
-							$messenger->to($data['email'], $data['username']);
-
-							$messenger->anti_abuse_headers($config, $user);
-
-							$messenger->assign_vars(array(
-								'USERNAME'		=> htmlspecialchars_decode($data['username'], ENT_COMPAT),
-								'U_ACTIVATE'	=> "$server_url/ucp.$phpEx?mode=activate&u={$user->data['user_id']}&k=$user_actkey")
-							);
-
-							$messenger->send(NOTIFY_EMAIL);
+							$email_method->template($template_file, $user->data['user_lang']);
+							$email_method->to($data['email'], $data['username']);
+							$email_method->anti_abuse_headers($config, $user);
+							$email_method->assign_vars([
+								'USERNAME'		=> html_entity_decode($data['username'], ENT_COMPAT),
+								'U_ACTIVATE'	=> "$server_url/ucp.$phpEx?mode=activate&u={$user->data['user_id']}&k=$user_actkey",
+							]);
+							$email_method->send();
 
 							if ($config['require_activation'] == USER_ACTIVATION_ADMIN)
 							{
 								$notifications_manager = $phpbb_container->get('notification_manager');
 								$notifications_manager->add_notifications('notification.type.admin_activate_user', array(
-									'user_id'		=> $user->data['user_id'],
-									'user_actkey'	=> $user_actkey,
-									'user_regdate'	=> time(), // Notification time
+									'user_id'					=> $user->data['user_id'],
+									'user_actkey'				=> $user_actkey,
+									'user_actkey_expiration'	=> $user::get_token_expiration(),
+									'user_regdate'				=> time(), // Notification time
 								));
 							}
 
@@ -237,8 +238,9 @@ class ucp_profile
 						// Now, we can remove the user completely (kill the session) - NOT BEFORE!!!
 						if (!empty($sql_ary['user_actkey']))
 						{
-							meta_refresh(5, append_sid($phpbb_root_path . 'index.' . $phpEx));
-							$message = $user->lang[$message] . '<br /><br />' . sprintf($user->lang['RETURN_INDEX'], '<a href="' . append_sid($phpbb_root_path . 'index.' . $phpEx) . '">', '</a>');
+							$index_route = $controller_helper->route('phpbb_index_controller');
+							meta_refresh(5, $index_route);
+							$message = $language->lang($message) . '<br /><br />' . sprintf($language->lang('RETURN_INDEX'), '<a href="' . $index_route . '">', '</a>');
 
 							// Because the user gets deactivated we log him out too, killing his session
 							$user->session_kill();
@@ -246,7 +248,7 @@ class ucp_profile
 						else
 						{
 							meta_refresh(3, $this->u_action);
-							$message = $user->lang[$message] . '<br /><br />' . sprintf($user->lang['RETURN_UCP'], '<a href="' . $this->u_action . '">', '</a>');
+							$message = $language->lang($message) . '<br /><br />' . sprintf($language->lang('RETURN_UCP'), '<a href="' . $this->u_action . '">', '</a>');
 						}
 
 						trigger_error($message);
@@ -265,7 +267,7 @@ class ucp_profile
 					'NEW_PASSWORD'		=> $data['new_password'],
 					'CUR_PASSWORD'		=> '',
 
-					'L_USERNAME_EXPLAIN'		=> $user->lang($config['allow_name_chars'] . '_EXPLAIN', $user->lang('CHARACTERS', (int) $config['min_name_chars']), $user->lang('CHARACTERS', (int) $config['max_name_chars'])),
+					'L_USERNAME_EXPLAIN'		=> $user->lang($config['allow_name_chars'] . '_EXPLAIN', $user->lang('CHARACTERS_XY', (int) $config['min_name_chars']), $user->lang('CHARACTERS_XY', (int) $config['max_name_chars'])),
 					'L_CHANGE_PASSWORD_EXPLAIN'	=> $user->lang($config['pass_complex'] . '_EXPLAIN', $user->lang('CHARACTERS', (int) $config['min_pass_chars'])),
 
 					'S_FORCE_PASSWORD'	=> ($auth->acl_get('u_chgpasswd') && $config['chg_passforce'] && $user->data['user_passchg'] < time() - ($config['chg_passforce'] * 86400)) ? true : false,
@@ -288,9 +290,7 @@ class ucp_profile
 
 				$cp_data = $cp_error = array();
 
-				$data = array(
-					'jabber'		=> $request->variable('jabber', $user->data['user_jabber'], true),
-				);
+				$data = [];
 
 				if ($config['allow_birthdays'])
 				{
@@ -322,11 +322,7 @@ class ucp_profile
 
 				if ($submit)
 				{
-					$validate_array = array(
-						'jabber'		=> array(
-							array('string', true, 5, 255),
-							array('jabber')),
-					);
+					$validate_array = [];
 
 					if ($config['allow_birthdays'])
 					{
@@ -367,19 +363,7 @@ class ucp_profile
 
 					if (!count($error))
 					{
-						$data['notify'] = $user->data['user_notify_type'];
-
-						if ($data['notify'] == NOTIFY_IM && (!$config['jab_enable'] || !$data['jabber'] || !@extension_loaded('xml')))
-						{
-							// User has not filled in a jabber address (Or one of the modules is disabled or jabber is disabled)
-							// Disable notify by Jabber now for this user.
-							$data['notify'] = NOTIFY_EMAIL;
-						}
-
-						$sql_ary = array(
-							'user_jabber'	=> $data['jabber'],
-							'user_notify_type'	=> $data['notify'],
-						);
+						$sql_ary = [];
 
 						if ($config['allow_birthdays'])
 						{
@@ -398,16 +382,20 @@ class ucp_profile
 						$vars = array('cp_data', 'data', 'sql_ary');
 						extract($phpbb_dispatcher->trigger_event('core.ucp_profile_info_modify_sql_ary', compact($vars)));
 
-						$sql = 'UPDATE ' . USERS_TABLE . '
-							SET ' . $db->sql_build_array('UPDATE', $sql_ary) . '
-							WHERE user_id = ' . $user->data['user_id'];
-						$db->sql_query($sql);
+						// Skip query if no data to update
+						if (count($sql_ary))
+						{
+							$sql = 'UPDATE ' . USERS_TABLE . '
+								SET ' . $db->sql_build_array('UPDATE', $sql_ary) . '
+								WHERE user_id = ' . $user->data['user_id'];
+							$db->sql_query($sql);
+						}
 
-						// Update Custom Fields
+						// Always update custom fields
 						$cp->update_profile_field_data($user->data['user_id'], $cp_data);
 
 						meta_refresh(3, $this->u_action);
-						$message = $user->lang['PROFILE_UPDATED'] . '<br /><br />' . sprintf($user->lang['RETURN_UCP'], '<a href="' . $this->u_action . '">', '</a>');
+						$message = $language->lang('PROFILE_UPDATED') . '<br /><br />' . sprintf($language->lang('RETURN_UCP'), '<a href="' . $this->u_action . '">', '</a>');
 						trigger_error($message);
 					}
 
@@ -450,8 +438,6 @@ class ucp_profile
 
 				$template->assign_vars(array(
 					'ERROR'				=> (count($error)) ? implode('<br />', $error) : '',
-					'S_JABBER_ENABLED'	=> $config['jab_enable'],
-					'JABBER'			=> $data['jabber'],
 				));
 
 				// Get additional profile fields and assign them to the template block var 'profile_fields'
@@ -538,7 +524,6 @@ class ucp_profile
 					$enable_urls,
 					$enable_smilies,
 					$config['allow_sig_img'],
-					$config['allow_sig_flash'],
 					true,
 					$config['allow_sig_links'],
 					'sig'
@@ -584,7 +569,7 @@ class ucp_profile
 							WHERE user_id = ' . $user->data['user_id'];
 						$db->sql_query($sql);
 
-						$message = $user->lang['PROFILE_UPDATED'] . '<br /><br />' . sprintf($user->lang['RETURN_UCP'], '<a href="' . $this->u_action . '">', '</a>');
+						$message = $language->lang('PROFILE_UPDATED') . '<br /><br />' . sprintf($language->lang('RETURN_UCP'), '<a href="' . $this->u_action . '">', '</a>');
 						trigger_error($message);
 					}
 				}
@@ -610,10 +595,9 @@ class ucp_profile
 					'S_MAGIC_URL_CHECKED' 	=> (!$enable_urls) ? ' checked="checked"' : '',
 
 					'BBCODE_STATUS'			=> $user->lang(($config['allow_sig_bbcode'] ? 'BBCODE_IS_ON' : 'BBCODE_IS_OFF'), '<a href="' . $controller_helper->route('phpbb_help_bbcode_controller') . '">', '</a>'),
-					'SMILIES_STATUS'		=> ($config['allow_sig_smilies']) ? $user->lang['SMILIES_ARE_ON'] : $user->lang['SMILIES_ARE_OFF'],
-					'IMG_STATUS'			=> ($config['allow_sig_img']) ? $user->lang['IMAGES_ARE_ON'] : $user->lang['IMAGES_ARE_OFF'],
-					'FLASH_STATUS'			=> ($config['allow_sig_flash']) ? $user->lang['FLASH_IS_ON'] : $user->lang['FLASH_IS_OFF'],
-					'URL_STATUS'			=> ($config['allow_sig_links']) ? $user->lang['URL_IS_ON'] : $user->lang['URL_IS_OFF'],
+					'SMILIES_STATUS'		=> ($config['allow_sig_smilies']) ? $language->lang('SMILIES_ARE_ON') : $language->lang('SMILIES_ARE_OFF'),
+					'IMG_STATUS'			=> ($config['allow_sig_img']) ? $language->lang('IMAGES_ARE_ON') : $language->lang('IMAGES_ARE_OFF'),
+					'URL_STATUS'			=> ($config['allow_sig_links']) ? $language->lang('URL_IS_ON') : $language->lang('URL_IS_OFF'),
 					'MAX_FONT_SIZE'			=> (int) $config['max_sig_font_size'],
 
 					'L_SIGNATURE_EXPLAIN'	=> $user->lang('SIGNATURE_EXPLAIN', (int) $config['max_sig_chars']),
@@ -621,7 +605,6 @@ class ucp_profile
 					'S_BBCODE_ALLOWED'		=> $config['allow_sig_bbcode'],
 					'S_SMILIES_ALLOWED'		=> $config['allow_sig_smilies'],
 					'S_BBCODE_IMG'			=> ($config['allow_sig_img']) ? true : false,
-					'S_BBCODE_FLASH'		=> ($config['allow_sig_flash']) ? true : false,
 					'S_LINKS_ALLOWED'		=> ($config['allow_sig_links']) ? true : false)
 				);
 
@@ -672,7 +655,7 @@ class ucp_profile
 									);
 
 									/**
-									* Trigger events on successfull avatar change
+									* Trigger events on successful avatar change
 									*
 									* @event core.ucp_profile_avatar_sql
 									* @var	array	result	Array with data to be stored in DB
@@ -686,9 +669,40 @@ class ucp_profile
 										WHERE user_id = ' . (int) $user->data['user_id'];
 									$db->sql_query($sql);
 
-									meta_refresh(3, $this->u_action);
-									$message = $user->lang['PROFILE_UPDATED'] . '<br /><br />' . sprintf($user->lang['RETURN_UCP'], '<a href="' . $this->u_action . '">', '</a>');
-									trigger_error($message);
+									if ($request->is_ajax())
+									{
+										$json_response = new \phpbb\json_response;
+										$json_response->send(array(
+											'success' => true,
+
+											'MESSAGE_TITLE'	=> $language->lang('INFORMATION'),
+											'MESSAGE_TEXT'	=> $language->lang('PROFILE_UPDATED'),
+											'REFRESH_DATA'	=> [
+												'time'	=> 3,
+												'url'		=> $this->u_action,
+												'text'		=> $language->lang('RETURN_TO_UCP'),
+											]
+										));
+									}
+									else
+									{
+										meta_refresh(3, $this->u_action);
+										$message = $language->lang('PROFILE_UPDATED') . '<br><br>' . $language->lang('RETURN_UCP', '<a href="' . $this->u_action . '">', '</a>');
+										trigger_error($message);
+									}
+								}
+								else if ($request->is_ajax())
+								{
+									$error = $phpbb_avatar_manager->localize_errors($user, $error);
+
+									$json_response = new \phpbb\json_response;
+									$json_response->send([
+										'success' => false,
+										'error' => [
+											'title'		=> $language->lang('INFORMATION'),
+											'messages'	=> $error,
+										],
+									]);
 								}
 							}
 						}
@@ -714,7 +728,7 @@ class ucp_profile
 							$phpbb_avatar_manager->handle_avatar_delete($db, $user, $avatar_data, USERS_TABLE, 'user_');
 
 							meta_refresh(3, $this->u_action);
-							$message = $user->lang['PROFILE_UPDATED'] . '<br /><br />' . sprintf($user->lang['RETURN_UCP'], '<a href="' . $this->u_action . '">', '</a>');
+							$message = $language->lang('PROFILE_UPDATED') . '<br /><br />' . sprintf($language->lang('RETURN_UCP'), '<a href="' . $this->u_action . '">', '</a>');
 							trigger_error($message);
 						}
 					}
@@ -804,7 +818,7 @@ class ucp_profile
 							$db->sql_query($sql);
 
 							meta_refresh(3, $this->u_action);
-							$message = $user->lang['AUTOLOGIN_SESSION_KEYS_DELETED'] . '<br /><br />' . sprintf($user->lang['RETURN_UCP'], '<a href="' . $this->u_action . '">', '</a>');
+							$message = $language->lang('AUTOLOGIN_SESSION_KEYS_DELETED') . '<br /><br />' . sprintf($language->lang('RETURN_UCP'), '<a href="' . $this->u_action . '">', '</a>');
 							trigger_error($message);
 						}
 					}
@@ -864,7 +878,7 @@ class ucp_profile
 		$template->assign_vars(array(
 			'ERROR'		=> (count($error)) ? implode('<br />', $error) : '',
 
-			'L_TITLE'	=> $user->lang['UCP_PROFILE_' . strtoupper($mode)],
+			'L_TITLE'	=> $language->lang('UCP_PROFILE_' . strtoupper($mode)),
 
 			'S_HIDDEN_FIELDS'	=> $s_hidden_fields,
 			'S_UCP_ACTION'		=> $this->u_action)

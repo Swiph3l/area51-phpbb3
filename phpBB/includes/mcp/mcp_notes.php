@@ -27,6 +27,8 @@ class mcp_notes
 {
 	var $p_master;
 	var $u_action;
+	var $page_title;
+	var $tpl_name;
 
 	function __construct($p_master)
 	{
@@ -98,7 +100,7 @@ class mcp_notes
 		$userrow = $db->sql_fetchrow($result);
 		$db->sql_freeresult($result);
 
-		if (!$userrow)
+		if (!$userrow || (int) $userrow['user_id'] === ANONYMOUS)
 		{
 			trigger_error('NO_USER');
 		}
@@ -162,16 +164,16 @@ class mcp_notes
 		{
 			if (check_form_key('mcp_notes'))
 			{
-				$phpbb_log->add('admin', $user->data['user_id'], $user->ip, 'LOG_USER_FEEDBACK', false, array($userrow['username']));
-				$phpbb_log->add('mod', $user->data['user_id'], $user->ip, 'LOG_USER_FEEDBACK', false, array(
+				$phpbb_log->add('admin', $user->data['user_id'], $user->ip, 'LOG_USER_FEEDBACK', false, [$userrow['username']]);
+				$phpbb_log->add('mod', $user->data['user_id'], $user->ip, 'LOG_USER_FEEDBACK', false, [
 					'forum_id' => 0,
 					'topic_id' => 0,
 					$userrow['username']
-				));
-				$phpbb_log->add('user', $user->data['user_id'], $user->ip, 'LOG_USER_GENERAL', false, array(
+				]);
+				$phpbb_log->add('user', $user->data['user_id'], $user->ip, 'LOG_USER_GENERAL', false, [
 					'reportee_id' => $user_id,
-					$usernote
-				));
+					utf8_encode_ucr($usernote)
+				]);
 
 				$msg = $user->lang['USER_FEEDBACK_ADDED'];
 			}
@@ -197,7 +199,7 @@ class mcp_notes
 		$sql_sort = $sort_by_sql[$sk] . ' ' . (($sd == 'd') ? 'DESC' : 'ASC');
 
 		$keywords = $request->variable('keywords', '', true);
-		$keywords_param = !empty($keywords) ? '&amp;keywords=' . urlencode(htmlspecialchars_decode($keywords, ENT_COMPAT)) : '';
+		$keywords_param = !empty($keywords) ? '&amp;keywords=' . urlencode(html_entity_decode($keywords, ENT_COMPAT)) : '';
 
 		$log_data = array();
 		$log_count = 0;
@@ -234,7 +236,7 @@ class mcp_notes
 		$avatar_helper = $phpbb_container->get('avatar.helper');
 
 		$avatar = $avatar_helper->get_user_avatar($userrow);
-		$template->assign_vars($avatar_helper->get_template_vars($avatar));
+		$template->assign_vars($avatar_helper->get_template_vars($avatar, 'USER_'));
 
 		$template->assign_vars(array(
 			'U_POST_ACTION'			=> $this->u_action,
@@ -255,6 +257,7 @@ class mcp_notes
 			'USERNAME_FULL'		=> get_username_string('full', $userrow['user_id'], $userrow['username'], $userrow['user_colour']),
 			'USERNAME_COLOUR'	=> get_username_string('colour', $userrow['user_id'], $userrow['username'], $userrow['user_colour']),
 			'USERNAME'			=> get_username_string('username', $userrow['user_id'], $userrow['username'], $userrow['user_colour']),
+			'USER_ID'			=> $userrow['user_id'],
 			'U_PROFILE'			=> get_username_string('profile', $userrow['user_id'], $userrow['username'], $userrow['user_colour']),
 
 			'RANK_IMG'			=> $rank_data['img'],

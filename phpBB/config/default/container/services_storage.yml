@@ -4,33 +4,27 @@ services:
     storage.attachment:
         class: phpbb\storage\storage
         arguments:
-            - '@dbal.conn'
-            - '@cache.driver'
             - '@storage.adapter.factory'
+            - '@storage.file_tracker'
             - 'attachment'
-            - '%tables.storage%'
         tags:
             - { name: storage }
 
     storage.avatar:
         class: phpbb\storage\storage
         arguments:
-            - '@dbal.conn'
-            - '@cache.driver'
             - '@storage.adapter.factory'
+            - '@storage.file_tracker'
             - 'avatar'
-            - '%tables.storage%'
         tags:
             - { name: storage }
 
     storage.backup:
         class: phpbb\storage\storage
         arguments:
-            - '@dbal.conn'
-            - '@cache.driver'
             - '@storage.adapter.factory'
+            - '@storage.file_tracker'
             - 'backup'
-            - '%tables.storage%'
         tags:
             - { name: storage }
 
@@ -70,8 +64,6 @@ services:
         shared: false
         arguments:
             - '@filesystem'
-            - '@upload_imagesize'
-            - '@mimetype.guesser'
             - '%core.root_path%'
         tags:
             - { name: storage.adapter }
@@ -80,5 +72,58 @@ services:
     storage.provider.local:
         class: phpbb\storage\provider\local
         arguments:
+            - '@language'
         tags:
             - { name: storage.provider }
+
+# Controllers
+    storage.controller.avatar:
+        class: phpbb\storage\controller\avatar
+        arguments:
+            - '@cache'
+            - '@config'
+            - '@dbal.conn'
+            - '@mimetype.extension_guesser'
+            - '@storage.avatar'
+            - '@symfony_request'
+
+    storage.controller.attachment:
+        class: phpbb\storage\controller\attachment
+        arguments:
+            - '@auth'
+            - '@cache'
+            - '@config'
+            - '@content.visibility'
+            - '@dbal.conn'
+            - '@event_dispatcher'
+            - '@mimetype.extension_guesser'
+            - '@language'
+            - '@request'
+            - '@storage.attachment'
+            - '@symfony_request'
+            - '@user'
+
+# Helpers
+    storage.state_helper:
+        class: phpbb\storage\state_helper
+        arguments:
+            - '@config'
+            - '@config_text'
+            - '@storage.provider_collection'
+
+    storage.helper:
+        class: phpbb\storage\helper
+        arguments:
+            - '@config'
+            - '@storage.adapter.factory'
+            - '@storage.state_helper'
+            - '@storage.provider_collection'
+            - '@storage.adapter_collection'
+
+    storage.file_tracker:
+        class: phpbb\storage\file_tracker
+        arguments:
+            - '@cache.driver'
+            - '@dbal.conn'
+            - '%tables.storage%'
+

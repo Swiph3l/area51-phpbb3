@@ -34,11 +34,8 @@ class lexer extends \Twig\Lexer
 			'UNDEFINE',*/
 			'ENDDEFINE',
 			'INCLUDE',
-			'INCLUDEPHP',
 			'INCLUDEJS',
 			'INCLUDECSS',
-			'PHP',
-			'ENDPHP',
 			'EVENT',
 		);
 
@@ -79,20 +76,17 @@ class lexer extends \Twig\Lexer
 		// Fix tokens that may have inline variables (e.g. <!-- DEFINE $TEST = '{FOO}')
 		$code = $this->strip_surrounding_quotes(array(
 			'INCLUDE',
-			'INCLUDEPHP',
 			'INCLUDEJS',
 			'INCLUDECSS',
 		), $code);
 		$code = $this->fix_inline_variable_tokens(array(
 			'DEFINE \$[a-zA-Z0-9_]+ =',
 			'INCLUDE',
-			'INCLUDEPHP',
 			'INCLUDEJS',
 			'INCLUDECSS',
 		), $code);
 		$code = $this->add_surrounding_quotes(array(
 			'INCLUDE',
-			'INCLUDEPHP',
 			'INCLUDEJS',
 			'INCLUDECSS',
 		), $code);
@@ -145,7 +139,7 @@ class lexer extends \Twig\Lexer
 		// E.g. 'asdf'"' -> asdf'"
 		// E.g. "asdf'"" -> asdf'"
 		// E.g. 'asdf'" -> 'asdf'"
-		return preg_replace('#<!-- (' . implode('|', $tokens) . ') (([\'"])?(.*?)\1) -->#', '<!-- $1 $2 -->', $code);
+		return preg_replace('#<!-- (' . implode('|', $tokens) . ') (([\'"])?(.*?)\1) -->#', '<!-- $1 $2 -->', $code) ?: '';
 	}
 
 	/**
@@ -168,7 +162,7 @@ class lexer extends \Twig\Lexer
 			return "<!-- {$matches[1]} {$matches[2]} -->";
 		};
 
-		return preg_replace_callback('#<!-- (' . implode('|', $tokens) . ') (.+?) -->#', $callback, $code);
+		return preg_replace_callback('#<!-- (' . implode('|', $tokens) . ') (.+?) -->#', $callback, $code) ?: '';
 	}
 
 	/**
@@ -183,7 +177,7 @@ class lexer extends \Twig\Lexer
 	*/
 	protected function add_surrounding_quotes($tokens, $code)
 	{
-		return preg_replace('#<!-- (' . implode('|', $tokens) . ') (.+?) -->#', '<!-- $1 \'$2\' -->', $code);
+		return preg_replace('#<!-- (' . implode('|', $tokens) . ') (.+?) -->#', '<!-- $1 \'$2\' -->', $code) ?: '';
 	}
 
 	/**
@@ -259,7 +253,7 @@ class lexer extends \Twig\Lexer
 			return "{% for {$name} in {$parent}{$name}{$subset} %}{$body}{% endfor %}";
 		};
 
-		return preg_replace_callback('#<!-- BEGIN ((?:[a-zA-Z0-9_]+\.)*)([!a-zA-Z0-9_]+)(\([0-9,\-]+\))? -->(.+?)<!-- END \1\2 -->#s', $callback, $code);
+		return preg_replace_callback('#<!-- BEGIN ((?:[a-zA-Z0-9_]+\.)*)([!a-zA-Z0-9_]+)(\([0-9,\-]+\))? -->(.+?)<!-- END \1\2 -->#s', $callback, $code) ?: '';
 	}
 
 	/**
@@ -291,7 +285,7 @@ class lexer extends \Twig\Lexer
 			return "<!-- {$matches[1]}IF{$inner}-->";
 		};
 
-		return preg_replace_callback('#<!-- (ELSE)?IF((.*?) (?:\(*!?[\$|\.]([^\s]+)(.*?))?)-->#', $callback, $code);
+		return preg_replace_callback('#<!-- (ELSE)?IF((.*?) (?:\(*!?[\$|\.]([^\s]+)(.*?))?)-->#', $callback, $code) ?: '';
 	}
 
 	/**
@@ -326,7 +320,7 @@ class lexer extends \Twig\Lexer
 		// Replace all of our variables, ~ $VARNAME ~, with Twig style, ~ definition.VARNAME ~
 		$code = preg_replace('#~ \$([a-zA-Z0-9_\.]+) ~#', '~ definition.$1 ~', $code);
 
-		return $code;
+		return $code ?: '';
 	}
 
 	/**
@@ -336,7 +330,7 @@ class lexer extends \Twig\Lexer
 	*
 	* @param string $code
 	* @param array $twig_tags All tags we want to create a mask for
-	* @return string
+	* @return null|string
 	*/
 	protected function replace_twig_tag_masks($code, $twig_tags)
 	{

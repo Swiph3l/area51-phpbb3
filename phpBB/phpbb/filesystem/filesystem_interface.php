@@ -190,7 +190,7 @@ interface filesystem_interface
 	 * 															The filename which triggered the error can be
 	 * 															retrieved by filesystem_exception::get_filename()
 	 */
-	public function mirror($origin_dir, $target_dir, \Traversable $iterator = null, $options = array());
+	public function mirror($origin_dir, $target_dir, \Traversable|null $iterator = null, $options = array());
 
 	/**
 	 * Creates a directory recursively.
@@ -241,7 +241,7 @@ interface filesystem_interface
 	 *
 	 * @param ?string	$path	Path to resolve
 	 *
-	 * @return string	Resolved path
+	 * @return string|false	Resolved path or false if path could not be resolved
 	 */
 	public function realpath($path);
 

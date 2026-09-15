@@ -13,14 +13,36 @@
 
 namespace phpbb\storage\provider;
 
+use phpbb\language\language;
+
 class local implements provider_interface
 {
 	/**
+	 * @var language
+	 */
+	protected $language;
+
+	/**
+	 * Constructor
+	 *
+	 * @param language $language
+	 */
+	public function __construct(language $language)
+	{
+		$this->language = $language;
+	}
+
+	/**
 	 * {@inheritdoc}
 	 */
-	public function get_name()
+	public function get_name(): string
 	{
 		return 'local';
+	}
+
+	public function get_title(): string
+	{
+		return $this->language->lang('STORAGE_ADAPTER_LOCAL_NAME');
 	}
 
 	/**
@@ -34,15 +56,15 @@ class local implements provider_interface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function get_options()
+	public function get_options(): array
 	{
 		return [
-			'path' => ['type' => 'text'],
-			'subfolders' => [
-				'type' => 'radio',
-				'options' => [
-					'ENABLE' => '1',
-					'DISABLE' => '0',
+			'path' => [
+				'title' => $this->language->lang('STORAGE_ADAPTER_LOCAL_OPTION_PATH'),
+				'description' => $this->language->lang('STORAGE_ADAPTER_LOCAL_OPTION_PATH_EXPLAIN'),
+				'form_macro' => [
+					'tag' => 'input',
+					'type' => 'text',
 				],
 			],
 		];
@@ -51,7 +73,7 @@ class local implements provider_interface
 	/**
 	 * {@inheritdoc}
 	 */
-	public function is_available()
+	public function is_available(): bool
 	{
 		return true;
 	}

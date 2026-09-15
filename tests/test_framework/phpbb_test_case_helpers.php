@@ -37,8 +37,19 @@ class phpbb_test_case_helpers
 			// First, move any extensions setup on the board to a temp directory
 			$this->copy_dir($phpbb_root_path . 'ext/', $phpbb_root_path . 'store/temp_ext/');
 
+			// Back up vendor-ext directory
+			$this->copy_dir($phpbb_root_path . 'vendor-ext/', $phpbb_root_path . 'store/temp_vendor-ext/');
+
+			// Back up composer-ext.* files
+			copy($phpbb_root_path . 'composer-ext.json', $phpbb_root_path . 'store/temp_composer-ext.json');
+			copy($phpbb_root_path . 'composer-ext.lock', $phpbb_root_path . 'store/temp_composer-ext.lock');
+
 			// Then empty the ext/ directory on the board (for accurate test cases)
 			$this->empty_dir($phpbb_root_path . 'ext/');
+
+			// Then empty the vendor-ext/ directory and add back .git-keep
+			$this->empty_dir($phpbb_root_path . 'vendor-ext/');
+			file_put_contents($phpbb_root_path . 'vendor-ext/.git-keep', '');
 		}
 
 		// Copy our ext/ files from the test case to the board
@@ -68,42 +79,44 @@ class phpbb_test_case_helpers
 			$this->empty_dir($phpbb_root_path . 'store/temp_ext/');
 		}
 
+		if (file_exists($phpbb_root_path . 'store/temp_vendor-ext/'))
+		{
+			$this->empty_dir($phpbb_root_path . 'vendor-ext/');
+
+			$this->copy_dir($phpbb_root_path . 'store/temp_vendor-ext/', $phpbb_root_path . 'vendor-ext/');
+
+			$this->empty_dir($phpbb_root_path . 'store/temp_vendor-ext/');
+		}
+
+		if (file_exists($phpbb_root_path . 'store/temp_composer-ext.json'))
+		{
+			copy($phpbb_root_path . 'store/temp_composer-ext.json', $phpbb_root_path . 'composer-ext.json');
+		}
+
+		if (file_exists($phpbb_root_path . 'store/temp_composer-ext.lock'))
+		{
+			copy($phpbb_root_path . 'store/temp_composer-ext.lock', $phpbb_root_path . 'composer-ext.lock');
+		}
+
 		if (file_exists($phpbb_root_path . 'store/temp_ext/'))
 		{
 			$this->empty_dir($phpbb_root_path . 'store/temp_ext/');
 		}
 	}
 
-	public function setExpectedTriggerError($errno, $message = '')
+	public function setExpectedTriggerError($errno, $message = ''): void
 	{
-		$exceptionName = '';
-		switch ($errno)
-		{
-			case E_NOTICE:
-			case E_STRICT:
-				// The static property was removed from PHPUnit since v.8.3.0
-				if (isset(PHPUnit\Framework\Error\Notice::$enabled))
-				{
-					PHPUnit\Framework\Error\Notice::$enabled = true;
-				}
-				$exceptionName = 'PHPUnit\Framework\Error\Notice';
-			break;
+		set_error_handler(
+			static function ($errno, $errstr)
+			{
+				restore_error_handler();
+				throw new Exception($errstr, $errno);
+			},
+			E_ALL ^ E_DEPRECATED
+		);
 
-			case E_WARNING:
-				// The static property was removed from PHPUnit since v.8.3.0
-				if (isset(PHPUnit\Framework\Error\Warning::$enabled))
-				{
-					PHPUnit\Framework\Error\Warning::$enabled = true;
-				}
-				$exceptionName = 'PHPUnit\Framework\Error\Warning';
-			break;
-
-			default:
-				$exceptionName = 'PHPUnit\Framework\Error\Error';
-			break;
-		}
 		$this->expectedTriggerError = true;
-		$this->test_case->expectException($exceptionName);
+		$this->test_case->expectException(Exception::class);
 		$this->test_case->expectExceptionCode($errno);
 		if ($message)
 		{
@@ -122,7 +135,6 @@ class phpbb_test_case_helpers
 	static public function get_test_config()
 	{
 		$config = array();
-
 
 		if (extension_loaded('sqlite3'))
 		{
@@ -166,6 +178,11 @@ class phpbb_test_case_helpers
 			if (isset($phpbb_functional_url))
 			{
 				$config['phpbb_functional_url'] = $phpbb_functional_url;
+			}
+
+			if (isset($path_to_ssl_cert))
+			{
+				$config['path_to_ssl_cert'] = $path_to_ssl_cert;
 			}
 
 			if (isset($phpbb_redis_host))
@@ -231,6 +248,11 @@ class phpbb_test_case_helpers
 		if (isset($_SERVER['PHPBB_TEST_MEMCACHED_PORT']))
 		{
 			$config['memcached_port'] = $_SERVER['PHPBB_TEST_MEMCACHED_PORT'];
+		}
+
+		if (isset($_SERVER['PHPBB_TEST_SSL_CERT_PATH']))
+		{
+			$config['path_to_ssl_cert'] = $_SERVER['PHPBB_TEST_SSL_CERT_PATH'];
 		}
 
 		return $config;
@@ -334,7 +356,7 @@ class phpbb_test_case_helpers
 	* @param  string             $styles_path Path to the styles dir
 	* @return ContainerInterface
 	*/
-	public function set_s9e_services(ContainerInterface $container = null, $fixture = null, $styles_path = null)
+	public function set_s9e_services(ContainerInterface|null $container = null, $fixture = null, $styles_path = null)
 	{
 		static $first_run;
 		global $config, $phpbb_container, $phpbb_dispatcher, $phpbb_root_path, $phpEx, $request, $user;
@@ -422,7 +444,7 @@ class phpbb_test_case_helpers
 			->disallowMockingUnknownTypes()
 			->getMock();
 		$mb = $this->test_case->getMockBuilder('phpbb\\textformatter\\data_access');
-		$mb->setMethods(array('get_bbcodes', 'get_censored_words', 'get_smilies', 'get_styles'));
+		$mb->onlyMethods(array('get_bbcodes', 'get_censored_words', 'get_smilies', 'get_styles'));
 		$mb->setConstructorArgs(array(
 			$db_driver,
 			'phpbb_bbcodes',
@@ -450,7 +472,18 @@ class phpbb_test_case_helpers
 
 		// Cache the parser and renderer with a key based on this method's arguments
 		$cache = new \phpbb\cache\driver\file($cache_dir);
-		$prefix = '_s9e_' . md5(serialize(func_get_args()));
+
+		// Don't serialize unserializable resource/object arguments
+		// See https://www.php.net/manual/en/function.serialize.php#refsect1-function.serialize-notes
+		$args = func_get_args();
+		foreach ($args as $key => $arg)
+		{
+			if (is_resource($arg) || (is_object($arg) && (!is_a($arg, 'Serializable') && !method_exists($arg, '__serialize'))))
+			{
+				unset($args[$key]);
+			}
+		}
+		$prefix = '_s9e_' . md5(serialize($args));
 		$cache_key_parser = $prefix . '_parser';
 		$cache_key_renderer = $prefix . '_renderer';
 		$container->set('cache.driver', $cache);
@@ -465,7 +498,7 @@ class phpbb_test_case_helpers
 		{
 			$path_helper = $this->test_case->getMockBuilder('phpbb\\path_helper')
 				->disableOriginalConstructor()
-				->setMethods(array('get_web_root_path'))
+				->onlyMethods(array('get_web_root_path'))
 				->getMock();
 			$path_helper->expects($this->test_case->any())
 				->method('get_web_root_path')
@@ -479,9 +512,9 @@ class phpbb_test_case_helpers
 		}
 
 		// Create an event dispatcher
-		if ($container->has('dispatcher'))
+		if ($container->has('event_dispatcher'))
 		{
-			$dispatcher = $container->get('dispatcher');
+			$dispatcher = $container->get('event_dispatcher');
 		}
 		else if (isset($phpbb_dispatcher))
 		{
@@ -555,7 +588,7 @@ class phpbb_test_case_helpers
 
 			$user = $this->test_case->getMockBuilder('\phpbb\user')
 					->setConstructorArgs(array($lang, '\phpbb\datetime'))
-					->setMethods(array('format_date'))
+					->onlyMethods(array('format_date'))
 					->getMock();
 			$user->expects($this->test_case->any())
 			     ->method('format_date')
@@ -571,13 +604,15 @@ class phpbb_test_case_helpers
 
 			$user->date_format = 'Y-m-d H:i:s';
 			$user->optionset('viewcensors', true);
-			$user->optionset('viewflash', true);
 			$user->optionset('viewimg', true);
 			$user->optionset('viewsmilies', true);
 			$user->timezone = new \DateTimeZone('UTC');
 			$container->set('user', $user);
 		}
 		$user->add_lang('common');
+
+		// Get an auth interface
+		$auth = ($container->has('auth')) ? $container->get('auth') : new \phpbb\auth\auth;
 
 		// Create and register a quote_helper
 		$quote_helper = new \phpbb\textformatter\s9e\quote_helper(
@@ -586,6 +621,16 @@ class phpbb_test_case_helpers
 			$phpEx
 		);
 		$container->set('text_formatter.s9e.quote_helper', $quote_helper);
+
+		// Create and register a mention_helper
+		$mention_helper = new \phpbb\textformatter\s9e\mention_helper(
+			($container->has('dbal.conn')) ? $container->get('dbal.conn') : $db_driver,
+			$auth,
+			$container->get('user'),
+			$phpbb_root_path,
+			$phpEx
+		);
+		$container->set('text_formatter.s9e.mention_helper', $mention_helper);
 
 		// Create and register the text_formatter.s9e.parser service and its alias
 		$parser = new \phpbb\textformatter\s9e\parser(
@@ -607,10 +652,10 @@ class phpbb_test_case_helpers
 		);
 
 		// Calls configured in services.yml
-		$auth = ($container->has('auth')) ? $container->get('auth') : new \phpbb\auth\auth;
 		$renderer->configure_quote_helper($quote_helper);
+		$renderer->configure_mention_helper($mention_helper);
 		$renderer->configure_smilies_path($config, $path_helper);
-		$renderer->configure_user($user, $config, $auth);
+		$renderer->configure_user($auth, $config, $user, 0);
 
 		$container->set('text_formatter.renderer', $renderer);
 		$container->set('text_formatter.s9e.renderer', $renderer);

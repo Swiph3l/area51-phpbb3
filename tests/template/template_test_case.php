@@ -1,4 +1,7 @@
 <?php
+
+use phpbb\template\twig\twig;
+
 /**
 *
 * This file is part of the phpBB Forum Software package.
@@ -14,6 +17,7 @@
 class phpbb_template_template_test_case extends phpbb_test_case
 {
 	protected $lang;
+	/** @var twig */
 	protected $template;
 	protected $template_path;
 	protected $user;
@@ -31,7 +35,6 @@ class phpbb_template_template_test_case extends phpbb_test_case
 
 		$reflection = new ReflectionClass('\phpbb\language\language');
 		self::$language_reflection_lang = $reflection->getProperty('lang');
-		self::$language_reflection_lang->setAccessible(true);
 	}
 
 	protected function display($handle)
@@ -64,12 +67,11 @@ class phpbb_template_template_test_case extends phpbb_test_case
 	{
 		$defaults = array(
 			'load_tplcompile'	=> true,
-			'tpl_allow_php'		=> false,
 		);
 		return $defaults;
 	}
 
-	protected function setup_engine(array $new_config = array())
+	protected function setup_engine(array $new_config = array(), string $template_path = '')
 	{
 		global $phpbb_root_path, $phpEx;
 
@@ -91,12 +93,15 @@ class phpbb_template_template_test_case extends phpbb_test_case
 			$phpEx
 		);
 
-		$this->template_path = $this->test_path . '/templates';
+		$this->template_path = $template_path ?: $this->test_path . '/templates';
 
 		$cache_path = $phpbb_root_path . 'cache/twig';
 		$context = new \phpbb\template\context();
 		$loader = new \phpbb\template\twig\loader('');
+		$log = new \phpbb\log\dummy();
+		$assets_bag = new \phpbb\template\assets_bag();
 		$twig = new \phpbb\template\twig\environment(
+			$assets_bag,
 			$config,
 			$filesystem,
 			$path_helper,
@@ -111,7 +116,7 @@ class phpbb_template_template_test_case extends phpbb_test_case
 				'autoescape'	=> false,
 			)
 		);
-		$this->template = new phpbb\template\twig\twig($path_helper, $config, $context, $twig, $cache_path, $this->user, array(new \phpbb\template\twig\extension($context, $twig, $this->user)));
+		$this->template = new phpbb\template\twig\twig($path_helper, $config, $context, $twig, $cache_path, $this->user, array(new \phpbb\template\twig\extension($context, $twig, $lang)));
 		$twig->setLexer(new \phpbb\template\twig\lexer($twig));
 		$this->template->set_custom_style('tests', $this->template_path);
 	}
@@ -121,19 +126,9 @@ class phpbb_template_template_test_case extends phpbb_test_case
 		// Test the engine can be used
 		$this->setup_engine();
 
-		$this->template->clear_cache();
-
 		global $phpbb_filesystem;
 
 		$phpbb_filesystem = new \phpbb\filesystem\filesystem();
-	}
-
-	protected function tearDown(): void
-	{
-		if ($this->template)
-		{
-			$this->template->clear_cache();
-		}
 	}
 
 	protected function run_template($file, array $vars, array $block_vars, array $destroy, $expected, $lang_vars = array())
